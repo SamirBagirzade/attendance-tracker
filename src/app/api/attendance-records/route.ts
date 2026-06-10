@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
-import { endOfDay, startOfDay } from "date-fns";
 import { normalizeAttendanceInput } from "@/lib/attendance";
+import { dateRangeWhere, toApiDateKey } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
@@ -23,26 +23,14 @@ export async function GET(request: NextRequest) {
   }
 
   if (from || to) {
-    where.date = {};
-
-    if (from) {
-      const fromDate = new Date(from);
-
-      if (Number.isNaN(fromDate.getTime())) {
-        return NextResponse.json({ error: "from must be a valid date." }, { status: 400 });
+    try {
+      where.date = dateRangeWhere(from, to);
+    } catch (error) {
+      if (error instanceof Error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
       }
 
-      where.date.gte = startOfDay(fromDate);
-    }
-
-    if (to) {
-      const toDate = new Date(to);
-
-      if (Number.isNaN(toDate.getTime())) {
-        return NextResponse.json({ error: "to must be a valid date." }, { status: 400 });
-      }
-
-      where.date.lte = endOfDay(toDate);
+      return NextResponse.json({ error: "Invalid date range." }, { status: 400 });
     }
   }
 
@@ -54,7 +42,7 @@ export async function GET(request: NextRequest) {
     orderBy: [{ date: "asc" }, { employee: { name: "asc" } }],
   });
 
-  return NextResponse.json(records);
+  return NextResponse.json(records.map(serializeAttendanceRecord));
 }
 
 export async function POST(request: NextRequest) {
@@ -68,7 +56,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(record, { status: 201 });
+    return NextResponse.json(serializeAttendanceRecord(record), { status: 201 });
   } catch (error) {
     return handleAttendanceError(error);
   }
@@ -96,10 +84,32 @@ export async function PUT(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(record);
+    return NextResponse.json(serializeAttendanceRecord(record));
   } catch (error) {
     return handleAttendanceError(error);
   }
+}
+
+function serializeAttendanceRecord<
+  T extends {
+    date: Date;
+    employee?: {
+      createdAt: Date;
+      updatedAt: Date;
+    } | null;
+  },
+>(record: T) {
+  return {
+    ...record,
+    date: toApiDateKey(record.date),
+    employee: record.employee
+      ? {
+          ...record.employee,
+          createdAt: record.employee.createdAt.toISOString(),
+          updatedAt: record.employee.updatedAt.toISOString(),
+        }
+      : record.employee,
+  };
 }
 
 function handleAttendanceError(error: unknown) {

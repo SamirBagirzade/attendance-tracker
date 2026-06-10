@@ -1,5 +1,5 @@
 import { AttendanceStatus } from "@prisma/client";
-import { startOfDay } from "date-fns";
+import { parseCalendarDate } from "@/lib/dates";
 
 export type AttendanceRecordInput = {
   employeeId: number;
@@ -10,7 +10,7 @@ export type AttendanceRecordInput = {
 };
 
 export function normalizeAttendanceInput(input: AttendanceRecordInput) {
-  const date = startOfDay(new Date(input.date));
+  const date = parseCalendarDate(input.date);
   const location = input.status === "EZAMIYYET" ? input.location?.trim() : null;
   const cookedHeadcount =
     input.status === "EZAMIYYET" && input.cookedHeadcount != null
@@ -19,10 +19,6 @@ export function normalizeAttendanceInput(input: AttendanceRecordInput) {
 
   if (!Number.isInteger(input.employeeId) || input.employeeId <= 0) {
     throw new Error("employeeId must be a positive integer.");
-  }
-
-  if (Number.isNaN(date.getTime())) {
-    throw new Error("date must be a valid date.");
   }
 
   if (!Object.values(AttendanceStatus).includes(input.status)) {

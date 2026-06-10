@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { normalizeAttendanceInput } from "@/lib/attendance";
+import { toApiDateKey } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = {
@@ -27,7 +28,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Attendance record not found." }, { status: 404 });
   }
 
-  return NextResponse.json(record);
+  return NextResponse.json(serializeAttendanceRecord(record));
 }
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
@@ -61,10 +62,32 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       },
     });
 
-    return NextResponse.json(record);
+    return NextResponse.json(serializeAttendanceRecord(record));
   } catch (error) {
     return handleAttendanceError(error);
   }
+}
+
+function serializeAttendanceRecord<
+  T extends {
+    date: Date;
+    employee?: {
+      createdAt: Date;
+      updatedAt: Date;
+    } | null;
+  },
+>(record: T) {
+  return {
+    ...record,
+    date: toApiDateKey(record.date),
+    employee: record.employee
+      ? {
+          ...record.employee,
+          createdAt: record.employee.createdAt.toISOString(),
+          updatedAt: record.employee.updatedAt.toISOString(),
+        }
+      : record.employee,
+  };
 }
 
 export async function DELETE(_request: NextRequest, context: RouteContext) {
