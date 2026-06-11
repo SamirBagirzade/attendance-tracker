@@ -10,7 +10,15 @@ export type Holiday = {
   description: string;
 };
 
-export type AttendanceStatus = "ISDE" | "EZAMIYYET" | "MEZUNIYYET" | "XESTE";
+export type AttendanceStatus =
+  | "ISDE"
+  | "EZAMIYYET"
+  | "MEZUNIYYET"
+  | "XESTE"
+  | "BAYRAM"
+  | "ICAZELI"
+  | "ISTIRAHET"
+  | "ISDE_DEYIL";
 
 export type AttendanceRecord = {
   id: number;
@@ -18,6 +26,7 @@ export type AttendanceRecord = {
   date: string;
   status: AttendanceStatus;
   location: string | null;
+  workLocations: Location[];
   cookedHeadcount: number | null;
 };
 
@@ -80,4 +89,33 @@ export type LocationReport = {
   cookedHeadcountTotal: number;
   daysByEmployee: Record<string, number>;
   records: LocationReportDetailRow[];
+};
+
+export type FilteredReportRow = {
+  id: number;
+  date: string;
+  employeeId: number;
+  employeeName: string;
+  department: string;
+  status: AttendanceStatus;
+  location: string | null;
+  workLocations: string[];
+  cookedHeadcount: number | null;
+  isWeekend: boolean;
+  isHoliday: boolean;
+  holidayDescription: string | null;
+};
+
+export type FilteredReport = {
+  summary: {
+    totalRecords: number;
+    uniqueEmployees: number;
+    isdeDays: number;
+    ezamiyyetDays: number;
+    weekendWorkedDays: number;
+    holidayWorkedDays: number;
+    cookedHeadcountTotal: number;
+    uniqueLocations: number;
+  };
+  records: FilteredReportRow[];
 };

@@ -5,13 +5,21 @@ export const defaultStatusColors: Record<AttendanceStatus, string> = {
   EZAMIYYET: "#dbeafe",
   MEZUNIYYET: "#fef3c7",
   XESTE: "#fee2e2",
+  BAYRAM: "#fed7aa",
+  ICAZELI: "#e9d5ff",
+  ISTIRAHET: "#cffafe",
+  ISDE_DEYIL: "#e5e7eb",
 };
 
 export const defaultStatusDisplayText: Record<AttendanceStatus, string> = {
-  ISDE: "I",
+  ISDE: "İ",
   EZAMIYYET: "E",
   MEZUNIYYET: "M",
   XESTE: "X",
+  BAYRAM: "B",
+  ICAZELI: "İc",
+  ISTIRAHET: "İs",
+  ISDE_DEYIL: "D",
 };
 
 export function normalizeStatusColorInput(input: {

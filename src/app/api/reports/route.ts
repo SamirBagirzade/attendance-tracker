@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { AttendanceStatus, Prisma } from "@prisma/client";
 import { isWeekend } from "date-fns";
 import { dateRangeWhere, toApiDateKey } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
+
+const workedStatuses = new Set<AttendanceStatus>(["ISDE", "EZAMIYYET"]);
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,17 +12,22 @@ export async function GET(request: NextRequest) {
     const from = searchParams.get("from");
     const to = searchParams.get("to");
     const employeeId = searchParams.get("employeeId");
-    const mode = searchParams.get("mode") ?? "employee";
+    const department = searchParams.get("department");
+    const status = searchParams.get("status");
     const location = searchParams.get("location");
+    const weekend = searchParams.get("weekend") ?? "all";
+    const holiday = searchParams.get("holiday") ?? "all";
 
     if (!from || !to) {
       return NextResponse.json({ error: "from and to are required." }, { status: 400 });
     }
 
-    let parsedEmployeeId: number | undefined;
+    const where: Prisma.AttendanceRecordWhereInput = {
+      date: dateRangeWhere(from, to),
+    };
 
     if (employeeId) {
-      parsedEmployeeId = Number(employeeId);
+      const parsedEmployeeId = Number(employeeId);
 
       if (!Number.isInteger(parsedEmployeeId) || parsedEmployeeId <= 0) {
         return NextResponse.json(
@@ -27,185 +35,131 @@ export async function GET(request: NextRequest) {
           { status: 400 },
         );
       }
+
+      where.employeeId = parsedEmployeeId;
     }
 
-    const dateFilter = dateRangeWhere(from, to);
+    if (department) {
+      where.employee = { department };
+    }
+
+    if (status) {
+      if (!Object.values(AttendanceStatus).includes(status as AttendanceStatus)) {
+        return NextResponse.json({ error: "status is invalid." }, { status: 400 });
+      }
+
+      where.status = status as AttendanceStatus;
+    }
+
+    if (location) {
+      where.OR = [
+        { location },
+        {
+          workLocations: {
+            some: {
+              location: {
+                name: location,
+              },
+            },
+          },
+        },
+      ];
+    }
+
     const holidays = await prisma.holiday.findMany({
-      where: { date: dateFilter },
+      where: { date: dateRangeWhere(from, to) },
     });
     const holidayByDate = new Map(
-      holidays.map((holiday) => [toApiDateKey(holiday.date), holiday.description]),
+      holidays.map((item) => [toApiDateKey(item.date), item.description]),
     );
 
-    if (mode === "location") {
-      const records = await prisma.attendanceRecord.findMany({
-        where: {
-          date: dateFilter,
-          status: "EZAMIYYET",
-          ...(location ? { location } : {}),
+    const records = await prisma.attendanceRecord.findMany({
+      where,
+      include: {
+        employee: true,
+        workLocations: {
+          include: {
+            location: true,
+          },
         },
-        include: {
-          employee: true,
-        },
-        orderBy: [{ location: "asc" }, { date: "asc" }, { employee: { name: "asc" } }],
-      });
+      },
+      orderBy: [{ date: "asc" }, { employee: { name: "asc" } }],
+    });
 
-      const reportsByLocation = new Map<
-        string,
-        {
-          location: string;
-          ezamiyyetDays: number;
-          uniqueDates: Set<string>;
-          employeeIds: Set<number>;
-          weekendWorkedDays: number;
-          holidayWorkedDays: number;
-          cookedHeadcountTotal: number;
-          daysByEmployee: Map<string, number>;
-          records: Array<{
-            id: number;
-            date: string;
-            employeeId: number;
-            employeeName: string;
-            department: string;
-            cookedHeadcount: number | null;
-            isWeekend: boolean;
-            isHoliday: boolean;
-            holidayDescription: string | null;
-          }>;
-        }
-      >();
-
-      for (const record of records) {
-        const reportLocation = record.location ?? "Unspecified";
+    const filteredRows = records
+      .map((record) => {
         const dateKey = toApiDateKey(record.date);
         const holidayDescription = holidayByDate.get(dateKey) ?? null;
-        const report =
-          reportsByLocation.get(reportLocation) ??
-          {
-            location: reportLocation,
-            ezamiyyetDays: 0,
-            uniqueDates: new Set<string>(),
-            employeeIds: new Set<number>(),
-            weekendWorkedDays: 0,
-            holidayWorkedDays: 0,
-            cookedHeadcountTotal: 0,
-            daysByEmployee: new Map<string, number>(),
-            records: [],
-          };
+        const rowIsWeekend = isWeekend(record.date);
+        const rowIsHoliday = Boolean(holidayDescription);
 
-        report.ezamiyyetDays += 1;
-        report.uniqueDates.add(dateKey);
-        report.employeeIds.add(record.employeeId);
-        report.cookedHeadcountTotal += record.cookedHeadcount ?? 0;
-        report.daysByEmployee.set(
-          record.employee.name,
-          (report.daysByEmployee.get(record.employee.name) ?? 0) + 1,
-        );
-
-        if (isWeekend(record.date)) {
-          report.weekendWorkedDays += 1;
-        }
-
-        if (holidayDescription) {
-          report.holidayWorkedDays += 1;
-        }
-
-        report.records.push({
+        return {
           id: record.id,
           date: dateKey,
           employeeId: record.employeeId,
           employeeName: record.employee.name,
           department: record.employee.department,
-          cookedHeadcount: record.cookedHeadcount,
-          isWeekend: isWeekend(record.date),
-          isHoliday: Boolean(holidayDescription),
-          holidayDescription,
-        });
-
-        reportsByLocation.set(reportLocation, report);
-      }
-
-      return NextResponse.json(
-        Array.from(reportsByLocation.values()).map((report) => ({
-          location: report.location,
-          ezamiyyetDays: report.ezamiyyetDays,
-          uniqueDays: report.uniqueDates.size,
-          employeeCount: report.employeeIds.size,
-          weekendWorkedDays: report.weekendWorkedDays,
-          holidayWorkedDays: report.holidayWorkedDays,
-          cookedHeadcountTotal: report.cookedHeadcountTotal,
-          daysByEmployee: Object.fromEntries(report.daysByEmployee),
-          records: report.records,
-        })),
-      );
-    }
-
-    const employees = await prisma.employee.findMany({
-      where: parsedEmployeeId ? { id: parsedEmployeeId } : undefined,
-      include: {
-        attendanceRecords: {
-          where: { date: dateFilter },
-          orderBy: { date: "asc" },
-        },
-      },
-      orderBy: [{ department: "asc" }, { name: "asc" }],
-    });
-
-    const report = employees.map((employee) => {
-      const locationCounts = new Map<string, number>();
-      let ezamiyyetDays = 0;
-      let weekendWorkedDays = 0;
-      let holidayWorkedDays = 0;
-      let cookedHeadcountTotal = 0;
-      const detailRows = [];
-
-      for (const record of employee.attendanceRecords) {
-        const dateKey = toApiDateKey(record.date);
-        const holidayDescription = holidayByDate.get(dateKey) ?? null;
-        const worked = record.status === "ISDE" || record.status === "EZAMIYYET";
-
-        if (record.status === "EZAMIYYET") {
-          ezamiyyetDays += 1;
-          const location = record.location ?? "Unspecified";
-          locationCounts.set(location, (locationCounts.get(location) ?? 0) + 1);
-        }
-
-        if (worked && isWeekend(record.date)) {
-          weekendWorkedDays += 1;
-        }
-
-        if (worked && holidayDescription) {
-          holidayWorkedDays += 1;
-        }
-
-        cookedHeadcountTotal += record.cookedHeadcount ?? 0;
-
-        detailRows.push({
-          id: record.id,
-          date: dateKey,
           status: record.status,
           location: record.location,
+          workLocations: record.workLocations.map((item) => item.location.name),
           cookedHeadcount: record.cookedHeadcount,
-          isWeekend: isWeekend(record.date),
-          isHoliday: Boolean(holidayDescription),
+          isWeekend: rowIsWeekend,
+          isHoliday: rowIsHoliday,
           holidayDescription,
-        });
+        };
+      })
+      .filter((row) => {
+        if (weekend === "yes" && !row.isWeekend) {
+          return false;
+        }
+
+        if (weekend === "no" && row.isWeekend) {
+          return false;
+        }
+
+        if (holiday === "yes" && !row.isHoliday) {
+          return false;
+        }
+
+        if (holiday === "no" && row.isHoliday) {
+          return false;
+        }
+
+        return true;
+      });
+
+    const uniqueLocations = new Set<string>();
+
+    for (const row of filteredRows) {
+      if (row.location) {
+        uniqueLocations.add(row.location);
       }
 
-      return {
-        employeeId: employee.id,
-        employeeName: employee.name,
-        department: employee.department,
-        ezamiyyetDays,
-        weekendWorkedDays,
-        holidayWorkedDays,
-        cookedHeadcountTotal,
-        ezamiyyetByLocation: Object.fromEntries(locationCounts),
-        records: detailRows,
-      };
-    });
+      for (const workLocation of row.workLocations) {
+        uniqueLocations.add(workLocation);
+      }
+    }
 
-    return NextResponse.json(report);
+    return NextResponse.json({
+      summary: {
+        totalRecords: filteredRows.length,
+        uniqueEmployees: new Set(filteredRows.map((row) => row.employeeId)).size,
+        isdeDays: filteredRows.filter((row) => row.status === "ISDE").length,
+        ezamiyyetDays: filteredRows.filter((row) => row.status === "EZAMIYYET").length,
+        weekendWorkedDays: filteredRows.filter(
+          (row) => row.isWeekend && workedStatuses.has(row.status),
+        ).length,
+        holidayWorkedDays: filteredRows.filter(
+          (row) => row.isHoliday && workedStatuses.has(row.status),
+        ).length,
+        cookedHeadcountTotal: filteredRows.reduce(
+          (sum, row) => sum + (row.cookedHeadcount ?? 0),
+          0,
+        ),
+        uniqueLocations: uniqueLocations.size,
+      },
+      records: filteredRows,
+    });
   } catch (error) {
     if (error instanceof Error) {
       return NextResponse.json({ error: error.message }, { status: 400 });

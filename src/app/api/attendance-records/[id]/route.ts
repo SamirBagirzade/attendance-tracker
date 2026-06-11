@@ -21,6 +21,11 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     where: { id },
     include: {
       employee: true,
+      workLocations: {
+        include: {
+          location: true,
+        },
+      },
     },
   });
 
@@ -52,14 +57,59 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       status: body.status ?? existing.status,
       location: body.location ?? existing.location,
       cookedHeadcount: body.cookedHeadcount ?? existing.cookedHeadcount,
+      workLocationIds: body.workLocationIds,
+      newWorkLocationNames: body.newWorkLocationNames,
     });
 
-    const record = await prisma.attendanceRecord.update({
-      where: { id },
-      data: input,
-      include: {
-        employee: true,
-      },
+    const record = await prisma.$transaction(async (tx) => {
+      const locationIds = [...input.workLocationIds];
+
+      for (const name of input.newWorkLocationNames) {
+        const location = await tx.location.upsert({
+          where: { name },
+          create: { name },
+          update: {},
+        });
+        locationIds.push(location.id);
+      }
+
+      await tx.attendanceRecord.update({
+        where: { id },
+        data: {
+          employeeId: input.employeeId,
+          date: input.date,
+          status: input.status,
+          location: input.location,
+          cookedHeadcount: input.cookedHeadcount,
+        },
+      });
+
+      await tx.attendanceWorkLocation.deleteMany({
+        where: { attendanceRecordId: id },
+      });
+
+      if (input.status === "ISDE") {
+        const uniqueLocationIds = Array.from(new Set(locationIds));
+        await tx.attendanceWorkLocation.createMany({
+          data: uniqueLocationIds.map((locationId) => ({
+            attendanceRecordId: id,
+            locationId,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      return tx.attendanceRecord.findUniqueOrThrow({
+        where: { id },
+        include: {
+          employee: true,
+          workLocations: {
+            include: {
+              location: true,
+            },
+          },
+        },
+      });
     });
 
     return NextResponse.json(serializeAttendanceRecord(record));
@@ -71,6 +121,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 function serializeAttendanceRecord<
   T extends {
     date: Date;
+    workLocations?: Array<{
+      location: {
+        id: number;
+        name: string;
+      };
+    }>;
     employee?: {
       createdAt: Date;
       updatedAt: Date;
@@ -80,6 +136,7 @@ function serializeAttendanceRecord<
   return {
     ...record,
     date: toApiDateKey(record.date),
+    workLocations: record.workLocations?.map((item) => item.location) ?? [],
     employee: record.employee
       ? {
           ...record.employee,

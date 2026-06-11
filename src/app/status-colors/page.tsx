@@ -6,10 +6,14 @@ import { AppShell } from "@/components/AppShell";
 import type { AttendanceStatus, StatusColor } from "@/types/domain";
 
 const statusLabels: Record<AttendanceStatus, string> = {
-  ISDE: "Isde",
-  EZAMIYYET: "Ezamiyyet",
-  MEZUNIYYET: "Mezuniyyet",
-  XESTE: "Xeste",
+  ISDE: "İşdə",
+  EZAMIYYET: "Ezamiyyət",
+  MEZUNIYYET: "Məzuniyyət",
+  XESTE: "Xəstə",
+  BAYRAM: "Bayram",
+  ICAZELI: "İcazəli",
+  ISTIRAHET: "İstirahət",
+  ISDE_DEYIL: "İşdə deyil",
 };
 
 export default function StatusColorsPage() {

@@ -38,6 +38,11 @@ export async function GET(request: NextRequest) {
     where,
     include: {
       employee: true,
+      workLocations: {
+        include: {
+          location: true,
+        },
+      },
     },
     orderBy: [{ date: "asc" }, { employee: { name: "asc" } }],
   });
@@ -49,12 +54,7 @@ export async function POST(request: NextRequest) {
   try {
     const input = normalizeAttendanceInput(await request.json());
 
-    const record = await prisma.attendanceRecord.create({
-      data: input,
-      include: {
-        employee: true,
-      },
-    });
+    const record = await saveAttendanceRecord(input, false);
 
     return NextResponse.json(serializeAttendanceRecord(record), { status: 201 });
   } catch (error) {
@@ -66,23 +66,7 @@ export async function PUT(request: NextRequest) {
   try {
     const input = normalizeAttendanceInput(await request.json());
 
-    const record = await prisma.attendanceRecord.upsert({
-      where: {
-        employeeId_date: {
-          employeeId: input.employeeId,
-          date: input.date,
-        },
-      },
-      create: input,
-      update: {
-        status: input.status,
-        location: input.location,
-        cookedHeadcount: input.cookedHeadcount,
-      },
-      include: {
-        employee: true,
-      },
-    });
+    const record = await saveAttendanceRecord(input, true);
 
     return NextResponse.json(serializeAttendanceRecord(record));
   } catch (error) {
@@ -93,6 +77,12 @@ export async function PUT(request: NextRequest) {
 function serializeAttendanceRecord<
   T extends {
     date: Date;
+    workLocations?: Array<{
+      location: {
+        id: number;
+        name: string;
+      };
+    }>;
     employee?: {
       createdAt: Date;
       updatedAt: Date;
@@ -102,6 +92,7 @@ function serializeAttendanceRecord<
   return {
     ...record,
     date: toApiDateKey(record.date),
+    workLocations: record.workLocations?.map((item) => item.location) ?? [],
     employee: record.employee
       ? {
           ...record.employee,
@@ -110,6 +101,76 @@ function serializeAttendanceRecord<
         }
       : record.employee,
   };
+}
+
+async function saveAttendanceRecord(
+  input: ReturnType<typeof normalizeAttendanceInput>,
+  upsert: boolean,
+) {
+  return prisma.$transaction(async (tx) => {
+    const locationIds = [...input.workLocationIds];
+
+    for (const name of input.newWorkLocationNames) {
+      const location = await tx.location.upsert({
+        where: { name },
+        create: { name },
+        update: {},
+      });
+      locationIds.push(location.id);
+    }
+
+    const data = {
+      employeeId: input.employeeId,
+      date: input.date,
+      status: input.status,
+      location: input.location,
+      cookedHeadcount: input.cookedHeadcount,
+    };
+
+    const record = upsert
+      ? await tx.attendanceRecord.upsert({
+          where: {
+            employeeId_date: {
+              employeeId: input.employeeId,
+              date: input.date,
+            },
+          },
+          create: data,
+          update: {
+            status: input.status,
+            location: input.location,
+            cookedHeadcount: input.cookedHeadcount,
+          },
+        })
+      : await tx.attendanceRecord.create({ data });
+
+    await tx.attendanceWorkLocation.deleteMany({
+      where: { attendanceRecordId: record.id },
+    });
+
+    if (input.status === "ISDE") {
+      const uniqueLocationIds = Array.from(new Set(locationIds));
+      await tx.attendanceWorkLocation.createMany({
+        data: uniqueLocationIds.map((locationId) => ({
+          attendanceRecordId: record.id,
+          locationId,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    return tx.attendanceRecord.findUniqueOrThrow({
+      where: { id: record.id },
+      include: {
+        employee: true,
+        workLocations: {
+          include: {
+            location: true,
+          },
+        },
+      },
+    });
+  });
 }
 
 function handleAttendanceError(error: unknown) {

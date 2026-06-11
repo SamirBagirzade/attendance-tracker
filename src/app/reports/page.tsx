@@ -1,35 +1,55 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { endOfMonth, format, startOfMonth } from "date-fns";
 import { Download, Search } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
-import type { Employee, Location, LocationReport, PersonReport } from "@/types/domain";
+import type {
+  AttendanceStatus,
+  Employee,
+  FilteredReport,
+  FilteredReportRow,
+  Location,
+} from "@/types/domain";
 
-const statusLabels = {
-  ISDE: "Isde",
-  EZAMIYYET: "Ezamiyyet",
-  MEZUNIYYET: "Mezuniyyet",
-  XESTE: "Xeste",
-};
+const statusOptions: Array<{ value: AttendanceStatus; label: string }> = [
+  { value: "ISDE", label: "İşdə" },
+  { value: "EZAMIYYET", label: "Ezamiyyət" },
+  { value: "MEZUNIYYET", label: "Məzuniyyət" },
+  { value: "XESTE", label: "Xəstə" },
+  { value: "BAYRAM", label: "Bayram" },
+  { value: "ICAZELI", label: "İcazəli" },
+  { value: "ISTIRAHET", label: "İstirahət" },
+  { value: "ISDE_DEYIL", label: "İşdə deyil" },
+];
 
-type ReportMode = "employee" | "location";
+const statusLabels = Object.fromEntries(
+  statusOptions.map((item) => [item.value, item.label]),
+) as Record<AttendanceStatus, string>;
 
 export default function ReportsPage() {
-  const [mode, setMode] = useState<ReportMode>("employee");
   const [from, setFrom] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [to, setTo] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [employeeId, setEmployeeId] = useState("");
+  const [department, setDepartment] = useState("");
+  const [status, setStatus] = useState("");
   const [location, setLocation] = useState("");
-  const [personReports, setPersonReports] = useState<PersonReport[]>([]);
-  const [locationReports, setLocationReports] = useState<LocationReport[]>([]);
+  const [weekend, setWeekend] = useState("all");
+  const [holiday, setHoliday] = useState("all");
+  const [report, setReport] = useState<FilteredReport | null>(null);
   const [error, setError] = useState("");
 
-  const selectedPersonReport = useMemo(() => personReports[0] ?? null, [personReports]);
-  const canDownload =
-    mode === "employee" ? Boolean(selectedPersonReport) : locationReports.length > 0;
+  const departments = useMemo(
+    () => Array.from(new Set(employees.map((employee) => employee.department))).sort(),
+    [employees],
+  );
+  const rows = useMemo(() => report?.records ?? [], [report]);
+  const canDownload = rows.length > 0;
+  const byEmployee = useMemo(() => groupByEmployee(rows), [rows]);
+  const byLocation = useMemo(() => groupByLocation(rows), [rows]);
 
   const loadOptions = useCallback(async () => {
     const [employeeResponse, locationResponse] = await Promise.all([
@@ -42,49 +62,48 @@ export default function ReportsPage() {
       return;
     }
 
-    const nextEmployees: Employee[] = await employeeResponse.json();
-    const nextLocations: Location[] = await locationResponse.json();
-    setEmployees(nextEmployees);
-    setLocations(nextLocations);
-    setEmployeeId((current) => current || nextEmployees[0]?.id.toString() || "");
+    setEmployees(await employeeResponse.json());
+    setLocations(await locationResponse.json());
   }, []);
 
   const loadReport = useCallback(async () => {
     setError("");
+    const params = new URLSearchParams({ from, to });
 
-    if (mode === "employee") {
-      if (!employeeId) {
-        setPersonReports([]);
-        return;
-      }
-
-      const response = await fetch(
-        `/api/reports?mode=employee&from=${from}&to=${to}&employeeId=${employeeId}`,
-      );
-
-      if (!response.ok) {
-        const body = await response.json();
-        setError(body.error ?? "Could not load employee report.");
-        return;
-      }
-
-      setPersonReports(await response.json());
-      return;
+    if (employeeId) {
+      params.set("employeeId", employeeId);
     }
 
-    const locationParam = location ? `&location=${encodeURIComponent(location)}` : "";
-    const response = await fetch(
-      `/api/reports?mode=location&from=${from}&to=${to}${locationParam}`,
-    );
+    if (department) {
+      params.set("department", department);
+    }
+
+    if (status) {
+      params.set("status", status);
+    }
+
+    if (location) {
+      params.set("location", location);
+    }
+
+    if (weekend !== "all") {
+      params.set("weekend", weekend);
+    }
+
+    if (holiday !== "all") {
+      params.set("holiday", holiday);
+    }
+
+    const response = await fetch(`/api/reports?${params.toString()}`);
 
     if (!response.ok) {
       const body = await response.json();
-      setError(body.error ?? "Could not load location report.");
+      setError(body.error ?? "Could not load report.");
       return;
     }
 
-    setLocationReports(await response.json());
-  }, [employeeId, from, location, mode, to]);
+    setReport(await response.json());
+  }, [department, employeeId, from, holiday, location, status, to, weekend]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -102,149 +121,122 @@ export default function ReportsPage() {
   }
 
   async function downloadExcel() {
-    const XLSX = await import("xlsx");
-    const workbook = XLSX.utils.book_new();
-
-    if (mode === "employee" && selectedPersonReport) {
-      const summaryRows = [
-        ["Employee", selectedPersonReport.employeeName],
-        ["Department", selectedPersonReport.department],
-        ["From", from],
-        ["To", to],
-        ["Ezamiyyet days", selectedPersonReport.ezamiyyetDays],
-        ["Weekend worked", selectedPersonReport.weekendWorkedDays],
-        ["Holiday worked", selectedPersonReport.holidayWorkedDays],
-        ["Cooked for total", selectedPersonReport.cookedHeadcountTotal],
-        [
-          "Ezamiyyet by location",
-          Object.entries(selectedPersonReport.ezamiyyetByLocation)
-            .map(([itemLocation, count]) => `${itemLocation}: ${count}`)
-            .join(", ") || "-",
-        ],
-      ];
-      const detailRows = selectedPersonReport.records.map((record) => ({
-        Date: record.date,
-        Status: statusLabels[record.status],
-        Location: record.location ?? "",
-        "Cooked For": record.cookedHeadcount ?? "",
-        Weekend: record.isWeekend ? "Yes" : "No",
-        Holiday: record.holidayDescription ?? (record.isHoliday ? "Yes" : "No"),
-      }));
-
-      XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(summaryRows), "Summary");
-      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(detailRows), "Daily Records");
-      XLSX.writeFile(
-        workbook,
-        `${selectedPersonReport.employeeName.replaceAll(" ", "_")}_${from}_${to}_report.xlsx`,
-      );
+    if (!report) {
       return;
     }
 
-    if (mode === "location" && locationReports.length > 0) {
-      const summaryRows = locationReports.map((report) => ({
-        Location: report.location,
-        "Ezamiyyet Days": report.ezamiyyetDays,
-        "Unique Days": report.uniqueDays,
-        Employees: report.employeeCount,
-        "Weekend Worked": report.weekendWorkedDays,
-        "Holiday Worked": report.holidayWorkedDays,
-        "Cooked For": report.cookedHeadcountTotal,
-        "Days By Employee":
-          Object.entries(report.daysByEmployee)
-            .map(([employeeName, count]) => `${employeeName}: ${count}`)
-            .join(", ") || "-",
-      }));
-      const detailRows = locationReports.flatMap((report) =>
-        report.records.map((record) => ({
-          Location: report.location,
-          Date: record.date,
-          Employee: record.employeeName,
-          Department: record.department,
-          "Cooked For": record.cookedHeadcount ?? "",
-          Weekend: record.isWeekend ? "Yes" : "No",
-          Holiday: record.holidayDescription ?? (record.isHoliday ? "Yes" : "No"),
-        })),
-      );
+    const XLSX = await import("xlsx");
+    const workbook = XLSX.utils.book_new();
 
-      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(summaryRows), "Summary");
-      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(detailRows), "Daily Records");
-      XLSX.writeFile(
-        workbook,
-        `${(location || "all_locations").replaceAll(" ", "_")}_${from}_${to}_report.xlsx`,
-      );
-    }
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.aoa_to_sheet([
+        ["From", from],
+        ["To", to],
+        ["Employee", employeeLabel(employees, employeeId) || "All"],
+        ["Department", department || "All"],
+        ["Status", status ? statusLabels[status as AttendanceStatus] : "All"],
+        ["Location", location || "All"],
+        ["Weekend", optionLabel(weekend)],
+        ["Holiday", optionLabel(holiday)],
+        ["Total Records", report.summary.totalRecords],
+        ["Unique Employees", report.summary.uniqueEmployees],
+        ["İşdə Days", report.summary.isdeDays],
+        ["Ezamiyyət Days", report.summary.ezamiyyetDays],
+        ["Weekend Worked", report.summary.weekendWorkedDays],
+        ["Holiday Worked", report.summary.holidayWorkedDays],
+        ["Cooked For Total", report.summary.cookedHeadcountTotal],
+        ["Unique Locations", report.summary.uniqueLocations],
+      ]),
+      "Summary",
+    );
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet(
+        byEmployee.map((item) => ({
+          Employee: item.employeeName,
+          Department: item.department,
+          Records: item.records,
+          "İşdə": item.isdeDays,
+          "Ezamiyyət": item.ezamiyyetDays,
+          "Weekend Worked": item.weekendWorkedDays,
+          "Holiday Worked": item.holidayWorkedDays,
+          "Cooked For": item.cookedHeadcountTotal,
+        })),
+      ),
+      "By Employee",
+    );
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet(
+        byLocation.map((item) => ({
+          Location: item.location,
+          Records: item.records,
+          "Unique Days": item.uniqueDays,
+          "Unique Employees": item.uniqueEmployees,
+          "İşdə": item.isdeDays,
+          "Ezamiyyət": item.ezamiyyetDays,
+          "Cooked For": item.cookedHeadcountTotal,
+        })),
+      ),
+      "By Location",
+    );
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(exportRows(rows)), "Records");
+    XLSX.writeFile(workbook, `attendance_report_${from}_${to}.xlsx`);
   }
 
   return (
-    <AppShell title={mode === "employee" ? "Person Report" : "Location Report"} eyebrow={`${from} to ${to}`}>
+    <AppShell title="Reports" eyebrow={`${from} to ${to}`}>
       <div className="grid gap-4">
         <form
-          className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm lg:grid-cols-[auto_minmax(220px,1fr)_auto_auto_auto]"
+          className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm lg:grid-cols-4 xl:grid-cols-8"
           onSubmit={submitReport}
         >
-          <label className="grid gap-1 text-sm font-medium text-slate-700">
-            Mode
-            <select
-              className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-slate-500"
-              onChange={(event) => setMode(event.target.value as ReportMode)}
-              value={mode}
-            >
-              <option value="employee">By Employee</option>
-              <option value="location">By Location</option>
-            </select>
-          </label>
-          {mode === "employee" ? (
-            <label className="grid gap-1 text-sm font-medium text-slate-700">
-              Employee
-              <select
-                className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-slate-500"
-                onChange={(event) => setEmployeeId(event.target.value)}
-                value={employeeId}
-              >
-                <option value="">Select employee</option>
-                {employees.map((employee) => (
-                  <option key={employee.id} value={employee.id}>
-                    {employee.name} - {employee.department}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : (
-            <label className="grid gap-1 text-sm font-medium text-slate-700">
-              Location
-              <select
-                className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-slate-500"
-                onChange={(event) => setLocation(event.target.value)}
-                value={location}
-              >
-                <option value="">All locations</option>
-                {locations.map((item) => (
-                  <option key={item.id} value={item.name}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          <label className="grid gap-1 text-sm font-medium text-slate-700">
-            From
-            <input
-              className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
-              onChange={(event) => setFrom(event.target.value)}
-              type="date"
-              value={from}
-            />
-          </label>
-          <label className="grid gap-1 text-sm font-medium text-slate-700">
-            To
-            <input
-              className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
-              onChange={(event) => setTo(event.target.value)}
-              type="date"
-              value={to}
-            />
-          </label>
-          <div className="flex items-end gap-2">
+          <SelectField label="Employee" onChange={setEmployeeId} value={employeeId}>
+            <option value="">All employees</option>
+            {employees.map((employee) => (
+              <option key={employee.id} value={employee.id}>
+                {employee.name} - {employee.department}
+              </option>
+            ))}
+          </SelectField>
+          <SelectField label="Department" onChange={setDepartment} value={department}>
+            <option value="">All departments</option>
+            {departments.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </SelectField>
+          <SelectField label="Status" onChange={setStatus} value={status}>
+            <option value="">All statuses</option>
+            {statusOptions.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </SelectField>
+          <SelectField label="Location" onChange={setLocation} value={location}>
+            <option value="">All locations</option>
+            {locations.map((item) => (
+              <option key={item.id} value={item.name}>
+                {item.name}
+              </option>
+            ))}
+          </SelectField>
+          <SelectField label="Weekend" onChange={setWeekend} value={weekend}>
+            <option value="all">All days</option>
+            <option value="yes">Only weekend</option>
+            <option value="no">Exclude weekend</option>
+          </SelectField>
+          <SelectField label="Holiday" onChange={setHoliday} value={holiday}>
+            <option value="all">All days</option>
+            <option value="yes">Only holiday</option>
+            <option value="no">Exclude holiday</option>
+          </SelectField>
+          <DateField label="From" onChange={setFrom} value={from} />
+          <DateField label="To" onChange={setTo} value={to} />
+          <div className="flex items-end gap-2 lg:col-span-4 xl:col-span-8">
             <button
               className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800"
               type="submit"
@@ -270,135 +262,165 @@ export default function ReportsPage() {
           </div>
         ) : null}
 
-        {mode === "employee" ? (
-          <PersonReportView report={selectedPersonReport} />
+        {report ? (
+          <>
+            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <Metric label="Records" value={report.summary.totalRecords} />
+              <Metric label="Employees" value={report.summary.uniqueEmployees} />
+              <Metric label="İşdə" value={report.summary.isdeDays} />
+              <Metric label="Ezamiyyət" value={report.summary.ezamiyyetDays} />
+              <Metric label="Weekend Worked" value={report.summary.weekendWorkedDays} />
+              <Metric label="Holiday Worked" value={report.summary.holidayWorkedDays} />
+              <Metric label="Cooked For" value={report.summary.cookedHeadcountTotal} />
+              <Metric label="Locations" value={report.summary.uniqueLocations} />
+            </section>
+
+            <section className="grid gap-4 xl:grid-cols-2">
+              <BreakdownTable
+                emptyText="No employee rows"
+                headers={[
+                  "Employee",
+                  "Department",
+                  "Records",
+                  "İşdə",
+                  "Ezamiyyət",
+                  "Weekend",
+                  "Holiday",
+                  "Cooked",
+                ]}
+                rows={byEmployee.map((item) => [
+                  item.employeeName,
+                  item.department,
+                  item.records,
+                  item.isdeDays,
+                  item.ezamiyyetDays,
+                  item.weekendWorkedDays,
+                  item.holidayWorkedDays,
+                  item.cookedHeadcountTotal,
+                ])}
+                title="By Employee"
+              />
+              <BreakdownTable
+                emptyText="No location rows"
+                headers={[
+                  "Location",
+                  "Records",
+                  "Unique Days",
+                  "Employees",
+                  "İşdə",
+                  "Ezamiyyət",
+                  "Cooked",
+                ]}
+                rows={byLocation.map((item) => [
+                  item.location,
+                  item.records,
+                  item.uniqueDays,
+                  item.uniqueEmployees,
+                  item.isdeDays,
+                  item.ezamiyyetDays,
+                  item.cookedHeadcountTotal,
+                ])}
+                title="By Location"
+              />
+            </section>
+
+            <BreakdownTable
+              emptyText="No attendance records match these filters"
+              headers={[
+                "Date",
+                "Employee",
+                "Department",
+                "Status",
+                "Location",
+                "Work Locations",
+                "Cooked",
+                "Weekend",
+                "Holiday",
+              ]}
+              rows={rows.map((row) => [
+                row.date,
+                row.employeeName,
+                row.department,
+                statusLabels[row.status],
+                row.location ?? "-",
+                row.workLocations.join(", ") || "-",
+                row.cookedHeadcount ?? "-",
+                row.isWeekend ? "Yes" : "No",
+                row.holidayDescription ?? (row.isHoliday ? "Yes" : "No"),
+              ])}
+              title="Records"
+            />
+          </>
         ) : (
-          <LocationReportView reports={locationReports} />
+          <EmptyState text="Run a report to see attendance records." />
         )}
       </div>
     </AppShell>
   );
 }
 
-function PersonReportView({ report }: { report: PersonReport | null }) {
-  if (!report) {
-    return (
-      <EmptyState text="Select an employee to generate a report." />
-    );
-  }
-
+function SelectField({
+  children,
+  label,
+  onChange,
+  value,
+}: {
+  children: ReactNode;
+  label: string;
+  onChange: (value: string) => void;
+  value: string;
+}) {
   return (
-    <>
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <Metric label="Ezamiyyet" value={report.ezamiyyetDays} />
-        <Metric label="Weekend Worked" value={report.weekendWorkedDays} />
-        <Metric label="Holiday Worked" value={report.holidayWorkedDays} />
-        <Metric label="Cooked For" value={report.cookedHeadcountTotal} />
-        <Metric
-          label="Locations"
-          value={
-            Object.entries(report.ezamiyyetByLocation)
-              .map(([itemLocation, count]) => `${itemLocation}: ${count}`)
-              .join(", ") || "-"
-          }
-        />
-      </section>
-      <ReportTable
-        title={report.employeeName}
-        subtitle={report.department}
-        headers={["Date", "Status", "Location", "Cooked For", "Weekend", "Holiday"]}
-        emptyText="No attendance records in this range"
-        rows={report.records.map((record) => [
-          record.date,
-          statusLabels[record.status],
-          record.location ?? "-",
-          record.cookedHeadcount ?? "-",
-          record.isWeekend ? "Yes" : "No",
-          record.holidayDescription ?? (record.isHoliday ? "Yes" : "No"),
-        ])}
+    <label className="grid gap-1 text-sm font-medium text-slate-700">
+      {label}
+      <select
+        className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-slate-500"
+        onChange={(event) => onChange(event.target.value)}
+        value={value}
+      >
+        {children}
+      </select>
+    </label>
+  );
+}
+
+function DateField({
+  label,
+  onChange,
+  value,
+}: {
+  label: string;
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  return (
+    <label className="grid gap-1 text-sm font-medium text-slate-700">
+      {label}
+      <input
+        className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
+        onChange={(event) => onChange(event.target.value)}
+        type="date"
+        value={value}
       />
-    </>
+    </label>
   );
 }
 
-function LocationReportView({ reports }: { reports: LocationReport[] }) {
-  if (reports.length === 0) {
-    return <EmptyState text="No Ezamiyyet records found for this location and date range." />;
-  }
-
-  const totals = reports.reduce(
-    (acc, report) => ({
-      ezamiyyetDays: acc.ezamiyyetDays + report.ezamiyyetDays,
-      employeeCount: acc.employeeCount + report.employeeCount,
-      uniqueDays: acc.uniqueDays + report.uniqueDays,
-      weekendWorkedDays: acc.weekendWorkedDays + report.weekendWorkedDays,
-      holidayWorkedDays: acc.holidayWorkedDays + report.holidayWorkedDays,
-      cookedHeadcountTotal: acc.cookedHeadcountTotal + report.cookedHeadcountTotal,
-    }),
-    {
-      ezamiyyetDays: 0,
-      employeeCount: 0,
-      uniqueDays: 0,
-      weekendWorkedDays: 0,
-      holidayWorkedDays: 0,
-      cookedHeadcountTotal: 0,
-    },
-  );
-
-  return (
-    <>
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <Metric label="Ezamiyyet" value={totals.ezamiyyetDays} />
-        <Metric label="Unique Days" value={totals.uniqueDays} />
-        <Metric label="Employees" value={totals.employeeCount} />
-        <Metric label="Weekend Worked" value={totals.weekendWorkedDays} />
-        <Metric label="Holiday Worked" value={totals.holidayWorkedDays} />
-      </section>
-      {reports.map((report) => (
-        <ReportTable
-          key={report.location}
-          title={report.location}
-          subtitle={
-            `Unique days: ${report.uniqueDays}; employees: ${
-              Object.entries(report.daysByEmployee)
-                .map(([employeeName, count]) => `${employeeName}: ${count}`)
-                .join(", ") || "-"
-            }`
-          }
-          headers={["Date", "Employee", "Department", "Cooked For", "Weekend", "Holiday"]}
-          emptyText="No records"
-          rows={report.records.map((record) => [
-            record.date,
-            record.employeeName,
-            record.department,
-            record.cookedHeadcount ?? "-",
-            record.isWeekend ? "Yes" : "No",
-            record.holidayDescription ?? (record.isHoliday ? "Yes" : "No"),
-          ])}
-        />
-      ))}
-    </>
-  );
-}
-
-function ReportTable({
-  title,
-  subtitle,
+function BreakdownTable({
+  emptyText,
   headers,
   rows,
-  emptyText,
+  title,
 }: {
-  title: string;
-  subtitle: string;
+  emptyText: string;
   headers: string[];
   rows: Array<Array<string | number>>;
-  emptyText: string;
+  title: string;
 }) {
   return (
     <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 px-4 py-3">
         <h2 className="font-semibold text-slate-950">{title}</h2>
-        <p className="text-sm text-slate-500">{subtitle}</p>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
@@ -451,4 +473,134 @@ function Metric({ label, value }: { label: string; value: string | number }) {
       <div className="mt-2 text-2xl font-semibold text-slate-950">{value}</div>
     </div>
   );
+}
+
+function employeeLabel(employees: Employee[], employeeId: string) {
+  const employee = employees.find((item) => item.id.toString() === employeeId);
+  return employee ? `${employee.name} - ${employee.department}` : "";
+}
+
+function optionLabel(value: string) {
+  if (value === "yes") {
+    return "Yes";
+  }
+
+  if (value === "no") {
+    return "No";
+  }
+
+  return "All";
+}
+
+function exportRows(rows: FilteredReportRow[]) {
+  return rows.map((row) => ({
+    Date: row.date,
+    Employee: row.employeeName,
+    Department: row.department,
+    Status: statusLabels[row.status],
+    Location: row.location ?? "",
+    "Work Locations": row.workLocations.join(", "),
+    "Cooked For": row.cookedHeadcount ?? "",
+    Weekend: row.isWeekend ? "Yes" : "No",
+    Holiday: row.holidayDescription ?? (row.isHoliday ? "Yes" : "No"),
+  }));
+}
+
+function groupByEmployee(rows: FilteredReportRow[]) {
+  const grouped = new Map<
+    number,
+    {
+      employeeName: string;
+      department: string;
+      records: number;
+      isdeDays: number;
+      ezamiyyetDays: number;
+      weekendWorkedDays: number;
+      holidayWorkedDays: number;
+      cookedHeadcountTotal: number;
+    }
+  >();
+
+  for (const row of rows) {
+    const item =
+      grouped.get(row.employeeId) ??
+      {
+        employeeName: row.employeeName,
+        department: row.department,
+        records: 0,
+        isdeDays: 0,
+        ezamiyyetDays: 0,
+        weekendWorkedDays: 0,
+        holidayWorkedDays: 0,
+        cookedHeadcountTotal: 0,
+      };
+
+    item.records += 1;
+    item.isdeDays += row.status === "ISDE" ? 1 : 0;
+    item.ezamiyyetDays += row.status === "EZAMIYYET" ? 1 : 0;
+    item.weekendWorkedDays += row.isWeekend && isWorked(row.status) ? 1 : 0;
+    item.holidayWorkedDays += row.isHoliday && isWorked(row.status) ? 1 : 0;
+    item.cookedHeadcountTotal += row.cookedHeadcount ?? 0;
+    grouped.set(row.employeeId, item);
+  }
+
+  return Array.from(grouped.values());
+}
+
+function groupByLocation(rows: FilteredReportRow[]) {
+  const grouped = new Map<
+    string,
+    {
+      location: string;
+      records: number;
+      dates: Set<string>;
+      employees: Set<number>;
+      isdeDays: number;
+      ezamiyyetDays: number;
+      cookedHeadcountTotal: number;
+    }
+  >();
+
+  for (const row of rows) {
+    const rowLocations = new Set([
+      ...(row.location ? [row.location] : []),
+      ...row.workLocations,
+    ]);
+
+    for (const rowLocation of rowLocations) {
+      const item =
+        grouped.get(rowLocation) ??
+        {
+          location: rowLocation,
+          records: 0,
+          dates: new Set<string>(),
+          employees: new Set<number>(),
+          isdeDays: 0,
+          ezamiyyetDays: 0,
+          cookedHeadcountTotal: 0,
+        };
+
+      item.records += 1;
+      item.dates.add(row.date);
+      item.employees.add(row.employeeId);
+      item.isdeDays += row.status === "ISDE" ? 1 : 0;
+      item.ezamiyyetDays += row.status === "EZAMIYYET" ? 1 : 0;
+      item.cookedHeadcountTotal += row.cookedHeadcount ?? 0;
+      grouped.set(rowLocation, item);
+    }
+  }
+
+  return Array.from(grouped.values()).map((item) => ({
+    location: item.location,
+    records: item.records,
+    uniqueDays: item.dates.size,
+    uniqueEmployees: item.employees.size,
+    isdeDays: item.isdeDays,
+    ezamiyyetDays: item.ezamiyyetDays,
+    cookedHeadcountTotal: item.cookedHeadcountTotal,
+  }));
+}
+
+function isWorked(status: AttendanceStatus) {
+  return status === "ISDE" || status === "EZAMIYYET";
 }

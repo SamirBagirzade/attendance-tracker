@@ -6,6 +6,8 @@ export type AttendanceRecordInput = {
   date: string | Date;
   status: AttendanceStatus;
   location?: string | null;
+  workLocationIds?: unknown;
+  newWorkLocationNames?: unknown;
   cookedHeadcount?: number | null;
 };
 
@@ -16,6 +18,17 @@ export function normalizeAttendanceInput(input: AttendanceRecordInput) {
     input.status === "EZAMIYYET" && input.cookedHeadcount != null
       ? Number(input.cookedHeadcount)
       : null;
+  const workLocationIds =
+    Array.isArray(input.workLocationIds) && input.status === "ISDE"
+      ? input.workLocationIds.map(Number).filter((id) => Number.isInteger(id) && id > 0)
+      : [];
+  const newWorkLocationNames =
+    Array.isArray(input.newWorkLocationNames) && input.status === "ISDE"
+      ? input.newWorkLocationNames
+          .filter((name): name is string => typeof name === "string")
+          .map((name) => name.trim())
+          .filter(Boolean)
+      : [];
 
   if (!Number.isInteger(input.employeeId) || input.employeeId <= 0) {
     throw new Error("employeeId must be a positive integer.");
@@ -41,6 +54,8 @@ export function normalizeAttendanceInput(input: AttendanceRecordInput) {
     date,
     status: input.status,
     location,
+    workLocationIds,
+    newWorkLocationNames,
     cookedHeadcount,
   };
 }

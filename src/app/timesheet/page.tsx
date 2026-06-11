@@ -21,10 +21,14 @@ import type {
 } from "@/types/domain";
 
 const statuses: Array<{ value: AttendanceStatus; label: string }> = [
-  { value: "ISDE", label: "Isde" },
-  { value: "EZAMIYYET", label: "Ezamiyyet" },
-  { value: "MEZUNIYYET", label: "Mezuniyyet" },
-  { value: "XESTE", label: "Xeste" },
+  { value: "ISDE", label: "İşdə" },
+  { value: "EZAMIYYET", label: "Ezamiyyət" },
+  { value: "MEZUNIYYET", label: "Məzuniyyət" },
+  { value: "XESTE", label: "Xəstə" },
+  { value: "BAYRAM", label: "Bayram" },
+  { value: "ICAZELI", label: "İcazəli" },
+  { value: "ISTIRAHET", label: "İstirahət" },
+  { value: "ISDE_DEYIL", label: "İşdə deyil" },
 ];
 
 function toClientDateKey(value: string | Date) {
@@ -285,6 +289,10 @@ export default function TimesheetPage() {
                         const statusColor = record ? colorByStatus.get(record.status) : undefined;
                         const ezamiyyetLocation =
                           record?.status === "EZAMIYYET" ? record.location : null;
+                        const workLocationText =
+                          record?.status === "ISDE"
+                            ? record.workLocations.map((item) => item.name).join(", ")
+                            : "";
 
                         return (
                           <td
@@ -303,6 +311,11 @@ export default function TimesheetPage() {
                               {ezamiyyetLocation ? (
                                 <span className="max-w-full truncate text-[10px] font-medium text-slate-700">
                                   {ezamiyyetLocation}
+                                </span>
+                              ) : null}
+                              {workLocationText ? (
+                                <span className="max-w-full truncate text-[10px] font-medium text-slate-700">
+                                  {workLocationText}
                                 </span>
                               ) : null}
                               {record?.cookedHeadcount ? (
@@ -345,11 +358,39 @@ function AttendanceModal({
 }) {
   const [status, setStatus] = useState<AttendanceStatus>(activeCell.record?.status ?? "ISDE");
   const [location, setLocation] = useState(activeCell.record?.location ?? "");
+  const [workLocationIds, setWorkLocationIds] = useState<number[]>(
+    activeCell.record?.workLocations.map((item) => item.id) ?? [],
+  );
+  const [newWorkLocationNames, setNewWorkLocationNames] = useState<string[]>([]);
+  const [newWorkLocationName, setNewWorkLocationName] = useState("");
   const [actedAsCook, setActedAsCook] = useState(Boolean(activeCell.record?.cookedHeadcount));
   const [cookedHeadcount, setCookedHeadcount] = useState(
     activeCell.record?.cookedHeadcount?.toString() ?? "",
   );
   const [error, setError] = useState("");
+
+  function toggleWorkLocation(locationId: number) {
+    setWorkLocationIds((current) =>
+      current.includes(locationId)
+        ? current.filter((id) => id !== locationId)
+        : [...current, locationId],
+    );
+  }
+
+  function addNewWorkLocation() {
+    const nextLocation = newWorkLocationName.trim();
+
+    if (!nextLocation) {
+      return;
+    }
+
+    setNewWorkLocationNames((current) =>
+      current.some((item) => item.toLocaleLowerCase() === nextLocation.toLocaleLowerCase())
+        ? current
+        : [...current, nextLocation],
+    );
+    setNewWorkLocationName("");
+  }
 
   async function saveAttendance() {
     setError("");
@@ -358,6 +399,8 @@ function AttendanceModal({
       date: activeCell.dateKey,
       status,
       location: status === "EZAMIYYET" ? location : null,
+      workLocationIds: status === "ISDE" ? workLocationIds : [],
+      newWorkLocationNames: status === "ISDE" ? newWorkLocationNames : [],
       cookedHeadcount:
         status === "EZAMIYYET" && actedAsCook && cookedHeadcount
           ? Number(cookedHeadcount)
@@ -470,6 +513,73 @@ function AttendanceModal({
                 </label>
               ) : null}
             </>
+          ) : null}
+
+          {status === "ISDE" ? (
+            <div className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+              <div className="text-sm font-medium text-slate-700">Work locations</div>
+              <div className="grid max-h-40 gap-2 overflow-y-auto pr-1">
+                {locations.length === 0 ? (
+                  <div className="text-sm text-slate-500">No saved locations</div>
+                ) : (
+                  locations.map((option) => (
+                    <label
+                      className="flex items-center gap-2 text-sm font-medium text-slate-700"
+                      key={option.id}
+                    >
+                      <input
+                        checked={workLocationIds.includes(option.id)}
+                        className="h-4 w-4 rounded border-slate-300"
+                        onChange={() => toggleWorkLocation(option.id)}
+                        type="checkbox"
+                      />
+                      {option.name}
+                    </label>
+                  ))
+                )}
+              </div>
+              {newWorkLocationNames.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {newWorkLocationNames.map((name) => (
+                    <button
+                      className="inline-flex h-7 items-center gap-1 rounded-md border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                      key={name}
+                      onClick={() =>
+                        setNewWorkLocationNames((current) =>
+                          current.filter((item) => item !== name),
+                        )
+                      }
+                      type="button"
+                    >
+                      {name}
+                      <X size={12} />
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              <div className="flex gap-2">
+                <input
+                  className="h-10 min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-slate-500"
+                  onChange={(event) => setNewWorkLocationName(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      addNewWorkLocation();
+                    }
+                  }}
+                  placeholder="New location"
+                  value={newWorkLocationName}
+                />
+                <button
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                  onClick={addNewWorkLocation}
+                  type="button"
+                >
+                  <Plus size={16} />
+                  Add
+                </button>
+              </div>
+            </div>
           ) : null}
 
           {error ? (
