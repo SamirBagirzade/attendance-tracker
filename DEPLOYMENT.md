@@ -57,14 +57,25 @@ git pull
 ./deploy-light.sh
 ```
 
-`deploy-light.sh` skips apt, Node.js, PostgreSQL setup, database/user creation, and systemd service creation. It only runs:
+`deploy-light.sh` skips apt, Node.js, PostgreSQL setup, database/user creation, systemd service creation, and dependency installation by default. It only runs:
 
 ```bash
-npm ci
 npx prisma generate
 npx prisma migrate deploy
 npm run build
 sudo systemctl restart attendance-tracker
+```
+
+If `package.json` or `package-lock.json` changed, run:
+
+```bash
+./deploy-light.sh --deps
+```
+
+That adds:
+
+```bash
+npm ci
 ```
 
 ## Useful Commands

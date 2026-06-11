@@ -4,6 +4,26 @@ set -euo pipefail
 APP_NAME="attendance-tracker"
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${APP_DIR}/.env"
+INSTALL_DEPS=0
+
+for arg in "$@"; do
+  case "${arg}" in
+    --deps)
+      INSTALL_DEPS=1
+      ;;
+    -h|--help)
+      echo "Usage: ./deploy-light.sh [--deps]"
+      echo ""
+      echo "  --deps   Run npm ci before building."
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: ${arg}"
+      echo "Usage: ./deploy-light.sh [--deps]"
+      exit 1
+      ;;
+  esac
+done
 
 log() {
   printf '\n\033[1;34m==>\033[0m %s\n' "$1"
@@ -24,8 +44,13 @@ fi
 
 cd "${APP_DIR}"
 
-log "Installing npm dependencies"
-npm ci
+if [[ "${INSTALL_DEPS}" -eq 1 ]]; then
+  log "Installing npm dependencies"
+  npm ci
+else
+  log "Skipping npm dependencies"
+  echo "Use ./deploy-light.sh --deps if package.json or package-lock.json changed."
+fi
 
 log "Generating Prisma client"
 npx prisma generate
