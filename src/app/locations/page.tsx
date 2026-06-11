@@ -3,9 +3,11 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Check, MapPin, Pencil, Plus, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { useLanguage } from "@/lib/i18n";
 import type { Location } from "@/types/domain";
 
 export default function LocationsPage() {
+  const { t } = useLanguage();
   const [locations, setLocations] = useState<Location[]>([]);
   const [name, setName] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -63,14 +65,14 @@ export default function LocationsPage() {
   }
 
   return (
-    <AppShell title="Locations" eyebrow="Ezamiyyet destinations">
+    <AppShell title={t("locations")} eyebrow={t("locationOptions")}>
       <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
         <form
           className="grid content-start gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
           onSubmit={saveLocation}
         >
           <label className="grid gap-1 text-sm font-medium text-slate-700">
-            Location
+            {t("location")}
             <input
               className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
               onChange={(event) => setName(event.target.value)}
@@ -83,7 +85,7 @@ export default function LocationsPage() {
               type="submit"
             >
               {editingId ? <Check size={16} /> : <Plus size={16} />}
-              {editingId ? "Update" : "Add"}
+              {editingId ? t("update") : t("add")}
             </button>
             {editingId ? (
               <button
@@ -95,7 +97,7 @@ export default function LocationsPage() {
                 type="button"
               >
                 <X size={16} />
-                Cancel
+                {t("cancel")}
               </button>
             ) : null}
           </div>
@@ -110,15 +112,15 @@ export default function LocationsPage() {
           <table className="min-w-full text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-left">
               <tr>
-                <th className="px-4 py-3 font-semibold text-slate-700">Name</th>
-                <th className="w-28 px-4 py-3 text-right font-semibold text-slate-700">Actions</th>
+                <th className="px-4 py-3 font-semibold text-slate-700">{t("name")}</th>
+                <th className="w-28 px-4 py-3 text-right font-semibold text-slate-700">{t("actions")}</th>
               </tr>
             </thead>
             <tbody>
               {locations.length === 0 ? (
                 <tr>
                   <td className="px-4 py-8 text-center text-slate-500" colSpan={2}>
-                    No locations
+                    {t("noLocations")}
                   </td>
                 </tr>
               ) : (
@@ -138,7 +140,7 @@ export default function LocationsPage() {
                             setEditingId(location.id);
                             setName(location.name);
                           }}
-                          title="Edit"
+                          title={t("edit")}
                           type="button"
                         >
                           <Pencil size={16} />
@@ -146,7 +148,7 @@ export default function LocationsPage() {
                         <button
                           className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-red-600 hover:bg-red-50"
                           onClick={() => void deleteLocation(location.id)}
-                          title="Delete"
+                          title={t("delete")}
                           type="button"
                         >
                           <Trash2 size={16} />

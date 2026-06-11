@@ -3,21 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { Check } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { statusKey, useLanguage } from "@/lib/i18n";
 import type { AttendanceStatus, StatusColor } from "@/types/domain";
 
-const statusLabels: Record<AttendanceStatus, string> = {
-  ISDE: "İşdə",
-  EZAMIYYET: "Ezamiyyət",
-  MEZUNIYYET: "Məzuniyyət",
-  XESTE: "Xəstə",
-  BAYRAM: "Bayram",
-  ICAZELI: "İcazəli",
-  ISTIRAHET: "İstirahət",
-  ISDE_DEYIL: "İşdə deyil",
-  ISDE_XESARET: "İşdə xəsarət",
-};
-
 export default function StatusColorsPage() {
+  const { t } = useLanguage();
   const [colors, setColors] = useState<StatusColor[]>([]);
   const [error, setError] = useState("");
   const [savedStatus, setSavedStatus] = useState<AttendanceStatus | null>(null);
@@ -70,7 +60,7 @@ export default function StatusColorsPage() {
   }
 
   return (
-    <AppShell title="Status Colors" eyebrow="Timesheet display">
+    <AppShell title={t("statusColors")} eyebrow={t("cellColorSettings")}>
       <div className="grid gap-4">
         {error ? (
           <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -82,9 +72,9 @@ export default function StatusColorsPage() {
           <table className="min-w-full text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-left">
               <tr>
-                <th className="px-4 py-3 font-semibold text-slate-700">Status</th>
-                <th className="px-4 py-3 font-semibold text-slate-700">Cell Preview</th>
-                <th className="px-4 py-3 font-semibold text-slate-700">Cell Text</th>
+                <th className="px-4 py-3 font-semibold text-slate-700">{t("status")}</th>
+                <th className="px-4 py-3 font-semibold text-slate-700">Preview</th>
+                <th className="px-4 py-3 font-semibold text-slate-700">Text</th>
                 <th className="px-4 py-3 font-semibold text-slate-700">Color</th>
               </tr>
             </thead>
@@ -92,7 +82,7 @@ export default function StatusColorsPage() {
               {colors.map((item) => (
                 <tr className="border-b border-slate-100" key={item.status}>
                   <td className="px-4 py-3">
-                    <div className="font-medium text-slate-950">{statusLabels[item.status]}</div>
+                    <div className="font-medium text-slate-950">{t(statusKey(item.status))}</div>
                     <div className="text-xs text-slate-500">{item.status}</div>
                   </td>
                   <td className="px-4 py-3">

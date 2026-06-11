@@ -3,9 +3,11 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { useLanguage } from "@/lib/i18n";
 import type { Holiday } from "@/types/domain";
 
 export default function HolidaysPage() {
+  const { t } = useLanguage();
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [form, setForm] = useState({ date: "", description: "" });
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -68,14 +70,14 @@ export default function HolidaysPage() {
   }
 
   return (
-    <AppShell title="Holiday Management" eyebrow="Official Calendar">
+    <AppShell title={t("holidays")} eyebrow={t("officialHolidayCrud")}>
       <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
         <form
           className="grid content-start gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
           onSubmit={saveHoliday}
         >
           <label className="grid gap-1 text-sm font-medium text-slate-700">
-            Date
+            {t("date")}
             <input
               className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
               onChange={(event) => setForm((current) => ({ ...current, date: event.target.value }))}
@@ -84,7 +86,7 @@ export default function HolidaysPage() {
             />
           </label>
           <label className="grid gap-1 text-sm font-medium text-slate-700">
-            Description
+            {t("description")}
             <input
               className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
               onChange={(event) =>
@@ -99,7 +101,7 @@ export default function HolidaysPage() {
               type="submit"
             >
               {editingId ? <Check size={16} /> : <Plus size={16} />}
-              {editingId ? "Update" : "Add"}
+              {editingId ? t("update") : t("add")}
             </button>
             {editingId ? (
               <button
@@ -111,7 +113,7 @@ export default function HolidaysPage() {
                 type="button"
               >
                 <X size={16} />
-                Cancel
+                {t("cancel")}
               </button>
             ) : null}
           </div>
@@ -126,16 +128,16 @@ export default function HolidaysPage() {
           <table className="min-w-full text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-left">
               <tr>
-                <th className="px-4 py-3 font-semibold text-slate-700">Date</th>
-                <th className="px-4 py-3 font-semibold text-slate-700">Description</th>
-                <th className="w-28 px-4 py-3 text-right font-semibold text-slate-700">Actions</th>
+                <th className="px-4 py-3 font-semibold text-slate-700">{t("date")}</th>
+                <th className="px-4 py-3 font-semibold text-slate-700">{t("description")}</th>
+                <th className="w-28 px-4 py-3 text-right font-semibold text-slate-700">{t("actions")}</th>
               </tr>
             </thead>
             <tbody>
               {holidays.length === 0 ? (
                 <tr>
                   <td className="px-4 py-8 text-center text-slate-500" colSpan={3}>
-                    No holidays
+                    {t("noHolidays")}
                   </td>
                 </tr>
               ) : (
@@ -150,7 +152,7 @@ export default function HolidaysPage() {
                         <button
                           className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50"
                           onClick={() => startEdit(holiday)}
-                          title="Edit"
+                          title={t("edit")}
                           type="button"
                         >
                           <Pencil size={16} />
@@ -158,7 +160,7 @@ export default function HolidaysPage() {
                         <button
                           className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-red-600 hover:bg-red-50"
                           onClick={() => void deleteHoliday(holiday.id)}
-                          title="Delete"
+                          title={t("delete")}
                           type="button"
                         >
                           <Trash2 size={16} />

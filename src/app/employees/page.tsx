@@ -3,9 +3,11 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { useLanguage } from "@/lib/i18n";
 import type { Employee } from "@/types/domain";
 
 export default function EmployeesPage() {
+  const { t } = useLanguage();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [form, setForm] = useState({ name: "", department: "" });
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -68,14 +70,14 @@ export default function EmployeesPage() {
   }
 
   return (
-    <AppShell title="Employee Management" eyebrow="People">
+    <AppShell title={t("employees")} eyebrow={t("employeeTimesheet")}>
       <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
         <form
           className="grid content-start gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
           onSubmit={saveEmployee}
         >
           <label className="grid gap-1 text-sm font-medium text-slate-700">
-            Name
+            {t("name")}
             <input
               className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
               onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
@@ -83,7 +85,7 @@ export default function EmployeesPage() {
             />
           </label>
           <label className="grid gap-1 text-sm font-medium text-slate-700">
-            Department
+            {t("department")}
             <input
               className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
               onChange={(event) =>
@@ -98,7 +100,7 @@ export default function EmployeesPage() {
               type="submit"
             >
               {editingId ? <Check size={16} /> : <Plus size={16} />}
-              {editingId ? "Update" : "Add"}
+              {editingId ? t("update") : t("add")}
             </button>
             {editingId ? (
               <button
@@ -110,7 +112,7 @@ export default function EmployeesPage() {
                 type="button"
               >
                 <X size={16} />
-                Cancel
+                {t("cancel")}
               </button>
             ) : null}
           </div>
@@ -125,16 +127,16 @@ export default function EmployeesPage() {
           <table className="min-w-full text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-left">
               <tr>
-                <th className="px-4 py-3 font-semibold text-slate-700">Name</th>
-                <th className="px-4 py-3 font-semibold text-slate-700">Department</th>
-                <th className="w-28 px-4 py-3 text-right font-semibold text-slate-700">Actions</th>
+                <th className="px-4 py-3 font-semibold text-slate-700">{t("name")}</th>
+                <th className="px-4 py-3 font-semibold text-slate-700">{t("department")}</th>
+                <th className="w-28 px-4 py-3 text-right font-semibold text-slate-700">{t("actions")}</th>
               </tr>
             </thead>
             <tbody>
               {employees.length === 0 ? (
                 <tr>
                   <td className="px-4 py-8 text-center text-slate-500" colSpan={3}>
-                    No employees
+                    {t("noEmployees")}
                   </td>
                 </tr>
               ) : (
@@ -147,7 +149,7 @@ export default function EmployeesPage() {
                         <button
                           className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50"
                           onClick={() => startEdit(employee)}
-                          title="Edit"
+                          title={t("edit")}
                           type="button"
                         >
                           <Pencil size={16} />
@@ -155,7 +157,7 @@ export default function EmployeesPage() {
                         <button
                           className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-red-600 hover:bg-red-50"
                           onClick={() => void deleteEmployee(employee.id)}
-                          title="Delete"
+                          title={t("delete")}
                           type="button"
                         >
                           <Trash2 size={16} />

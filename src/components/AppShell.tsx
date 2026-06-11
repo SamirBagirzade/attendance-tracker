@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import {
   CalendarDays,
@@ -11,17 +13,18 @@ import {
   UserCog,
   Car,
 } from "lucide-react";
+import { languages, useLanguage } from "@/lib/i18n";
 
 const navItems = [
-  { href: "/", label: "Home", icon: Home },
-  { href: "/timesheet", label: "Timesheet", icon: CalendarDays },
-  { href: "/employees", label: "Employees", icon: Users },
-  { href: "/holidays", label: "Holidays", icon: Umbrella },
-  { href: "/locations", label: "Locations", icon: MapPin },
-  { href: "/cars", label: "Cars", icon: Car },
-  { href: "/status-colors", label: "Status Colors", icon: Palette },
-  { href: "/reports", label: "Reports", icon: ClipboardList },
-  { href: "/users", label: "Users", icon: UserCog },
+  { href: "/", labelKey: "home", icon: Home },
+  { href: "/timesheet", labelKey: "timesheet", icon: CalendarDays },
+  { href: "/employees", labelKey: "employees", icon: Users },
+  { href: "/holidays", labelKey: "holidays", icon: Umbrella },
+  { href: "/locations", labelKey: "locations", icon: MapPin },
+  { href: "/cars", labelKey: "cars", icon: Car },
+  { href: "/status-colors", labelKey: "statusColors", icon: Palette },
+  { href: "/reports", labelKey: "reports", icon: ClipboardList },
+  { href: "/users", labelKey: "users", icon: UserCog },
 ];
 
 export function AppShell({
@@ -33,6 +36,8 @@ export function AppShell({
   eyebrow: string;
   children: React.ReactNode;
 }) {
+  const { language, setLanguage, t } = useLanguage();
+
   return (
     <main className="min-h-screen bg-slate-100">
       <header className="border-b border-slate-200 bg-white">
@@ -54,17 +59,31 @@ export function AppShell({
                   href={item.href}
                 >
                   <Icon aria-hidden="true" size={16} />
-                  {item.label}
+                  {t(item.labelKey)}
                 </Link>
               );
             })}
+            <label className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm">
+              {t("language")}
+              <select
+                className="bg-transparent text-sm outline-none"
+                onChange={(event) => setLanguage(event.target.value as typeof language)}
+                value={language}
+              >
+                {languages.map((item) => (
+                  <option key={item} value={item}>
+                    {t(item)}
+                  </option>
+                ))}
+              </select>
+            </label>
             <form action="/api/auth/logout" method="post">
               <button
                 className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950"
                 type="submit"
               >
                 <LogOut aria-hidden="true" size={16} />
-                Logout
+                {t("logout")}
               </button>
             </form>
           </nav>

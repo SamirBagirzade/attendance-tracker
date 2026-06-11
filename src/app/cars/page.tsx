@@ -3,9 +3,11 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Check, Plus, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { useLanguage } from "@/lib/i18n";
 import type { Car } from "@/types/domain";
 
 export default function CarsPage() {
+  const { t } = useLanguage();
   const [cars, setCars] = useState<Car[]>([]);
   const [form, setForm] = useState({ makeModel: "", licensePlate: "" });
   const [error, setError] = useState("");
@@ -87,14 +89,14 @@ export default function CarsPage() {
   }
 
   return (
-    <AppShell title="Cars" eyebrow="Fleet">
+    <AppShell title={t("cars")} eyebrow={t("fleet")}>
       <div className="grid gap-4">
         <form
           className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[minmax(0,1fr)_220px_auto]"
           onSubmit={createCar}
         >
           <label className="grid gap-1 text-sm font-medium text-slate-700">
-            Make model
+            {t("makeModel")}
             <input
               className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
               onChange={(event) =>
@@ -105,7 +107,7 @@ export default function CarsPage() {
             />
           </label>
           <label className="grid gap-1 text-sm font-medium text-slate-700">
-            License plate
+            {t("licensePlate")}
             <input
               className="h-10 rounded-md border border-slate-300 px-3 text-sm uppercase outline-none focus:border-slate-500"
               onChange={(event) =>
@@ -121,7 +123,7 @@ export default function CarsPage() {
               type="submit"
             >
               <Plus size={16} />
-              Add
+              {t("add")}
             </button>
           </div>
         </form>
@@ -137,16 +139,16 @@ export default function CarsPage() {
             <table className="min-w-full text-sm">
               <thead className="border-b border-slate-200 bg-slate-50 text-left">
                 <tr>
-                  <th className="px-4 py-3 font-semibold text-slate-700">Make model</th>
-                  <th className="px-4 py-3 font-semibold text-slate-700">License plate</th>
-                  <th className="px-4 py-3 font-semibold text-slate-700">Actions</th>
+                  <th className="px-4 py-3 font-semibold text-slate-700">{t("makeModel")}</th>
+                  <th className="px-4 py-3 font-semibold text-slate-700">{t("licensePlate")}</th>
+                  <th className="px-4 py-3 font-semibold text-slate-700">{t("actions")}</th>
                 </tr>
               </thead>
               <tbody>
                 {cars.length === 0 ? (
                   <tr>
                     <td className="px-4 py-8 text-center text-slate-500" colSpan={3}>
-                      No cars
+                      {t("noCars")}
                     </td>
                   </tr>
                 ) : (
@@ -198,7 +200,7 @@ export default function CarsPage() {
                             type="button"
                           >
                             <Trash2 size={16} />
-                            Delete
+                            {t("delete")}
                           </button>
                         </div>
                       </td>

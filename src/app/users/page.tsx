@@ -3,9 +3,11 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Check, Plus, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { useLanguage } from "@/lib/i18n";
 import type { AppUser, AppUserRole } from "@/types/domain";
 
 export default function UsersPage() {
+  const { t } = useLanguage();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [form, setForm] = useState({
     username: "",
@@ -99,14 +101,14 @@ export default function UsersPage() {
   }
 
   return (
-    <AppShell title="Users" eyebrow="Admin access">
+    <AppShell title={t("users")} eyebrow="Admin">
       <div className="grid gap-4">
         <form
           className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm lg:grid-cols-[minmax(180px,1fr)_minmax(180px,1fr)_180px_auto_auto]"
           onSubmit={createUser}
         >
           <label className="grid gap-1 text-sm font-medium text-slate-700">
-            Username
+            {t("username")}
             <input
               className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
               onChange={(event) => setForm((current) => ({ ...current, username: event.target.value }))}
@@ -114,7 +116,7 @@ export default function UsersPage() {
             />
           </label>
           <label className="grid gap-1 text-sm font-medium text-slate-700">
-            Password
+            {t("password")}
             <input
               className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
               onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
@@ -152,7 +154,7 @@ export default function UsersPage() {
               type="submit"
             >
               <Plus size={16} />
-              Add User
+              {t("add")}
             </button>
           </div>
         </form>
@@ -168,11 +170,11 @@ export default function UsersPage() {
             <table className="min-w-full text-sm">
               <thead className="border-b border-slate-200 bg-slate-50 text-left">
                 <tr>
-                  <th className="px-4 py-3 font-semibold text-slate-700">Username</th>
+                  <th className="px-4 py-3 font-semibold text-slate-700">{t("username")}</th>
                   <th className="px-4 py-3 font-semibold text-slate-700">Role</th>
                   <th className="px-4 py-3 font-semibold text-slate-700">Active</th>
                   <th className="px-4 py-3 font-semibold text-slate-700">Reset Password</th>
-                  <th className="px-4 py-3 font-semibold text-slate-700">Actions</th>
+                  <th className="px-4 py-3 font-semibold text-slate-700">{t("actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -257,7 +259,7 @@ export default function UsersPage() {
                             type="button"
                           >
                             <Trash2 size={16} />
-                            Delete
+                            {t("delete")}
                           </button>
                         </div>
                       </td>

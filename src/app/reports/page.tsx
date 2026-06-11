@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { endOfMonth, format, startOfMonth } from "date-fns";
 import { Download, Search } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { statusKey, useLanguage } from "@/lib/i18n";
 import type {
   AttendanceStatus,
   Car,
@@ -14,23 +15,20 @@ import type {
   Location,
 } from "@/types/domain";
 
-const statusOptions: Array<{ value: AttendanceStatus; label: string }> = [
-  { value: "ISDE", label: "İşdə" },
-  { value: "EZAMIYYET", label: "Ezamiyyət" },
-  { value: "MEZUNIYYET", label: "Məzuniyyət" },
-  { value: "XESTE", label: "Xəstə" },
-  { value: "BAYRAM", label: "Bayram" },
-  { value: "ICAZELI", label: "İcazəli" },
-  { value: "ISTIRAHET", label: "İstirahət" },
-  { value: "ISDE_DEYIL", label: "İşdə deyil" },
-  { value: "ISDE_XESARET", label: "İşdə xəsarət" },
+const statusOptions: AttendanceStatus[] = [
+  "ISDE",
+  "EZAMIYYET",
+  "MEZUNIYYET",
+  "XESTE",
+  "BAYRAM",
+  "ICAZELI",
+  "ISTIRAHET",
+  "ISDE_DEYIL",
+  "ISDE_XESARET",
 ];
 
-const statusLabels = Object.fromEntries(
-  statusOptions.map((item) => [item.value, item.label]),
-) as Record<AttendanceStatus, string>;
-
 export default function ReportsPage() {
+  const { t } = useLanguage();
   const [from, setFrom] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [to, setTo] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -145,9 +143,9 @@ export default function ReportsPage() {
         ["To", to],
         ["Employee", employeeLabel(employees, employeeId) || "All"],
         ["Department", department || "All"],
-        ["Status", status ? statusLabels[status as AttendanceStatus] : "All"],
-        ["Location", location || "All"],
-        ["Car", carLabel(cars, carId) || "All"],
+        ["Status", status ? t(statusKey(status)) : t("allStatuses")],
+        ["Location", location || t("allLocations")],
+        ["Car", carLabel(cars, carId) || t("allCars")],
         ["Weekend", optionLabel(weekend)],
         ["Holiday", optionLabel(holiday)],
         ["Total Records", report.summary.totalRecords],
@@ -171,7 +169,7 @@ export default function ReportsPage() {
           Records: item.records,
           "İşdə": item.isdeDays,
           "Ezamiyyət": item.ezamiyyetDays,
-          ...statusCountsForExport(item.statusCounts),
+          ...statusCountsForExport(item.statusCounts, t),
           "Weekend Worked": item.weekendWorkedDays,
           "Holiday Worked": item.holidayWorkedDays,
           "Cars Driven": item.carsDrivenDays,
@@ -190,83 +188,83 @@ export default function ReportsPage() {
           "Unique Employees": item.uniqueEmployees,
           "İşdə": item.isdeDays,
           "Ezamiyyət": item.ezamiyyetDays,
-          ...statusCountsForExport(item.statusCounts),
+          ...statusCountsForExport(item.statusCounts, t),
           "Cars Driven": item.carsDrivenDays,
           "Cooked For": item.cookedHeadcountTotal,
         })),
       ),
       "By Location",
     );
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(exportRows(rows)), "Records");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(exportRows(rows, t)), "Records");
     XLSX.writeFile(workbook, `attendance_report_${from}_${to}.xlsx`);
   }
 
   return (
-    <AppShell title="Reports" eyebrow={`${from} to ${to}`}>
+      <AppShell title={t("reports")} eyebrow={`${from} - ${to}`}>
       <div className="grid gap-4">
         <form
           className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm lg:grid-cols-4 xl:grid-cols-8"
           onSubmit={submitReport}
         >
-          <SelectField label="Employee" onChange={setEmployeeId} value={employeeId}>
-            <option value="">All employees</option>
+          <SelectField label={t("employee")} onChange={setEmployeeId} value={employeeId}>
+            <option value="">{t("allEmployees")}</option>
             {employees.map((employee) => (
               <option key={employee.id} value={employee.id}>
                 {employee.name} - {employee.department}
               </option>
             ))}
           </SelectField>
-          <SelectField label="Department" onChange={setDepartment} value={department}>
-            <option value="">All departments</option>
+          <SelectField label={t("department")} onChange={setDepartment} value={department}>
+            <option value="">{t("allDepartments")}</option>
             {departments.map((item) => (
               <option key={item} value={item}>
                 {item}
               </option>
             ))}
           </SelectField>
-          <SelectField label="Status" onChange={setStatus} value={status}>
-            <option value="">All statuses</option>
+          <SelectField label={t("status")} onChange={setStatus} value={status}>
+            <option value="">{t("allStatuses")}</option>
             {statusOptions.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
+              <option key={item} value={item}>
+                {t(statusKey(item))}
               </option>
             ))}
           </SelectField>
-          <SelectField label="Location" onChange={setLocation} value={location}>
-            <option value="">All locations</option>
+          <SelectField label={t("location")} onChange={setLocation} value={location}>
+            <option value="">{t("allLocations")}</option>
             {locations.map((item) => (
               <option key={item.id} value={item.name}>
                 {item.name}
               </option>
             ))}
           </SelectField>
-          <SelectField label="Car" onChange={setCarId} value={carId}>
-            <option value="">All cars</option>
+          <SelectField label={t("cars")} onChange={setCarId} value={carId}>
+            <option value="">{t("allCars")}</option>
             {cars.map((car) => (
               <option key={car.id} value={car.id}>
                 {car.makeModel} - {car.licensePlate}
               </option>
             ))}
           </SelectField>
-          <SelectField label="Weekend" onChange={setWeekend} value={weekend}>
-            <option value="all">All days</option>
-            <option value="yes">Only weekend</option>
-            <option value="no">Exclude weekend</option>
+          <SelectField label={t("weekend")} onChange={setWeekend} value={weekend}>
+            <option value="all">{t("allDays")}</option>
+            <option value="yes">{t("onlyWeekend")}</option>
+            <option value="no">{t("excludeWeekend")}</option>
           </SelectField>
-          <SelectField label="Holiday" onChange={setHoliday} value={holiday}>
-            <option value="all">All days</option>
-            <option value="yes">Only holiday</option>
-            <option value="no">Exclude holiday</option>
+          <SelectField label={t("holiday")} onChange={setHoliday} value={holiday}>
+            <option value="all">{t("allDays")}</option>
+            <option value="yes">{t("onlyHoliday")}</option>
+            <option value="no">{t("excludeHoliday")}</option>
           </SelectField>
-          <DateField label="From" onChange={setFrom} value={from} />
-          <DateField label="To" onChange={setTo} value={to} />
+          <DateField label={t("from")} onChange={setFrom} value={from} />
+          <DateField label={t("to")} onChange={setTo} value={to} />
           <div className="flex items-end gap-2 lg:col-span-4 xl:col-span-8">
             <button
               className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800"
               type="submit"
             >
               <Search size={16} />
-              Run
+              {t("run")}
             </button>
             <button
               className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
@@ -275,7 +273,7 @@ export default function ReportsPage() {
               type="button"
             >
               <Download size={16} />
-              Excel
+              {t("excel")}
             </button>
           </div>
         </form>
@@ -289,86 +287,86 @@ export default function ReportsPage() {
         {report ? (
           <>
             <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <Metric label="Records" value={report.summary.totalRecords} />
-              <Metric label="Employees" value={report.summary.uniqueEmployees} />
-              <Metric label="İşdə" value={report.summary.isdeDays} />
-              <Metric label="Ezamiyyət" value={report.summary.ezamiyyetDays} />
-              <Metric label="Cars Driven" value={report.summary.carsDrivenDays} />
-              <Metric label="Weekend Worked" value={report.summary.weekendWorkedDays} />
-              <Metric label="Holiday Worked" value={report.summary.holidayWorkedDays} />
-              <Metric label="Cooked For" value={report.summary.cookedHeadcountTotal} />
-              <Metric label="Locations" value={report.summary.uniqueLocations} />
+              <Metric label={t("records")} value={report.summary.totalRecords} />
+              <Metric label={t("employees")} value={report.summary.uniqueEmployees} />
+              <Metric label={t("statusISDE")} value={report.summary.isdeDays} />
+              <Metric label={t("statusEZAMIYYET")} value={report.summary.ezamiyyetDays} />
+              <Metric label={t("carsDriven")} value={report.summary.carsDrivenDays} />
+              <Metric label={t("weekend")} value={report.summary.weekendWorkedDays} />
+              <Metric label={t("holiday")} value={report.summary.holidayWorkedDays} />
+              <Metric label={t("cookedFor")} value={report.summary.cookedHeadcountTotal} />
+              <Metric label={t("locations")} value={report.summary.uniqueLocations} />
             </section>
 
             <section className="grid gap-4 xl:grid-cols-2">
               <BreakdownTable
                 emptyText="No employee rows"
                 headers={[
-                  "Employee",
-                  "Department",
-                  "Records",
-                  ...statusOptions.map((item) => item.label),
-                  "Weekend",
-                  "Holiday",
-                  "Cars",
-                  "Cooked",
+                  t("employee"),
+                  t("department"),
+                  t("records"),
+                  ...statusOptions.map((item) => t(statusKey(item))),
+                  t("weekend"),
+                  t("holiday"),
+                  t("cars"),
+                  t("cooked"),
                 ]}
                 rows={byEmployee.map((item) => [
                   item.employeeName,
                   item.department,
                   item.records,
-                  ...statusOptions.map((statusOption) => item.statusCounts[statusOption.value]),
+                  ...statusOptions.map((statusOption) => item.statusCounts[statusOption]),
                   item.weekendWorkedDays,
                   item.holidayWorkedDays,
                   item.carsDrivenDays,
                   item.cookedHeadcountTotal,
                 ])}
-                title="By Employee"
+                title={t("byEmployee")}
               />
               <BreakdownTable
                 emptyText="No location rows"
                 headers={[
-                  "Location",
-                  "Records",
-                  "Unique Days",
-                  "Employees",
-                  ...statusOptions.map((item) => item.label),
-                  "Cars",
-                  "Cooked",
+                  t("location"),
+                  t("records"),
+                  t("uniqueDays"),
+                  t("employees"),
+                  ...statusOptions.map((item) => t(statusKey(item))),
+                  t("cars"),
+                  t("cooked"),
                 ]}
                 rows={byLocation.map((item) => [
                   item.location,
                   item.records,
                   item.uniqueDays,
                   item.uniqueEmployees,
-                  ...statusOptions.map((statusOption) => item.statusCounts[statusOption.value]),
+                  ...statusOptions.map((statusOption) => item.statusCounts[statusOption]),
                   item.carsDrivenDays,
                   item.cookedHeadcountTotal,
                 ])}
-                title="By Location"
+                title={t("byLocation")}
               />
             </section>
 
             <BreakdownTable
               emptyText="No attendance records match these filters"
               headers={[
-                "Date",
-                "Employee",
-                "Department",
-                "Status",
-                "Location",
-                "Work Locations",
-                "Cooked",
-                "Car",
-                "Note",
-                "Weekend",
-                "Holiday",
+                t("date"),
+                t("employee"),
+                t("department"),
+                t("status"),
+                t("location"),
+                t("workLocations"),
+                t("cooked"),
+                t("cars"),
+                t("note"),
+                t("weekend"),
+                t("holiday"),
               ]}
               rows={rows.map((row) => [
                 row.date,
                 row.employeeName,
                 row.department,
-                statusLabels[row.status],
+                t(statusKey(row.status)),
                 row.location ?? "-",
                 row.workLocations.join(", ") || "-",
                 row.cookedHeadcount ?? "-",
@@ -377,7 +375,7 @@ export default function ReportsPage() {
                 row.isWeekend ? "Yes" : "No",
                 row.holidayDescription ?? (row.isHoliday ? "Yes" : "No"),
               ])}
-              title="Records"
+              title={t("records")}
             />
           </>
         ) : (
@@ -526,12 +524,12 @@ function optionLabel(value: string) {
   return "All";
 }
 
-function exportRows(rows: FilteredReportRow[]) {
+function exportRows(rows: FilteredReportRow[], t: (key: string) => string) {
   return rows.map((row) => ({
     Date: row.date,
     Employee: row.employeeName,
     Department: row.department,
-    Status: statusLabels[row.status],
+    Status: t(statusKey(row.status)),
     Location: row.location ?? "",
     "Work Locations": row.workLocations.join(", "),
     "Cooked For": row.cookedHeadcount ?? "",
@@ -543,15 +541,18 @@ function exportRows(rows: FilteredReportRow[]) {
 }
 
 function emptyStatusCounts() {
-  return Object.fromEntries(statusOptions.map((item) => [item.value, 0])) as Record<
+  return Object.fromEntries(statusOptions.map((item) => [item, 0])) as Record<
     AttendanceStatus,
     number
   >;
 }
 
-function statusCountsForExport(statusCounts: Record<AttendanceStatus, number>) {
+function statusCountsForExport(
+  statusCounts: Record<AttendanceStatus, number>,
+  t: (key: string) => string,
+) {
   return Object.fromEntries(
-    statusOptions.map((item) => [`Status - ${item.label}`, statusCounts[item.value]]),
+    statusOptions.map((item) => [`Status - ${t(statusKey(item))}`, statusCounts[item]]),
   );
 }
 
