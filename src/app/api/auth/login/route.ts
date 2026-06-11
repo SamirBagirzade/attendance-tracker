@@ -13,11 +13,14 @@ export async function POST(request: NextRequest) {
 
   const token = await createSessionToken(username);
   const response = NextResponse.json({ ok: true });
+  const forwardedProto = request.headers.get("x-forwarded-proto");
+  const isSecureRequest =
+    forwardedProto === "https" || request.nextUrl.protocol === "https:";
 
   response.cookies.set(authCookieName, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: isSecureRequest,
     maxAge: 60 * 60 * 8,
     path: "/",
   });

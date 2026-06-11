@@ -73,6 +73,38 @@ location / {
 }
 ```
 
+If the app is served through HTTPS behind a reverse proxy, make sure the proxy sends:
+
+```nginx
+proxy_set_header X-Forwarded-Proto $scheme;
+```
+
+Without HTTPS, login still works over direct `http://SERVER_IP:3000`, but you should use HTTPS for real users.
+
+## Login Troubleshooting
+
+If pressing login appears to do nothing:
+
+1. Confirm `.env` has the credentials you are typing:
+
+```bash
+grep ADMIN_ .env
+```
+
+2. Restart the service after changing `.env`:
+
+```bash
+sudo systemctl restart attendance-tracker
+```
+
+3. Watch logs:
+
+```bash
+sudo journalctl -u attendance-tracker -f
+```
+
+Browser console messages like `runtime.lastError: The message port closed before a response was received` are usually from a browser extension and are not the app login error.
+
 ## Manual Environment
 
 You can create `.env` yourself before running `deploy.sh`:
