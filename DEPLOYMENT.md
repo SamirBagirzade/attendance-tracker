@@ -48,6 +48,25 @@ git pull
 
 The script will keep your existing `.env`, install/update dependencies, run migrations, rebuild, and restart the service.
 
+## Light Re-Deploy
+
+After the server has already been provisioned once with `./deploy.sh`, use the light script for normal code updates:
+
+```bash
+git pull
+./deploy-light.sh
+```
+
+`deploy-light.sh` skips apt, Node.js, PostgreSQL setup, database/user creation, and systemd service creation. It only runs:
+
+```bash
+npm ci
+npx prisma generate
+npx prisma migrate deploy
+npm run build
+sudo systemctl restart attendance-tracker
+```
+
 ## Useful Commands
 
 ```bash
