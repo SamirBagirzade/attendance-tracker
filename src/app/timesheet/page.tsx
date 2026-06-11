@@ -341,7 +341,7 @@ export default function TimesheetPage() {
                               ) : null}
                               {record?.cookedHeadcount ? (
                                 <span className="text-[10px] text-emerald-700">
-                                  Cook: {record.cookedHeadcount}
+                                  {t("cook")}: {record.cookedHeadcount}
                                 </span>
                               ) : null}
                               {carText ? (
