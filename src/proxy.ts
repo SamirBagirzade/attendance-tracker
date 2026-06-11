@@ -42,7 +42,12 @@ export async function proxy(request: NextRequest) {
 }
 
 function isAdminOnlyPath(pathname: string) {
-  return pathname === "/users" || pathname.startsWith("/api/users");
+  return (
+    pathname === "/users" ||
+    pathname === "/backup" ||
+    pathname.startsWith("/api/users") ||
+    pathname.startsWith("/api/backups")
+  );
 }
 
 function isViewerBlockedRequest(request: NextRequest) {
