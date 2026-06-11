@@ -23,6 +23,14 @@ need_sudo() {
   fi
 }
 
+run_as_postgres() {
+  if [[ "${EUID}" -eq 0 ]]; then
+    runuser -u postgres -- "$@"
+  else
+    sudo -u postgres "$@"
+  fi
+}
+
 random_hex() {
   openssl rand -hex "$1"
 }
@@ -85,7 +93,7 @@ load_env_values() {
 
 setup_database() {
   log "Creating PostgreSQL database and user"
-  need_sudo -u postgres psql <<SQL
+  run_as_postgres psql <<SQL
 DO \$\$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${DB_USER}') THEN
