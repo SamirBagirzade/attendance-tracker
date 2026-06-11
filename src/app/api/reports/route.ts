@@ -4,7 +4,7 @@ import { isWeekend } from "date-fns";
 import { dateRangeWhere, toApiDateKey } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 
-const workedStatuses = new Set<AttendanceStatus>(["ISDE", "EZAMIYYET"]);
+const workedStatuses = new Set<AttendanceStatus>(["ISDE", "EZAMIYYET", "ISDE_XESARET"]);
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
     const department = searchParams.get("department");
     const status = searchParams.get("status");
     const location = searchParams.get("location");
+    const carId = searchParams.get("carId");
     const weekend = searchParams.get("weekend") ?? "all";
     const holiday = searchParams.get("holiday") ?? "all";
 
@@ -66,6 +67,16 @@ export async function GET(request: NextRequest) {
       ];
     }
 
+    if (carId) {
+      const parsedCarId = Number(carId);
+
+      if (!Number.isInteger(parsedCarId) || parsedCarId <= 0) {
+        return NextResponse.json({ error: "carId must be a positive integer." }, { status: 400 });
+      }
+
+      where.carId = parsedCarId;
+    }
+
     const holidays = await prisma.holiday.findMany({
       where: { date: dateRangeWhere(from, to) },
     });
@@ -82,6 +93,7 @@ export async function GET(request: NextRequest) {
             location: true,
           },
         },
+        car: true,
       },
       orderBy: [{ date: "asc" }, { employee: { name: "asc" } }],
     });
@@ -103,6 +115,9 @@ export async function GET(request: NextRequest) {
           location: record.location,
           workLocations: record.workLocations.map((item) => item.location.name),
           cookedHeadcount: record.cookedHeadcount,
+          carDriven: record.carDriven,
+          car: record.car ? `${record.car.makeModel} - ${record.car.licensePlate}` : null,
+          note: record.note,
           isWeekend: rowIsWeekend,
           isHoliday: rowIsHoliday,
           holidayDescription,
@@ -129,8 +144,13 @@ export async function GET(request: NextRequest) {
       });
 
     const uniqueLocations = new Set<string>();
+    const statusCounts = Object.fromEntries(
+      Object.values(AttendanceStatus).map((item) => [item, 0]),
+    ) as Record<AttendanceStatus, number>;
 
     for (const row of filteredRows) {
+      statusCounts[row.status] += 1;
+
       if (row.location) {
         uniqueLocations.add(row.location);
       }
@@ -144,8 +164,10 @@ export async function GET(request: NextRequest) {
       summary: {
         totalRecords: filteredRows.length,
         uniqueEmployees: new Set(filteredRows.map((row) => row.employeeId)).size,
+        statusCounts,
         isdeDays: filteredRows.filter((row) => row.status === "ISDE").length,
         ezamiyyetDays: filteredRows.filter((row) => row.status === "EZAMIYYET").length,
+        carsDrivenDays: filteredRows.filter((row) => row.carDriven).length,
         weekendWorkedDays: filteredRows.filter(
           (row) => row.isWeekend && workedStatuses.has(row.status),
         ).length,

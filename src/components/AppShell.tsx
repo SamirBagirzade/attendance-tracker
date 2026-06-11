@@ -9,6 +9,7 @@ import {
   Users,
   LogOut,
   UserCog,
+  Car,
 } from "lucide-react";
 
 const navItems = [
@@ -17,6 +18,7 @@ const navItems = [
   { href: "/employees", label: "Employees", icon: Users },
   { href: "/holidays", label: "Holidays", icon: Umbrella },
   { href: "/locations", label: "Locations", icon: MapPin },
+  { href: "/cars", label: "Cars", icon: Car },
   { href: "/status-colors", label: "Status Colors", icon: Palette },
   { href: "/reports", label: "Reports", icon: ClipboardList },
   { href: "/users", label: "Users", icon: UserCog },

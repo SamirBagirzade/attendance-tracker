@@ -9,7 +9,18 @@ export type AttendanceRecordInput = {
   workLocationIds?: unknown;
   newWorkLocationNames?: unknown;
   cookedHeadcount?: number | null;
+  carDriven?: unknown;
+  carId?: unknown;
+  note?: unknown;
 };
+
+const carAllowedStatuses = new Set<AttendanceStatus>([
+  "ISDE",
+  "EZAMIYYET",
+  "MEZUNIYYET",
+  "BAYRAM",
+  "ISDE_XESARET",
+]);
 
 export function normalizeAttendanceInput(input: AttendanceRecordInput) {
   const date = parseCalendarDate(input.date);
@@ -22,6 +33,12 @@ export function normalizeAttendanceInput(input: AttendanceRecordInput) {
     Array.isArray(input.workLocationIds) && input.status === "ISDE"
       ? input.workLocationIds.map(Number).filter((id) => Number.isInteger(id) && id > 0)
       : [];
+  const carDriven = carAllowedStatuses.has(input.status) && input.carDriven === true;
+  const carId = carDriven ? Number(input.carId) : null;
+  const note =
+    input.status === "ISDE_XESARET" && typeof input.note === "string"
+      ? input.note.trim()
+      : null;
   const newWorkLocationNames =
     Array.isArray(input.newWorkLocationNames) && input.status === "ISDE"
       ? input.newWorkLocationNames
@@ -49,6 +66,14 @@ export function normalizeAttendanceInput(input: AttendanceRecordInput) {
     throw new Error("cookedHeadcount must be a positive integer.");
   }
 
+  if (carDriven && (carId == null || !Number.isInteger(carId) || carId <= 0)) {
+    throw new Error("car is required when car was driven.");
+  }
+
+  if (note && note.length > 1000) {
+    throw new Error("note must be 1000 characters or fewer.");
+  }
+
   return {
     employeeId: input.employeeId,
     date,
@@ -57,5 +82,8 @@ export function normalizeAttendanceInput(input: AttendanceRecordInput) {
     workLocationIds,
     newWorkLocationNames,
     cookedHeadcount,
+    carDriven,
+    carId,
+    note,
   };
 }

@@ -14,6 +14,7 @@ import { AppShell } from "@/components/AppShell";
 import type {
   AttendanceRecord,
   AttendanceStatus,
+  Car,
   Employee,
   Holiday,
   Location,
@@ -29,7 +30,16 @@ const statuses: Array<{ value: AttendanceStatus; label: string }> = [
   { value: "ICAZELI", label: "İcazəli" },
   { value: "ISTIRAHET", label: "İstirahət" },
   { value: "ISDE_DEYIL", label: "İşdə deyil" },
+  { value: "ISDE_XESARET", label: "İşdə xəsarət" },
 ];
+
+const carAllowedStatuses = new Set<AttendanceStatus>([
+  "ISDE",
+  "EZAMIYYET",
+  "MEZUNIYYET",
+  "BAYRAM",
+  "ISDE_XESARET",
+]);
 
 function toClientDateKey(value: string | Date) {
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -50,6 +60,7 @@ export default function TimesheetPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
+  const [cars, setCars] = useState<Car[]>([]);
   const [statusColors, setStatusColors] = useState<StatusColor[]>([]);
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [activeCell, setActiveCell] = useState<ActiveCell | null>(null);
@@ -102,12 +113,14 @@ export default function TimesheetPage() {
         holidayResponse,
         recordResponse,
         locationResponse,
+        carResponse,
         statusColorResponse,
       ] = await Promise.all([
         fetch("/api/employees"),
         fetch(`/api/holidays?from=${from}&to=${to}`),
         fetch(`/api/attendance-records?from=${from}&to=${to}`),
         fetch("/api/locations"),
+        fetch("/api/cars"),
         fetch("/api/status-colors"),
       ]);
 
@@ -116,6 +129,7 @@ export default function TimesheetPage() {
         !holidayResponse.ok ||
         !recordResponse.ok ||
         !locationResponse.ok ||
+        !carResponse.ok ||
         !statusColorResponse.ok
       ) {
         throw new Error("Could not load timesheet data.");
@@ -125,6 +139,7 @@ export default function TimesheetPage() {
       setHolidays(await holidayResponse.json());
       setRecords(await recordResponse.json());
       setLocations(await locationResponse.json());
+      setCars(await carResponse.json());
       setStatusColors(await statusColorResponse.json());
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Could not load timesheet data.");
@@ -293,6 +308,7 @@ export default function TimesheetPage() {
                           record?.status === "ISDE"
                             ? record.workLocations.map((item) => item.name).join(", ")
                             : "";
+                        const carText = record?.carDriven && record.car ? record.car.licensePlate : "";
 
                         return (
                           <td
@@ -301,7 +317,7 @@ export default function TimesheetPage() {
                             style={{ minWidth: cellWidth, width: cellWidth }}
                           >
                             <button
-                              className="flex h-12 w-full flex-col items-center justify-center rounded-md border border-transparent px-1 text-center text-xs font-semibold text-slate-800 hover:border-slate-300 hover:bg-white"
+                              className="flex min-h-14 w-full flex-col items-center justify-center rounded-md border border-transparent px-1 py-1 text-center text-xs font-semibold text-slate-800 hover:border-slate-300 hover:bg-white"
                               onClick={() => openCell(employee, dateKey)}
                               style={statusColor ? { backgroundColor: statusColor } : undefined}
                               title={`${employee.name} ${dateKey}`}
@@ -323,6 +339,16 @@ export default function TimesheetPage() {
                                   Cook: {record.cookedHeadcount}
                                 </span>
                               ) : null}
+                              {carText ? (
+                                <span className="max-w-full truncate text-[10px] font-medium text-slate-700">
+                                  Car: {carText}
+                                </span>
+                              ) : null}
+                              {record?.note ? (
+                                <span className="max-w-full truncate text-[10px] font-medium text-red-700">
+                                  Note
+                                </span>
+                              ) : null}
                             </button>
                           </td>
                         );
@@ -339,6 +365,7 @@ export default function TimesheetPage() {
         <AttendanceModal
           key={`${activeCell.employee.id}:${activeCell.dateKey}`}
           activeCell={activeCell}
+          cars={cars}
           locations={locations}
           onClose={closeModal}
         />
@@ -349,10 +376,12 @@ export default function TimesheetPage() {
 
 function AttendanceModal({
   activeCell,
+  cars,
   locations,
   onClose,
 }: {
   activeCell: ActiveCell;
+  cars: Car[];
   locations: Location[];
   onClose: (refresh?: boolean) => Promise<void>;
 }) {
@@ -367,7 +396,11 @@ function AttendanceModal({
   const [cookedHeadcount, setCookedHeadcount] = useState(
     activeCell.record?.cookedHeadcount?.toString() ?? "",
   );
+  const [carDriven, setCarDriven] = useState(Boolean(activeCell.record?.carDriven));
+  const [carId, setCarId] = useState(activeCell.record?.carId?.toString() ?? "");
+  const [note, setNote] = useState(activeCell.record?.note ?? "");
   const [error, setError] = useState("");
+  const canSelectCar = carAllowedStatuses.has(status);
 
   function toggleWorkLocation(locationId: number) {
     setWorkLocationIds((current) =>
@@ -401,6 +434,9 @@ function AttendanceModal({
       location: status === "EZAMIYYET" ? location : null,
       workLocationIds: status === "ISDE" ? workLocationIds : [],
       newWorkLocationNames: status === "ISDE" ? newWorkLocationNames : [],
+      carDriven: canSelectCar ? carDriven : false,
+      carId: canSelectCar && carDriven ? Number(carId) : null,
+      note: status === "ISDE_XESARET" ? note : null,
       cookedHeadcount:
         status === "EZAMIYYET" && actedAsCook && cookedHeadcount
           ? Number(cookedHeadcount)
@@ -580,6 +616,49 @@ function AttendanceModal({
                 </button>
               </div>
             </div>
+          ) : null}
+
+          {canSelectCar ? (
+            <div className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                <input
+                  checked={carDriven}
+                  className="h-4 w-4 rounded border-slate-300"
+                  onChange={(event) => setCarDriven(event.target.checked)}
+                  type="checkbox"
+                />
+                Car was driven
+              </label>
+              {carDriven ? (
+                <label className="grid gap-1 text-sm font-medium text-slate-700">
+                  Car
+                  <select
+                    className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-slate-500"
+                    onChange={(event) => setCarId(event.target.value)}
+                    value={carId}
+                  >
+                    <option value="">Select car</option>
+                    {cars.map((car) => (
+                      <option key={car.id} value={car.id}>
+                        {car.makeModel} - {car.licensePlate}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+            </div>
+          ) : null}
+
+          {status === "ISDE_XESARET" ? (
+            <label className="grid gap-1 text-sm font-medium text-slate-700">
+              Note
+              <textarea
+                className="min-h-24 rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+                maxLength={1000}
+                onChange={(event) => setNote(event.target.value)}
+                value={note}
+              />
+            </label>
           ) : null}
 
           {error ? (

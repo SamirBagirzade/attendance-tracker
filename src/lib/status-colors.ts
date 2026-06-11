@@ -9,6 +9,7 @@ export const defaultStatusColors: Record<AttendanceStatus, string> = {
   ICAZELI: "#e9d5ff",
   ISTIRAHET: "#cffafe",
   ISDE_DEYIL: "#e5e7eb",
+  ISDE_XESARET: "#fecaca",
 };
 
 export const defaultStatusDisplayText: Record<AttendanceStatus, string> = {
@@ -20,6 +21,7 @@ export const defaultStatusDisplayText: Record<AttendanceStatus, string> = {
   ICAZELI: "İc",
   ISTIRAHET: "İs",
   ISDE_DEYIL: "D",
+  ISDE_XESARET: "Xəs",
 };
 
 export function normalizeStatusColorInput(input: {

@@ -18,7 +18,14 @@ export type AttendanceStatus =
   | "BAYRAM"
   | "ICAZELI"
   | "ISTIRAHET"
-  | "ISDE_DEYIL";
+  | "ISDE_DEYIL"
+  | "ISDE_XESARET";
+
+export type Car = {
+  id: number;
+  makeModel: string;
+  licensePlate: string;
+};
 
 export type AttendanceRecord = {
   id: number;
@@ -28,6 +35,10 @@ export type AttendanceRecord = {
   location: string | null;
   workLocations: Location[];
   cookedHeadcount: number | null;
+  carDriven: boolean;
+  carId: number | null;
+  car: Car | null;
+  note: string | null;
 };
 
 export type Location = {
@@ -101,6 +112,9 @@ export type FilteredReportRow = {
   location: string | null;
   workLocations: string[];
   cookedHeadcount: number | null;
+  carDriven: boolean;
+  car: string | null;
+  note: string | null;
   isWeekend: boolean;
   isHoliday: boolean;
   holidayDescription: string | null;
@@ -110,8 +124,10 @@ export type FilteredReport = {
   summary: {
     totalRecords: number;
     uniqueEmployees: number;
+    statusCounts: Record<AttendanceStatus, number>;
     isdeDays: number;
     ezamiyyetDays: number;
+    carsDrivenDays: number;
     weekendWorkedDays: number;
     holidayWorkedDays: number;
     cookedHeadcountTotal: number;

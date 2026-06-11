@@ -26,6 +26,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
           location: true,
         },
       },
+      car: true,
     },
   });
 
@@ -59,6 +60,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       cookedHeadcount: body.cookedHeadcount ?? existing.cookedHeadcount,
       workLocationIds: body.workLocationIds,
       newWorkLocationNames: body.newWorkLocationNames,
+      carDriven: body.carDriven ?? existing.carDriven,
+      carId: body.carId ?? existing.carId,
+      note: body.note ?? existing.note,
     });
 
     const record = await prisma.$transaction(async (tx) => {
@@ -81,6 +85,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           status: input.status,
           location: input.location,
           cookedHeadcount: input.cookedHeadcount,
+          carDriven: input.carDriven,
+          carId: input.carId,
+          note: input.note,
         },
       });
 
@@ -108,6 +115,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
               location: true,
             },
           },
+          car: true,
         },
       });
     });

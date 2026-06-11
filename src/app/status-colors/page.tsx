@@ -14,6 +14,7 @@ const statusLabels: Record<AttendanceStatus, string> = {
   ICAZELI: "İcazəli",
   ISTIRAHET: "İstirahət",
   ISDE_DEYIL: "İşdə deyil",
+  ISDE_XESARET: "İşdə xəsarət",
 };
 
 export default function StatusColorsPage() {

@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
           location: true,
         },
       },
+      car: true,
     },
     orderBy: [{ date: "asc" }, { employee: { name: "asc" } }],
   });
@@ -125,6 +126,9 @@ async function saveAttendanceRecord(
       status: input.status,
       location: input.location,
       cookedHeadcount: input.cookedHeadcount,
+      carDriven: input.carDriven,
+      carId: input.carId,
+      note: input.note,
     };
 
     const record = upsert
@@ -140,6 +144,9 @@ async function saveAttendanceRecord(
             status: input.status,
             location: input.location,
             cookedHeadcount: input.cookedHeadcount,
+            carDriven: input.carDriven,
+            carId: input.carId,
+            note: input.note,
           },
         })
       : await tx.attendanceRecord.create({ data });
@@ -168,6 +175,7 @@ async function saveAttendanceRecord(
             location: true,
           },
         },
+        car: true,
       },
     });
   });

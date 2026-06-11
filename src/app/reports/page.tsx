@@ -7,6 +7,7 @@ import { Download, Search } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import type {
   AttendanceStatus,
+  Car,
   Employee,
   FilteredReport,
   FilteredReportRow,
@@ -22,6 +23,7 @@ const statusOptions: Array<{ value: AttendanceStatus; label: string }> = [
   { value: "ICAZELI", label: "İcazəli" },
   { value: "ISTIRAHET", label: "İstirahət" },
   { value: "ISDE_DEYIL", label: "İşdə deyil" },
+  { value: "ISDE_XESARET", label: "İşdə xəsarət" },
 ];
 
 const statusLabels = Object.fromEntries(
@@ -33,10 +35,12 @@ export default function ReportsPage() {
   const [to, setTo] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
+  const [cars, setCars] = useState<Car[]>([]);
   const [employeeId, setEmployeeId] = useState("");
   const [department, setDepartment] = useState("");
   const [status, setStatus] = useState("");
   const [location, setLocation] = useState("");
+  const [carId, setCarId] = useState("");
   const [weekend, setWeekend] = useState("all");
   const [holiday, setHoliday] = useState("all");
   const [report, setReport] = useState<FilteredReport | null>(null);
@@ -52,18 +56,20 @@ export default function ReportsPage() {
   const byLocation = useMemo(() => groupByLocation(rows), [rows]);
 
   const loadOptions = useCallback(async () => {
-    const [employeeResponse, locationResponse] = await Promise.all([
+    const [employeeResponse, locationResponse, carResponse] = await Promise.all([
       fetch("/api/employees"),
       fetch("/api/locations"),
+      fetch("/api/cars"),
     ]);
 
-    if (!employeeResponse.ok || !locationResponse.ok) {
+    if (!employeeResponse.ok || !locationResponse.ok || !carResponse.ok) {
       setError("Could not load report options.");
       return;
     }
 
     setEmployees(await employeeResponse.json());
     setLocations(await locationResponse.json());
+    setCars(await carResponse.json());
   }, []);
 
   const loadReport = useCallback(async () => {
@@ -86,6 +92,10 @@ export default function ReportsPage() {
       params.set("location", location);
     }
 
+    if (carId) {
+      params.set("carId", carId);
+    }
+
     if (weekend !== "all") {
       params.set("weekend", weekend);
     }
@@ -103,7 +113,7 @@ export default function ReportsPage() {
     }
 
     setReport(await response.json());
-  }, [department, employeeId, from, holiday, location, status, to, weekend]);
+  }, [carId, department, employeeId, from, holiday, location, status, to, weekend]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -137,12 +147,14 @@ export default function ReportsPage() {
         ["Department", department || "All"],
         ["Status", status ? statusLabels[status as AttendanceStatus] : "All"],
         ["Location", location || "All"],
+        ["Car", carLabel(cars, carId) || "All"],
         ["Weekend", optionLabel(weekend)],
         ["Holiday", optionLabel(holiday)],
         ["Total Records", report.summary.totalRecords],
         ["Unique Employees", report.summary.uniqueEmployees],
         ["İşdə Days", report.summary.isdeDays],
         ["Ezamiyyət Days", report.summary.ezamiyyetDays],
+        ["Cars Driven Days", report.summary.carsDrivenDays],
         ["Weekend Worked", report.summary.weekendWorkedDays],
         ["Holiday Worked", report.summary.holidayWorkedDays],
         ["Cooked For Total", report.summary.cookedHeadcountTotal],
@@ -159,8 +171,10 @@ export default function ReportsPage() {
           Records: item.records,
           "İşdə": item.isdeDays,
           "Ezamiyyət": item.ezamiyyetDays,
+          ...statusCountsForExport(item.statusCounts),
           "Weekend Worked": item.weekendWorkedDays,
           "Holiday Worked": item.holidayWorkedDays,
+          "Cars Driven": item.carsDrivenDays,
           "Cooked For": item.cookedHeadcountTotal,
         })),
       ),
@@ -176,6 +190,8 @@ export default function ReportsPage() {
           "Unique Employees": item.uniqueEmployees,
           "İşdə": item.isdeDays,
           "Ezamiyyət": item.ezamiyyetDays,
+          ...statusCountsForExport(item.statusCounts),
+          "Cars Driven": item.carsDrivenDays,
           "Cooked For": item.cookedHeadcountTotal,
         })),
       ),
@@ -224,6 +240,14 @@ export default function ReportsPage() {
               </option>
             ))}
           </SelectField>
+          <SelectField label="Car" onChange={setCarId} value={carId}>
+            <option value="">All cars</option>
+            {cars.map((car) => (
+              <option key={car.id} value={car.id}>
+                {car.makeModel} - {car.licensePlate}
+              </option>
+            ))}
+          </SelectField>
           <SelectField label="Weekend" onChange={setWeekend} value={weekend}>
             <option value="all">All days</option>
             <option value="yes">Only weekend</option>
@@ -269,6 +293,7 @@ export default function ReportsPage() {
               <Metric label="Employees" value={report.summary.uniqueEmployees} />
               <Metric label="İşdə" value={report.summary.isdeDays} />
               <Metric label="Ezamiyyət" value={report.summary.ezamiyyetDays} />
+              <Metric label="Cars Driven" value={report.summary.carsDrivenDays} />
               <Metric label="Weekend Worked" value={report.summary.weekendWorkedDays} />
               <Metric label="Holiday Worked" value={report.summary.holidayWorkedDays} />
               <Metric label="Cooked For" value={report.summary.cookedHeadcountTotal} />
@@ -282,20 +307,20 @@ export default function ReportsPage() {
                   "Employee",
                   "Department",
                   "Records",
-                  "İşdə",
-                  "Ezamiyyət",
+                  ...statusOptions.map((item) => item.label),
                   "Weekend",
                   "Holiday",
+                  "Cars",
                   "Cooked",
                 ]}
                 rows={byEmployee.map((item) => [
                   item.employeeName,
                   item.department,
                   item.records,
-                  item.isdeDays,
-                  item.ezamiyyetDays,
+                  ...statusOptions.map((statusOption) => item.statusCounts[statusOption.value]),
                   item.weekendWorkedDays,
                   item.holidayWorkedDays,
+                  item.carsDrivenDays,
                   item.cookedHeadcountTotal,
                 ])}
                 title="By Employee"
@@ -307,8 +332,8 @@ export default function ReportsPage() {
                   "Records",
                   "Unique Days",
                   "Employees",
-                  "İşdə",
-                  "Ezamiyyət",
+                  ...statusOptions.map((item) => item.label),
+                  "Cars",
                   "Cooked",
                 ]}
                 rows={byLocation.map((item) => [
@@ -316,8 +341,8 @@ export default function ReportsPage() {
                   item.records,
                   item.uniqueDays,
                   item.uniqueEmployees,
-                  item.isdeDays,
-                  item.ezamiyyetDays,
+                  ...statusOptions.map((statusOption) => item.statusCounts[statusOption.value]),
+                  item.carsDrivenDays,
                   item.cookedHeadcountTotal,
                 ])}
                 title="By Location"
@@ -334,6 +359,8 @@ export default function ReportsPage() {
                 "Location",
                 "Work Locations",
                 "Cooked",
+                "Car",
+                "Note",
                 "Weekend",
                 "Holiday",
               ]}
@@ -345,6 +372,8 @@ export default function ReportsPage() {
                 row.location ?? "-",
                 row.workLocations.join(", ") || "-",
                 row.cookedHeadcount ?? "-",
+                row.carDriven ? row.car ?? "Yes" : "-",
+                row.note ?? "-",
                 row.isWeekend ? "Yes" : "No",
                 row.holidayDescription ?? (row.isHoliday ? "Yes" : "No"),
               ])}
@@ -480,6 +509,11 @@ function employeeLabel(employees: Employee[], employeeId: string) {
   return employee ? `${employee.name} - ${employee.department}` : "";
 }
 
+function carLabel(cars: Car[], carId: string) {
+  const car = cars.find((item) => item.id.toString() === carId);
+  return car ? `${car.makeModel} - ${car.licensePlate}` : "";
+}
+
 function optionLabel(value: string) {
   if (value === "yes") {
     return "Yes";
@@ -501,9 +535,24 @@ function exportRows(rows: FilteredReportRow[]) {
     Location: row.location ?? "",
     "Work Locations": row.workLocations.join(", "),
     "Cooked For": row.cookedHeadcount ?? "",
+    Car: row.carDriven ? row.car ?? "Yes" : "",
+    Note: row.note ?? "",
     Weekend: row.isWeekend ? "Yes" : "No",
     Holiday: row.holidayDescription ?? (row.isHoliday ? "Yes" : "No"),
   }));
+}
+
+function emptyStatusCounts() {
+  return Object.fromEntries(statusOptions.map((item) => [item.value, 0])) as Record<
+    AttendanceStatus,
+    number
+  >;
+}
+
+function statusCountsForExport(statusCounts: Record<AttendanceStatus, number>) {
+  return Object.fromEntries(
+    statusOptions.map((item) => [`Status - ${item.label}`, statusCounts[item.value]]),
+  );
 }
 
 function groupByEmployee(rows: FilteredReportRow[]) {
@@ -513,10 +562,12 @@ function groupByEmployee(rows: FilteredReportRow[]) {
       employeeName: string;
       department: string;
       records: number;
+      statusCounts: Record<AttendanceStatus, number>;
       isdeDays: number;
       ezamiyyetDays: number;
       weekendWorkedDays: number;
       holidayWorkedDays: number;
+      carsDrivenDays: number;
       cookedHeadcountTotal: number;
     }
   >();
@@ -528,18 +579,22 @@ function groupByEmployee(rows: FilteredReportRow[]) {
         employeeName: row.employeeName,
         department: row.department,
         records: 0,
+        statusCounts: emptyStatusCounts(),
         isdeDays: 0,
         ezamiyyetDays: 0,
         weekendWorkedDays: 0,
         holidayWorkedDays: 0,
+        carsDrivenDays: 0,
         cookedHeadcountTotal: 0,
       };
 
     item.records += 1;
+    item.statusCounts[row.status] += 1;
     item.isdeDays += row.status === "ISDE" ? 1 : 0;
     item.ezamiyyetDays += row.status === "EZAMIYYET" ? 1 : 0;
     item.weekendWorkedDays += row.isWeekend && isWorked(row.status) ? 1 : 0;
     item.holidayWorkedDays += row.isHoliday && isWorked(row.status) ? 1 : 0;
+    item.carsDrivenDays += row.carDriven ? 1 : 0;
     item.cookedHeadcountTotal += row.cookedHeadcount ?? 0;
     grouped.set(row.employeeId, item);
   }
@@ -555,8 +610,10 @@ function groupByLocation(rows: FilteredReportRow[]) {
       records: number;
       dates: Set<string>;
       employees: Set<number>;
+      statusCounts: Record<AttendanceStatus, number>;
       isdeDays: number;
       ezamiyyetDays: number;
+      carsDrivenDays: number;
       cookedHeadcountTotal: number;
     }
   >();
@@ -575,16 +632,20 @@ function groupByLocation(rows: FilteredReportRow[]) {
           records: 0,
           dates: new Set<string>(),
           employees: new Set<number>(),
+          statusCounts: emptyStatusCounts(),
           isdeDays: 0,
           ezamiyyetDays: 0,
+          carsDrivenDays: 0,
           cookedHeadcountTotal: 0,
         };
 
       item.records += 1;
       item.dates.add(row.date);
       item.employees.add(row.employeeId);
+      item.statusCounts[row.status] += 1;
       item.isdeDays += row.status === "ISDE" ? 1 : 0;
       item.ezamiyyetDays += row.status === "EZAMIYYET" ? 1 : 0;
+      item.carsDrivenDays += row.carDriven ? 1 : 0;
       item.cookedHeadcountTotal += row.cookedHeadcount ?? 0;
       grouped.set(rowLocation, item);
     }
@@ -595,12 +656,14 @@ function groupByLocation(rows: FilteredReportRow[]) {
     records: item.records,
     uniqueDays: item.dates.size,
     uniqueEmployees: item.employees.size,
+    statusCounts: item.statusCounts,
     isdeDays: item.isdeDays,
     ezamiyyetDays: item.ezamiyyetDays,
+    carsDrivenDays: item.carsDrivenDays,
     cookedHeadcountTotal: item.cookedHeadcountTotal,
   }));
 }
 
 function isWorked(status: AttendanceStatus) {
-  return status === "ISDE" || status === "EZAMIYYET";
+  return status === "ISDE" || status === "EZAMIYYET" || status === "ISDE_XESARET";
 }
