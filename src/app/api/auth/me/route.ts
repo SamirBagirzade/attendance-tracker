@@ -10,7 +10,11 @@ export async function GET(request: NextRequest) {
 
   try {
     const session = await verifySessionToken(token);
-    return NextResponse.json({ authenticated: true, username: session.username });
+    return NextResponse.json({
+      authenticated: true,
+      username: session.username,
+      role: session.role,
+    });
   } catch {
     return NextResponse.json({ authenticated: false }, { status: 401 });
   }

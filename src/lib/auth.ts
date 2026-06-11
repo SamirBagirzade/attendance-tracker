@@ -1,6 +1,13 @@
 import { jwtVerify, SignJWT } from "jose";
 
 export const authCookieName = "attendance_auth";
+export const userRoles = ["ADMIN", "EDITOR", "VIEWER"] as const;
+
+export type UserRole = (typeof userRoles)[number];
+export type SessionUser = {
+  username: string;
+  role: UserRole;
+};
 
 function getAuthSecret() {
   const secret = process.env.AUTH_SECRET;
@@ -12,8 +19,8 @@ function getAuthSecret() {
   return new TextEncoder().encode(secret);
 }
 
-export async function createSessionToken(username: string) {
-  return new SignJWT({ username })
+export async function createSessionToken(username: string, role: UserRole) {
+  return new SignJWT({ username, role })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("8h")
@@ -22,7 +29,14 @@ export async function createSessionToken(username: string) {
 
 export async function verifySessionToken(token: string) {
   const { payload } = await jwtVerify(token, getAuthSecret());
-  return payload as { username?: string };
+  const username = typeof payload.username === "string" ? payload.username : "";
+  const role = typeof payload.role === "string" && isUserRole(payload.role) ? payload.role : null;
+
+  if (!username || !role) {
+    throw new Error("Invalid session.");
+  }
+
+  return { username, role };
 }
 
 export function getAdminCredentials() {
@@ -30,4 +44,8 @@ export function getAdminCredentials() {
     username: process.env.ADMIN_USERNAME ?? "admin",
     password: process.env.ADMIN_PASSWORD ?? "admin",
   };
+}
+
+export function isUserRole(value: string): value is UserRole {
+  return userRoles.includes(value as UserRole);
 }

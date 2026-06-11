@@ -8,6 +8,7 @@ import {
   Umbrella,
   Users,
   LogOut,
+  UserCog,
 } from "lucide-react";
 
 const navItems = [
@@ -18,6 +19,7 @@ const navItems = [
   { href: "/locations", label: "Locations", icon: MapPin },
   { href: "/status-colors", label: "Status Colors", icon: Palette },
   { href: "/reports", label: "Reports", icon: ClipboardList },
+  { href: "/users", label: "Users", icon: UserCog },
 ];
 
 export function AppShell({

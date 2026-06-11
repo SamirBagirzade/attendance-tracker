@@ -119,3 +119,14 @@ export type FilteredReport = {
   };
   records: FilteredReportRow[];
 };
+
+export type AppUserRole = "EDITOR" | "VIEWER";
+
+export type AppUser = {
+  id: number;
+  username: string;
+  role: AppUserRole;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};

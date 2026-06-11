@@ -25,11 +25,45 @@ export async function middleware(request: NextRequest) {
   }
 
   try {
-    await verifySessionToken(token);
+    const session = await verifySessionToken(token);
+
+    if (isAdminOnlyPath(pathname) && session.role !== "ADMIN") {
+      return denyRequest(request);
+    }
+
+    if (isViewerBlockedRequest(request) && session.role === "VIEWER") {
+      return denyRequest(request);
+    }
+
     return NextResponse.next();
   } catch {
     return redirectToLogin(request);
   }
+}
+
+function isAdminOnlyPath(pathname: string) {
+  return pathname === "/users" || pathname.startsWith("/api/users");
+}
+
+function isViewerBlockedRequest(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  if (!pathname.startsWith("/api/") || pathname.startsWith("/api/auth/")) {
+    return false;
+  }
+
+  return !["GET", "HEAD", "OPTIONS"].includes(request.method);
+}
+
+function denyRequest(request: NextRequest) {
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  }
+
+  const timesheetUrl = request.nextUrl.clone();
+  timesheetUrl.pathname = "/timesheet";
+  timesheetUrl.search = "";
+  return NextResponse.redirect(timesheetUrl);
 }
 
 function redirectToLogin(request: NextRequest) {
