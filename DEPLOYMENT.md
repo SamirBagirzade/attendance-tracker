@@ -2,7 +2,7 @@
 
 This app can run directly on an Ubuntu or Debian server with Node.js, PostgreSQL, and systemd.
 
-## Quick Start
+##1, Quick Start
 
 ```bash
 git clone <your-repo-url> attendance-tracker
