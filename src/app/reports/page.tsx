@@ -3,12 +3,25 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { endOfMonth, format, startOfMonth } from "date-fns";
-import { Download, Search } from "lucide-react";
+import { Car, ChefHat, Download, Search, Users } from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { AppShell } from "@/components/AppShell";
 import { statusKey, useLanguage } from "@/lib/i18n";
 import type {
   AttendanceStatus,
-  Car,
+  Car as CarType,
   Employee,
   FilteredReport,
   FilteredReportRow,
@@ -27,13 +40,44 @@ const statusOptions: AttendanceStatus[] = [
   "ISDE_XESARET",
 ];
 
+const STATUS_COLORS: Record<AttendanceStatus, string> = {
+  ISDE: "#22c55e",
+  EZAMIYYET: "#3b82f6",
+  MEZUNIYYET: "#f59e0b",
+  XESTE: "#ef4444",
+  BAYRAM: "#a855f7",
+  ICAZELI: "#f97316",
+  ISTIRAHET: "#94a3b8",
+  ISDE_DEYIL: "#6b7280",
+  ISDE_XESARET: "#f43f5e",
+};
+
+type Prices = { tier1: number; tier2: number; tier3: number; tier4plus: number };
+
+const DEFAULT_PRICES: Prices = { tier1: 10, tier2: 20, tier3: 25, tier4plus: 30 };
+
+const TIER_KEYS: Array<{ key: keyof Prices; label: string }> = [
+  { key: "tier1", label: "1" },
+  { key: "tier2", label: "2" },
+  { key: "tier3", label: "3" },
+  { key: "tier4plus", label: "4+" },
+];
+
+function cateringCostForHeadcount(headcount: number, prices: Prices): number {
+  if (headcount <= 0) return 0;
+  if (headcount === 1) return prices.tier1;
+  if (headcount === 2) return prices.tier2;
+  if (headcount === 3) return prices.tier3;
+  return prices.tier4plus;
+}
+
 export default function ReportsPage() {
   const { t } = useLanguage();
   const [from, setFrom] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [to, setTo] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
-  const [cars, setCars] = useState<Car[]>([]);
+  const [cars, setCars] = useState<CarType[]>([]);
   const [employeeId, setEmployeeId] = useState("");
   const [department, setDepartment] = useState("");
   const [status, setStatus] = useState("");
@@ -43,74 +87,126 @@ export default function ReportsPage() {
   const [holiday, setHoliday] = useState("all");
   const [report, setReport] = useState<FilteredReport | null>(null);
   const [error, setError] = useState("");
+  const [prices, setPrices] = useState<Prices>(() => {
+    if (typeof window === "undefined") return DEFAULT_PRICES;
+    try {
+      const saved = localStorage.getItem("catering_prices");
+      return saved ? (JSON.parse(saved) as Prices) : DEFAULT_PRICES;
+    } catch {
+      return DEFAULT_PRICES;
+    }
+  });
+
+  function updatePrice(key: keyof Prices, value: number) {
+    const next = { ...prices, [key]: Math.max(0, value) };
+    setPrices(next);
+    localStorage.setItem("catering_prices", JSON.stringify(next));
+  }
 
   const departments = useMemo(
-    () => Array.from(new Set(employees.map((employee) => employee.department))).sort(),
+    () => Array.from(new Set(employees.map((e) => e.department))).sort(),
     [employees],
   );
   const rows = useMemo(() => report?.records ?? [], [report]);
   const canDownload = rows.length > 0;
-  const byEmployee = useMemo(() => groupByEmployee(rows), [rows]);
+  const byEmployee = useMemo(() => groupByEmployee(rows, prices), [rows, prices]);
   const byLocation = useMemo(() => groupByLocation(rows), [rows]);
 
+  // --- Chart data ---
+
+  const dailyChartData = useMemo(() => {
+    const grouped = new Map<
+      string,
+      { isde: number; ezamiyyet: number; other: number; cookedHeadcount: number }
+    >();
+
+    for (const row of rows) {
+      const d = grouped.get(row.date) ?? {
+        isde: 0,
+        ezamiyyet: 0,
+        other: 0,
+        cookedHeadcount: 0,
+      };
+      if (row.status === "ISDE") d.isde += 1;
+      else if (row.status === "EZAMIYYET") d.ezamiyyet += 1;
+      else d.other += 1;
+      if (row.cookedHeadcount != null) d.cookedHeadcount += row.cookedHeadcount;
+      grouped.set(row.date, d);
+    }
+
+    return Array.from(grouped.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, d]) => ({
+        date: date.slice(5),
+        fullDate: date,
+        isde: d.isde,
+        ezamiyyet: d.ezamiyyet,
+        other: d.other,
+        cookedHeadcount: d.cookedHeadcount,
+        cost: cateringCostForHeadcount(d.cookedHeadcount, prices),
+      }));
+  }, [rows, prices]);
+
+  const cateringDays = useMemo(
+    () => dailyChartData.filter((d) => d.cookedHeadcount > 0),
+    [dailyChartData],
+  );
+
+  const totalCateringCost = useMemo(
+    () => cateringDays.reduce((sum, d) => sum + d.cost, 0),
+    [cateringDays],
+  );
+
+  const statusChartData = useMemo(() => {
+    if (!report) return [];
+    return statusOptions
+      .map((s) => ({
+        name: t(statusKey(s)),
+        value: (report.summary.statusCounts as Record<AttendanceStatus, number>)[s] ?? 0,
+        status: s,
+      }))
+      .filter((d) => d.value > 0);
+  }, [report, t]);
+
+  // --- Data loading ---
+
   const loadOptions = useCallback(async () => {
-    const [employeeResponse, locationResponse, carResponse] = await Promise.all([
+    const [empRes, locRes, carRes] = await Promise.all([
       fetch("/api/employees"),
       fetch("/api/locations"),
       fetch("/api/cars"),
     ]);
 
-    if (!employeeResponse.ok || !locationResponse.ok || !carResponse.ok) {
+    if (!empRes.ok || !locRes.ok || !carRes.ok) {
       setError("Could not load report options.");
       return;
     }
 
-    setEmployees(await employeeResponse.json());
-    setLocations(await locationResponse.json());
-    setCars(await carResponse.json());
+    setEmployees(await empRes.json());
+    setLocations(await locRes.json());
+    setCars(await carRes.json());
   }, []);
 
   const loadReport = useCallback(async () => {
     setError("");
     const params = new URLSearchParams({ from, to });
+    if (employeeId) params.set("employeeId", employeeId);
+    if (department) params.set("department", department);
+    if (status) params.set("status", status);
+    if (location) params.set("location", location);
+    if (carId) params.set("carId", carId);
+    if (weekend !== "all") params.set("weekend", weekend);
+    if (holiday !== "all") params.set("holiday", holiday);
 
-    if (employeeId) {
-      params.set("employeeId", employeeId);
-    }
+    const res = await fetch(`/api/reports?${params.toString()}`);
 
-    if (department) {
-      params.set("department", department);
-    }
-
-    if (status) {
-      params.set("status", status);
-    }
-
-    if (location) {
-      params.set("location", location);
-    }
-
-    if (carId) {
-      params.set("carId", carId);
-    }
-
-    if (weekend !== "all") {
-      params.set("weekend", weekend);
-    }
-
-    if (holiday !== "all") {
-      params.set("holiday", holiday);
-    }
-
-    const response = await fetch(`/api/reports?${params.toString()}`);
-
-    if (!response.ok) {
-      const body = await response.json();
+    if (!res.ok) {
+      const body = await res.json();
       setError(body.error ?? "Could not load report.");
       return;
     }
 
-    setReport(await response.json());
+    setReport(await res.json());
   }, [carId, department, employeeId, from, holiday, location, status, to, weekend]);
 
   useEffect(() => {
@@ -129,9 +225,7 @@ export default function ReportsPage() {
   }
 
   async function downloadExcel() {
-    if (!report) {
-      return;
-    }
+    if (!report) return;
 
     const XLSX = await import("xlsx");
     const workbook = XLSX.utils.book_new();
@@ -155,11 +249,25 @@ export default function ReportsPage() {
         ["Cars Driven Days", report.summary.carsDrivenDays],
         ["Weekend Worked", report.summary.weekendWorkedDays],
         ["Holiday Worked", report.summary.holidayWorkedDays],
-        ["Cooked For Total", report.summary.cookedHeadcountTotal],
+        ["Total Catering Cost (₼)", totalCateringCost],
+        ["Catering Days", cateringDays.length],
         ["Unique Locations", report.summary.uniqueLocations],
       ]),
       "Summary",
     );
+
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet(
+        cateringDays.map((d) => ({
+          Date: d.fullDate,
+          Headcount: d.cookedHeadcount,
+          "Cost (₼)": d.cost,
+        })),
+      ),
+      "Catering Cost",
+    );
+
     XLSX.utils.book_append_sheet(
       workbook,
       XLSX.utils.json_to_sheet(
@@ -173,11 +281,16 @@ export default function ReportsPage() {
           "Weekend Worked": item.weekendWorkedDays,
           "Holiday Worked": item.holidayWorkedDays,
           "Cars Driven": item.carsDrivenDays,
-          "Cooked For": item.cookedHeadcountTotal,
+          [`Cooked 1 person (×₼${prices.tier1})`]: item.cookedTier1 || 0,
+          [`Cooked 2 people (×₼${prices.tier2})`]: item.cookedTier2 || 0,
+          [`Cooked 3 people (×₼${prices.tier3})`]: item.cookedTier3 || 0,
+          [`Cooked 4+ people (×₼${prices.tier4plus})`]: item.cookedTier4plus || 0,
+          "Catering Cost (₼)": item.cateringCost,
         })),
       ),
       "By Employee",
     );
+
     XLSX.utils.book_append_sheet(
       workbook,
       XLSX.utils.json_to_sheet(
@@ -190,59 +303,65 @@ export default function ReportsPage() {
           "Ezamiyyət": item.ezamiyyetDays,
           ...statusCountsForExport(item.statusCounts, t),
           "Cars Driven": item.carsDrivenDays,
-          "Cooked For": item.cookedHeadcountTotal,
         })),
       ),
       "By Location",
     );
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(exportRows(rows, t)), "Records");
+
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet(exportRows(rows, t)),
+      "Records",
+    );
+
     XLSX.writeFile(workbook, `attendance_report_${from}_${to}.xlsx`);
   }
 
   return (
-      <AppShell title={t("reports")} eyebrow={`${from} - ${to}`}>
-      <div className="grid gap-4">
+    <AppShell eyebrow={`${from} – ${to}`} title={t("reports")}>
+      <div className="grid gap-6">
+        {/* Filters */}
         <form
-          className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm lg:grid-cols-4 xl:grid-cols-8"
+          className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:grid-cols-4 xl:grid-cols-8"
           onSubmit={submitReport}
         >
           <SelectField label={t("employee")} onChange={setEmployeeId} value={employeeId}>
             <option value="">{t("allEmployees")}</option>
-            {employees.map((employee) => (
-              <option key={employee.id} value={employee.id}>
-                {employee.name} - {employee.department}
+            {employees.map((emp) => (
+              <option key={emp.id} value={emp.id}>
+                {emp.name} – {emp.department}
               </option>
             ))}
           </SelectField>
           <SelectField label={t("department")} onChange={setDepartment} value={department}>
             <option value="">{t("allDepartments")}</option>
-            {departments.map((item) => (
-              <option key={item} value={item}>
-                {item}
+            {departments.map((d) => (
+              <option key={d} value={d}>
+                {d}
               </option>
             ))}
           </SelectField>
           <SelectField label={t("status")} onChange={setStatus} value={status}>
             <option value="">{t("allStatuses")}</option>
-            {statusOptions.map((item) => (
-              <option key={item} value={item}>
-                {t(statusKey(item))}
+            {statusOptions.map((s) => (
+              <option key={s} value={s}>
+                {t(statusKey(s))}
               </option>
             ))}
           </SelectField>
           <SelectField label={t("location")} onChange={setLocation} value={location}>
             <option value="">{t("allLocations")}</option>
-            {locations.map((item) => (
-              <option key={item.id} value={item.name}>
-                {item.name}
+            {locations.map((l) => (
+              <option key={l.id} value={l.name}>
+                {l.name}
               </option>
             ))}
           </SelectField>
           <SelectField label={t("cars")} onChange={setCarId} value={carId}>
             <option value="">{t("allCars")}</option>
-            {cars.map((car) => (
-              <option key={car.id} value={car.id}>
-                {car.makeModel} - {car.licensePlate}
+            {cars.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.makeModel} – {c.licensePlate}
               </option>
             ))}
           </SelectField>
@@ -260,14 +379,14 @@ export default function ReportsPage() {
           <DateField label={t("to")} onChange={setTo} value={to} />
           <div className="flex items-end gap-2 lg:col-span-4 xl:col-span-8">
             <button
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800"
               type="submit"
             >
               <Search size={16} />
               {t("run")}
             </button>
             <button
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={!canDownload}
               onClick={() => void downloadExcel()}
               type="button"
@@ -279,25 +398,287 @@ export default function ReportsPage() {
         </form>
 
         {error ? (
-          <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
           </div>
         ) : null}
 
         {report ? (
           <>
-            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <Metric label={t("records")} value={report.summary.totalRecords} />
-              <Metric label={t("employees")} value={report.summary.uniqueEmployees} />
-              <Metric label={t("statusISDE")} value={report.summary.isdeDays} />
-              <Metric label={t("statusEZAMIYYET")} value={report.summary.ezamiyyetDays} />
-              <Metric label={t("carsDriven")} value={report.summary.carsDrivenDays} />
-              <Metric label={t("weekend")} value={report.summary.weekendWorkedDays} />
-              <Metric label={t("holiday")} value={report.summary.holidayWorkedDays} />
-              <Metric label={t("cookedFor")} value={report.summary.cookedHeadcountTotal} />
-              <Metric label={t("locations")} value={report.summary.uniqueLocations} />
+            {/* KPI Cards */}
+            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              <MetricCard
+                color="slate"
+                label={t("records")}
+                value={report.summary.totalRecords}
+              />
+              <MetricCard
+                color="slate"
+                icon={<Users size={18} />}
+                label={t("employees")}
+                value={report.summary.uniqueEmployees}
+              />
+              <MetricCard
+                color="green"
+                label={t("statusISDE")}
+                value={report.summary.isdeDays}
+              />
+              <MetricCard
+                color="blue"
+                label={t("statusEZAMIYYET")}
+                value={report.summary.ezamiyyetDays}
+              />
+              <MetricCard
+                color="slate"
+                icon={<Car size={18} />}
+                label={t("carsDriven")}
+                value={report.summary.carsDrivenDays}
+              />
+              <MetricCard
+                color="teal"
+                icon={<ChefHat size={18} />}
+                label={t("cateringCost")}
+                value={`₼${totalCateringCost}`}
+              />
             </section>
 
+            {/* Charts */}
+            <section className="grid gap-4 xl:grid-cols-5">
+              {/* Status donut */}
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
+                <h2 className="mb-1 font-semibold text-slate-950">{t("statusBreakdown")}</h2>
+                <p className="mb-4 text-xs text-slate-500">
+                  {report.summary.totalRecords} {t("records")}
+                </p>
+                {statusChartData.length > 0 ? (
+                  <ResponsiveContainer height={280} width="100%">
+                    <PieChart>
+                      <Pie
+                        cx="50%"
+                        cy="42%"
+                        data={statusChartData}
+                        dataKey="value"
+                        innerRadius={55}
+                        outerRadius={95}
+                        paddingAngle={2}
+                      >
+                        {statusChartData.map((entry) => (
+                          <Cell
+                            key={entry.status}
+                            fill={STATUS_COLORS[entry.status as AttendanceStatus]}
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          borderRadius: 8,
+                          border: "1px solid #e2e8f0",
+                          fontSize: 12,
+                        }}
+                      />
+                      <Legend
+                        formatter={(value) => (
+                          <span style={{ fontSize: 11, color: "#64748b" }}>{value}</span>
+                        )}
+                        iconSize={10}
+                        iconType="circle"
+                        wrapperStyle={{ paddingTop: 8 }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex h-64 items-center justify-center text-sm text-slate-400">
+                    No data
+                  </div>
+                )}
+              </div>
+
+              {/* Daily attendance stacked bar */}
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-3">
+                <h2 className="mb-1 font-semibold text-slate-950">{t("dailyAttendance")}</h2>
+                <p className="mb-4 text-xs text-slate-500">{from} – {to}</p>
+                {dailyChartData.length > 0 ? (
+                  <ResponsiveContainer height={280} width="100%">
+                    <BarChart
+                      data={dailyChartData}
+                      margin={{ top: 0, right: 4, left: -24, bottom: 0 }}
+                    >
+                      <CartesianGrid stroke="#f1f5f9" strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="date"
+                        interval="preserveStartEnd"
+                        tick={{ fontSize: 10, fill: "#94a3b8" }}
+                      />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                      <Tooltip
+                        contentStyle={{
+                          borderRadius: 8,
+                          border: "1px solid #e2e8f0",
+                          fontSize: 12,
+                        }}
+                      />
+                      <Legend
+                        formatter={(value) => (
+                          <span style={{ fontSize: 11, color: "#64748b" }}>{value}</span>
+                        )}
+                        iconSize={10}
+                        iconType="circle"
+                      />
+                      <Bar
+                        dataKey="isde"
+                        fill="#22c55e"
+                        name={t("statusISDE")}
+                        radius={[0, 0, 0, 0]}
+                        stackId="a"
+                      />
+                      <Bar
+                        dataKey="ezamiyyet"
+                        fill="#3b82f6"
+                        name={t("statusEZAMIYYET")}
+                        stackId="a"
+                      />
+                      <Bar
+                        dataKey="other"
+                        fill="#cbd5e1"
+                        name={t("other")}
+                        radius={[2, 2, 0, 0]}
+                        stackId="a"
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex h-64 items-center justify-center text-sm text-slate-400">
+                    No data
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* Catering Cost section */}
+            {cateringDays.length > 0 && (
+              <section className="grid gap-4 xl:grid-cols-3">
+                {/* Summary + tiers */}
+                <div className="flex flex-col gap-4 rounded-xl border border-teal-200 bg-teal-50 p-5 shadow-sm">
+                  <div className="flex items-center gap-2 text-teal-700">
+                    <ChefHat size={20} />
+                    <h2 className="font-semibold">{t("cateringCost")}</h2>
+                  </div>
+                  <div>
+                    <div className="text-4xl font-bold text-teal-900">₼{totalCateringCost}</div>
+                    <div className="mt-1 text-sm text-teal-600">
+                      {cateringDays.length} {t("cateringDays")}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-teal-200 bg-white/60 p-3">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-teal-600">
+                      {t("pricingTiers")}
+                    </div>
+                    <div className="space-y-2">
+                      {TIER_KEYS.map(({ key, label }) => (
+                        <div key={key} className="flex items-center justify-between gap-2">
+                          <span className="text-sm text-teal-800">
+                            {label} {t("people")}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-sm text-teal-600">₼</span>
+                            <input
+                              className="w-16 rounded border border-teal-300 bg-white px-2 py-1 text-right text-sm font-semibold text-teal-900 focus:outline-none focus:border-teal-500"
+                              min={0}
+                              onChange={(e) => updatePrice(key, Number(e.target.value))}
+                              type="number"
+                              value={prices[key]}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Per-day cost chart + table */}
+                <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
+                  <h2 className="font-semibold text-slate-950">{t("cateringCostByDay")}</h2>
+                  <ResponsiveContainer height={180} width="100%">
+                    <BarChart
+                      data={cateringDays}
+                      margin={{ top: 0, right: 4, left: -24, bottom: 0 }}
+                    >
+                      <CartesianGrid stroke="#f1f5f9" strokeDasharray="3 3" />
+                      <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                      <YAxis
+                        allowDecimals={false}
+                        tick={{ fontSize: 10, fill: "#94a3b8" }}
+                        tickFormatter={(v) => `₼${v}`}
+                      />
+                      <Tooltip
+                        content={({ active, payload, label }) => {
+                          if (!active || !payload?.length) return null;
+                          const d = cateringDays.find((x) => x.date === label);
+                          return (
+                            <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs shadow-lg">
+                              <div className="mb-1 font-semibold text-slate-900">
+                                {d?.fullDate ?? label}
+                              </div>
+                              <div className="text-slate-500">
+                                {d?.cookedHeadcount} {t("people")}
+                              </div>
+                              <div className="font-semibold text-teal-700">
+                                ₼{payload[0]?.value}
+                              </div>
+                            </div>
+                          );
+                        }}
+                      />
+                      <Bar dataKey="cost" fill="#0d9488" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+
+                  {/* Per-day breakdown table */}
+                  <div className="overflow-x-auto rounded-lg border border-slate-100">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-slate-50">
+                        <tr>
+                          <th className="px-4 py-2.5 text-left font-medium text-slate-600">
+                            {t("date")}
+                          </th>
+                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">
+                            {t("headcount")}
+                          </th>
+                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">
+                            {t("cost")}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cateringDays.map((day) => (
+                          <tr className="border-t border-slate-100" key={day.fullDate}>
+                            <td className="px-4 py-2.5 text-slate-700">{day.fullDate}</td>
+                            <td className="px-4 py-2.5 text-right text-slate-700">
+                              {day.cookedHeadcount}
+                            </td>
+                            <td className="px-4 py-2.5 text-right font-semibold text-teal-700">
+                              ₼{day.cost}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="border-t-2 border-slate-200 bg-slate-50">
+                        <tr>
+                          <td className="px-4 py-2.5 font-semibold text-slate-900" colSpan={2}>
+                            {t("total")}
+                          </td>
+                          <td className="px-4 py-2.5 text-right font-bold text-teal-900">
+                            ₼{totalCateringCost}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* By Employee & By Location tables */}
             <section className="grid gap-4 xl:grid-cols-2">
               <BreakdownTable
                 emptyText="No employee rows"
@@ -305,22 +686,37 @@ export default function ReportsPage() {
                   t("employee"),
                   t("department"),
                   t("records"),
-                  ...statusOptions.map((item) => t(statusKey(item))),
+                  t("statusISDE"),
+                  t("statusEZAMIYYET"),
+                  t("other"),
                   t("weekend"),
                   t("holiday"),
                   t("cars"),
-                  t("cooked"),
+                  `🍽 1 (×₼${prices.tier1})`,
+                  `🍽 2 (×₼${prices.tier2})`,
+                  `🍽 3 (×₼${prices.tier3})`,
+                  `🍽 4+ (×₼${prices.tier4plus})`,
+                  t("cateringCost"),
                 ]}
-                rows={byEmployee.map((item) => [
-                  item.employeeName,
-                  item.department,
-                  item.records,
-                  ...statusOptions.map((statusOption) => item.statusCounts[statusOption]),
-                  item.weekendWorkedDays,
-                  item.holidayWorkedDays,
-                  item.carsDrivenDays,
-                  item.cookedHeadcountTotal,
-                ])}
+                rows={byEmployee.map((item) => {
+                  const otherCount = item.records - item.isdeDays - item.ezamiyyetDays;
+                  return [
+                    item.employeeName,
+                    item.department,
+                    item.records,
+                    item.isdeDays,
+                    item.ezamiyyetDays,
+                    otherCount,
+                    item.weekendWorkedDays,
+                    item.holidayWorkedDays,
+                    item.carsDrivenDays,
+                    item.cookedTier1 || "-",
+                    item.cookedTier2 || "-",
+                    item.cookedTier3 || "-",
+                    item.cookedTier4plus || "-",
+                    item.cateringCost > 0 ? `₼${item.cateringCost}` : "-",
+                  ];
+                })}
                 title={t("byEmployee")}
               />
               <BreakdownTable
@@ -330,23 +726,24 @@ export default function ReportsPage() {
                   t("records"),
                   t("uniqueDays"),
                   t("employees"),
-                  ...statusOptions.map((item) => t(statusKey(item))),
+                  t("statusISDE"),
+                  t("statusEZAMIYYET"),
                   t("cars"),
-                  t("cooked"),
                 ]}
                 rows={byLocation.map((item) => [
                   item.location,
                   item.records,
                   item.uniqueDays,
                   item.uniqueEmployees,
-                  ...statusOptions.map((statusOption) => item.statusCounts[statusOption]),
+                  item.isdeDays,
+                  item.ezamiyyetDays,
                   item.carsDrivenDays,
-                  item.cookedHeadcountTotal,
                 ])}
                 title={t("byLocation")}
               />
             </section>
 
+            {/* Detailed Records */}
             <BreakdownTable
               emptyText="No attendance records match these filters"
               headers={[
@@ -356,7 +753,6 @@ export default function ReportsPage() {
                 t("status"),
                 t("location"),
                 t("workLocations"),
-                t("cooked"),
                 t("cars"),
                 t("note"),
                 t("weekend"),
@@ -369,8 +765,7 @@ export default function ReportsPage() {
                 t(statusKey(row.status)),
                 row.location ?? "-",
                 row.workLocations.join(", ") || "-",
-                row.cookedHeadcount ?? "-",
-                row.carDriven ? row.car ?? "Yes" : "-",
+                row.carDriven ? (row.car ?? "Yes") : "-",
                 row.note ?? "-",
                 row.isWeekend ? "Yes" : "No",
                 row.holidayDescription ?? (row.isHoliday ? "Yes" : "No"),
@@ -379,10 +774,44 @@ export default function ReportsPage() {
             />
           </>
         ) : (
-          <EmptyState text="Run a report to see attendance records." />
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-12 text-center text-sm text-slate-400 shadow-sm">
+            Run a report to see attendance records.
+          </div>
         )}
       </div>
     </AppShell>
+  );
+}
+
+// ---- Sub-components ----
+
+function MetricCard({
+  color = "slate",
+  icon,
+  label,
+  value,
+}: {
+  color?: "slate" | "green" | "blue" | "teal";
+  icon?: ReactNode;
+  label: string;
+  value: string | number;
+}) {
+  const colorMap = {
+    slate: { bg: "bg-white", border: "border-slate-200", text: "text-slate-950", label: "text-slate-500" },
+    green: { bg: "bg-green-50", border: "border-green-200", text: "text-green-900", label: "text-green-600" },
+    blue: { bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-900", label: "text-blue-600" },
+    teal: { bg: "bg-teal-50", border: "border-teal-200", text: "text-teal-900", label: "text-teal-600" },
+  };
+  const c = colorMap[color];
+
+  return (
+    <div className={`rounded-xl border ${c.border} ${c.bg} p-4 shadow-sm`}>
+      <div className={`flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide ${c.label}`}>
+        {icon}
+        {label}
+      </div>
+      <div className={`mt-2 text-2xl font-bold ${c.text}`}>{value}</div>
+    </div>
   );
 }
 
@@ -401,8 +830,8 @@ function SelectField({
     <label className="grid gap-1 text-sm font-medium text-slate-700">
       {label}
       <select
-        className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-slate-500"
-        onChange={(event) => onChange(event.target.value)}
+        className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm outline-none focus:border-slate-500"
+        onChange={(e) => onChange(e.target.value)}
         value={value}
       >
         {children}
@@ -424,8 +853,8 @@ function DateField({
     <label className="grid gap-1 text-sm font-medium text-slate-700">
       {label}
       <input
-        className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
-        onChange={(event) => onChange(event.target.value)}
+        className="h-10 rounded-lg border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
+        onChange={(e) => onChange(e.target.value)}
         type="date"
         value={value}
       />
@@ -445,7 +874,7 @@ function BreakdownTable({
   title: string;
 }) {
   return (
-    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 px-4 py-3">
         <h2 className="font-semibold text-slate-950">{title}</h2>
       </div>
@@ -454,7 +883,7 @@ function BreakdownTable({
           <thead className="border-b border-slate-200 bg-slate-50 text-left">
             <tr>
               {headers.map((header) => (
-                <th className="px-4 py-3 font-semibold text-slate-700" key={header}>
+                <th className="px-4 py-3 font-semibold text-slate-600" key={header}>
                   {header}
                 </th>
               ))}
@@ -463,15 +892,21 @@ function BreakdownTable({
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td className="px-4 py-8 text-center text-slate-500" colSpan={headers.length}>
+                <td
+                  className="px-4 py-8 text-center text-slate-400"
+                  colSpan={headers.length}
+                >
                   {emptyText}
                 </td>
               </tr>
             ) : (
-              rows.map((row, rowIndex) => (
-                <tr className="border-b border-slate-100" key={`${title}-${rowIndex}`}>
-                  {row.map((cell, cellIndex) => (
-                    <td className="px-4 py-3 text-slate-700" key={`${title}-${rowIndex}-${cellIndex}`}>
+              rows.map((row, ri) => (
+                <tr className="border-b border-slate-100 hover:bg-slate-50" key={`${title}-${ri}`}>
+                  {row.map((cell, ci) => (
+                    <td
+                      className="px-4 py-3 text-slate-700"
+                      key={`${title}-${ri}-${ci}`}
+                    >
                       {cell}
                     </td>
                   ))}
@@ -485,42 +920,21 @@ function BreakdownTable({
   );
 }
 
-function EmptyState({ text }: { text: string }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500 shadow-sm">
-      {text}
-    </div>
-  );
+// ---- Helpers ----
+
+function employeeLabel(employees: Employee[], empId: string) {
+  const emp = employees.find((e) => e.id.toString() === empId);
+  return emp ? `${emp.name} – ${emp.department}` : "";
 }
 
-function Metric({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="mt-2 text-2xl font-semibold text-slate-950">{value}</div>
-    </div>
-  );
-}
-
-function employeeLabel(employees: Employee[], employeeId: string) {
-  const employee = employees.find((item) => item.id.toString() === employeeId);
-  return employee ? `${employee.name} - ${employee.department}` : "";
-}
-
-function carLabel(cars: Car[], carId: string) {
-  const car = cars.find((item) => item.id.toString() === carId);
-  return car ? `${car.makeModel} - ${car.licensePlate}` : "";
+function carLabel(cars: CarType[], cId: string) {
+  const c = cars.find((car) => car.id.toString() === cId);
+  return c ? `${c.makeModel} – ${c.licensePlate}` : "";
 }
 
 function optionLabel(value: string) {
-  if (value === "yes") {
-    return "Yes";
-  }
-
-  if (value === "no") {
-    return "No";
-  }
-
+  if (value === "yes") return "Yes";
+  if (value === "no") return "No";
   return "All";
 }
 
@@ -532,8 +946,7 @@ function exportRows(rows: FilteredReportRow[], t: (key: string) => string) {
     Status: t(statusKey(row.status)),
     Location: row.location ?? "",
     "Work Locations": row.workLocations.join(", "),
-    "Cooked For": row.cookedHeadcount ?? "",
-    Car: row.carDriven ? row.car ?? "Yes" : "",
+    Car: row.carDriven ? (row.car ?? "Yes") : "",
     Note: row.note ?? "",
     Weekend: row.isWeekend ? "Yes" : "No",
     Holiday: row.holidayDescription ?? (row.isHoliday ? "Yes" : "No"),
@@ -541,10 +954,7 @@ function exportRows(rows: FilteredReportRow[], t: (key: string) => string) {
 }
 
 function emptyStatusCounts() {
-  return Object.fromEntries(statusOptions.map((item) => [item, 0])) as Record<
-    AttendanceStatus,
-    number
-  >;
+  return Object.fromEntries(statusOptions.map((s) => [s, 0])) as Record<AttendanceStatus, number>;
 }
 
 function statusCountsForExport(
@@ -552,11 +962,11 @@ function statusCountsForExport(
   t: (key: string) => string,
 ) {
   return Object.fromEntries(
-    statusOptions.map((item) => [`Status - ${t(statusKey(item))}`, statusCounts[item]]),
+    statusOptions.map((s) => [`Status – ${t(statusKey(s))}`, statusCounts[s]]),
   );
 }
 
-function groupByEmployee(rows: FilteredReportRow[]) {
+function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
   const grouped = new Map<
     number,
     {
@@ -569,25 +979,29 @@ function groupByEmployee(rows: FilteredReportRow[]) {
       weekendWorkedDays: number;
       holidayWorkedDays: number;
       carsDrivenDays: number;
-      cookedHeadcountTotal: number;
+      cookedTier1: number;
+      cookedTier2: number;
+      cookedTier3: number;
+      cookedTier4plus: number;
     }
   >();
 
   for (const row of rows) {
-    const item =
-      grouped.get(row.employeeId) ??
-      {
-        employeeName: row.employeeName,
-        department: row.department,
-        records: 0,
-        statusCounts: emptyStatusCounts(),
-        isdeDays: 0,
-        ezamiyyetDays: 0,
-        weekendWorkedDays: 0,
-        holidayWorkedDays: 0,
-        carsDrivenDays: 0,
-        cookedHeadcountTotal: 0,
-      };
+    const item = grouped.get(row.employeeId) ?? {
+      employeeName: row.employeeName,
+      department: row.department,
+      records: 0,
+      statusCounts: emptyStatusCounts(),
+      isdeDays: 0,
+      ezamiyyetDays: 0,
+      weekendWorkedDays: 0,
+      holidayWorkedDays: 0,
+      carsDrivenDays: 0,
+      cookedTier1: 0,
+      cookedTier2: 0,
+      cookedTier3: 0,
+      cookedTier4plus: 0,
+    };
 
     item.records += 1;
     item.statusCounts[row.status] += 1;
@@ -596,11 +1010,21 @@ function groupByEmployee(rows: FilteredReportRow[]) {
     item.weekendWorkedDays += row.isWeekend && isWorked(row.status) ? 1 : 0;
     item.holidayWorkedDays += row.isHoliday && isWorked(row.status) ? 1 : 0;
     item.carsDrivenDays += row.carDriven ? 1 : 0;
-    item.cookedHeadcountTotal += row.cookedHeadcount ?? 0;
+    if (row.cookedHeadcount === 1) item.cookedTier1 += 1;
+    else if (row.cookedHeadcount === 2) item.cookedTier2 += 1;
+    else if (row.cookedHeadcount === 3) item.cookedTier3 += 1;
+    else if (row.cookedHeadcount != null && row.cookedHeadcount >= 4) item.cookedTier4plus += 1;
     grouped.set(row.employeeId, item);
   }
 
-  return Array.from(grouped.values());
+  return Array.from(grouped.values()).map((item) => ({
+    ...item,
+    cateringCost:
+      item.cookedTier1 * prices.tier1 +
+      item.cookedTier2 * prices.tier2 +
+      item.cookedTier3 * prices.tier3 +
+      item.cookedTier4plus * prices.tier4plus,
+  }));
 }
 
 function groupByLocation(rows: FilteredReportRow[]) {
@@ -615,7 +1039,6 @@ function groupByLocation(rows: FilteredReportRow[]) {
       isdeDays: number;
       ezamiyyetDays: number;
       carsDrivenDays: number;
-      cookedHeadcountTotal: number;
     }
   >();
 
@@ -625,20 +1048,17 @@ function groupByLocation(rows: FilteredReportRow[]) {
       ...row.workLocations,
     ]);
 
-    for (const rowLocation of rowLocations) {
-      const item =
-        grouped.get(rowLocation) ??
-        {
-          location: rowLocation,
-          records: 0,
-          dates: new Set<string>(),
-          employees: new Set<number>(),
-          statusCounts: emptyStatusCounts(),
-          isdeDays: 0,
-          ezamiyyetDays: 0,
-          carsDrivenDays: 0,
-          cookedHeadcountTotal: 0,
-        };
+    for (const loc of rowLocations) {
+      const item = grouped.get(loc) ?? {
+        location: loc,
+        records: 0,
+        dates: new Set<string>(),
+        employees: new Set<number>(),
+        statusCounts: emptyStatusCounts(),
+        isdeDays: 0,
+        ezamiyyetDays: 0,
+        carsDrivenDays: 0,
+      };
 
       item.records += 1;
       item.dates.add(row.date);
@@ -647,8 +1067,7 @@ function groupByLocation(rows: FilteredReportRow[]) {
       item.isdeDays += row.status === "ISDE" ? 1 : 0;
       item.ezamiyyetDays += row.status === "EZAMIYYET" ? 1 : 0;
       item.carsDrivenDays += row.carDriven ? 1 : 0;
-      item.cookedHeadcountTotal += row.cookedHeadcount ?? 0;
-      grouped.set(rowLocation, item);
+      grouped.set(loc, item);
     }
   }
 
@@ -661,7 +1080,6 @@ function groupByLocation(rows: FilteredReportRow[]) {
     isdeDays: item.isdeDays,
     ezamiyyetDays: item.ezamiyyetDays,
     carsDrivenDays: item.carsDrivenDays,
-    cookedHeadcountTotal: item.cookedHeadcountTotal,
   }));
 }
 
