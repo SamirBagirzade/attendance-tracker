@@ -52,15 +52,16 @@ const STATUS_COLORS: Record<AttendanceStatus, string> = {
   ISDE_XESARET: "#f43f5e",
 };
 
-type Prices = { tier1: number; tier2: number; tier3: number; tier4plus: number };
+type Prices = { tier1: number; tier2: number; tier3: number; tier4: number; tier5plus: number };
 
-const DEFAULT_PRICES: Prices = { tier1: 10, tier2: 20, tier3: 25, tier4plus: 30 };
+const DEFAULT_PRICES: Prices = { tier1: 10, tier2: 20, tier3: 25, tier4: 30, tier5plus: 35 };
 
 const TIER_KEYS: Array<{ key: keyof Prices; label: string }> = [
   { key: "tier1", label: "1" },
   { key: "tier2", label: "2" },
   { key: "tier3", label: "3" },
-  { key: "tier4plus", label: "4+" },
+  { key: "tier4", label: "4" },
+  { key: "tier5plus", label: "5+" },
 ];
 
 function cateringCostForHeadcount(headcount: number, prices: Prices): number {
@@ -68,7 +69,8 @@ function cateringCostForHeadcount(headcount: number, prices: Prices): number {
   if (headcount === 1) return prices.tier1;
   if (headcount === 2) return prices.tier2;
   if (headcount === 3) return prices.tier3;
-  return prices.tier4plus;
+  if (headcount === 4) return prices.tier4;
+  return prices.tier5plus;
 }
 
 export default function ReportsPage() {
@@ -284,7 +286,8 @@ export default function ReportsPage() {
           [`Cooked 1 person (×₼${prices.tier1})`]: item.cookedTier1 || 0,
           [`Cooked 2 people (×₼${prices.tier2})`]: item.cookedTier2 || 0,
           [`Cooked 3 people (×₼${prices.tier3})`]: item.cookedTier3 || 0,
-          [`Cooked 4+ people (×₼${prices.tier4plus})`]: item.cookedTier4plus || 0,
+          [`Cooked 4 people (×₼${prices.tier4})`]: item.cookedTier4 || 0,
+          [`Cooked 5+ people (×₼${prices.tier5plus})`]: item.cookedTier5plus || 0,
           "Catering Cost (₼)": item.cateringCost,
         })),
       ),
@@ -695,7 +698,8 @@ export default function ReportsPage() {
                   `🍽 1 (×₼${prices.tier1})`,
                   `🍽 2 (×₼${prices.tier2})`,
                   `🍽 3 (×₼${prices.tier3})`,
-                  `🍽 4+ (×₼${prices.tier4plus})`,
+                  `🍽 4 (×₼${prices.tier4})`,
+                  `🍽 5+ (×₼${prices.tier5plus})`,
                   t("cateringCost"),
                 ]}
                 rows={byEmployee.map((item) => {
@@ -713,7 +717,8 @@ export default function ReportsPage() {
                     item.cookedTier1 || "-",
                     item.cookedTier2 || "-",
                     item.cookedTier3 || "-",
-                    item.cookedTier4plus || "-",
+                    item.cookedTier4 || "-",
+                    item.cookedTier5plus || "-",
                     item.cateringCost > 0 ? `₼${item.cateringCost}` : "-",
                   ];
                 })}
@@ -982,7 +987,8 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
       cookedTier1: number;
       cookedTier2: number;
       cookedTier3: number;
-      cookedTier4plus: number;
+      cookedTier4: number;
+      cookedTier5plus: number;
     }
   >();
 
@@ -1000,7 +1006,8 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
       cookedTier1: 0,
       cookedTier2: 0,
       cookedTier3: 0,
-      cookedTier4plus: 0,
+      cookedTier4: 0,
+      cookedTier5plus: 0,
     };
 
     item.records += 1;
@@ -1013,7 +1020,8 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
     if (row.cookedHeadcount === 1) item.cookedTier1 += 1;
     else if (row.cookedHeadcount === 2) item.cookedTier2 += 1;
     else if (row.cookedHeadcount === 3) item.cookedTier3 += 1;
-    else if (row.cookedHeadcount != null && row.cookedHeadcount >= 4) item.cookedTier4plus += 1;
+    else if (row.cookedHeadcount === 4) item.cookedTier4 += 1;
+    else if (row.cookedHeadcount != null && row.cookedHeadcount >= 5) item.cookedTier5plus += 1;
     grouped.set(row.employeeId, item);
   }
 
@@ -1023,7 +1031,8 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
       item.cookedTier1 * prices.tier1 +
       item.cookedTier2 * prices.tier2 +
       item.cookedTier3 * prices.tier3 +
-      item.cookedTier4plus * prices.tier4plus,
+      item.cookedTier4 * prices.tier4 +
+      item.cookedTier5plus * prices.tier5plus,
   }));
 }
 
