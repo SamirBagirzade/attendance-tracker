@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   addMonths,
   eachDayOfInterval,
@@ -71,6 +71,22 @@ export default function TimesheetPage() {
   const [employeeForm, setEmployeeForm] = useState({ name: "", department: "" });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const todayDateKey = format(new Date(), "yyyy-MM-dd");
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const todayCellRef = useRef<HTMLTableCellElement>(null);
+  const hasScrolledRef = useRef(false);
+
+  useEffect(() => {
+    if (!loading && !hasScrolledRef.current && todayCellRef.current && scrollContainerRef.current) {
+      hasScrolledRef.current = true;
+      const container = scrollContainerRef.current;
+      const cell = todayCellRef.current;
+      const containerRect = container.getBoundingClientRect();
+      const cellRect = cell.getBoundingClientRect();
+      const stickyWidth = 224; // min-w-56 sticky employee column
+      container.scrollLeft += cellRect.left - containerRect.left - stickyWidth;
+    }
+  }, [loading]);
 
   const days = useMemo(
     () => eachDayOfInterval({ start: startOfMonth(month), end: endOfMonth(month) }),
@@ -248,7 +264,7 @@ export default function TimesheetPage() {
         ) : null}
 
         <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" ref={scrollContainerRef}>
             <table className="min-w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
@@ -258,16 +274,20 @@ export default function TimesheetPage() {
                   {days.map((day) => {
                     const dateKey = format(day, "yyyy-MM-dd");
                     const holiday = holidayByDate.get(dateKey);
+                    const isToday = dateKey === todayDateKey;
                     const shaded = holiday
                       ? "bg-orange-100 text-orange-950"
                       : isWeekend(day)
                         ? "bg-slate-200 text-slate-800"
-                        : "bg-slate-50 text-slate-700";
+                        : isToday
+                          ? "bg-blue-100 text-blue-900"
+                          : "bg-slate-50 text-slate-700";
 
                     return (
                       <th
                         className={`border-r border-slate-200 px-2 py-2 text-center font-semibold ${shaded}`}
                         key={dateKey}
+                        ref={isToday ? todayCellRef : undefined}
                         style={{ minWidth: cellWidth, width: cellWidth }}
                         title={holiday?.description}
                       >
@@ -302,7 +322,8 @@ export default function TimesheetPage() {
                         const dateKey = format(day, "yyyy-MM-dd");
                         const record = recordByCell.get(`${employee.id}:${dateKey}`);
                         const holiday = holidayByDate.get(dateKey);
-                        const base = holiday ? "bg-orange-50" : isWeekend(day) ? "bg-slate-100" : "bg-white";
+                        const isToday = dateKey === todayDateKey;
+                        const base = holiday ? "bg-orange-50" : isWeekend(day) ? "bg-slate-100" : isToday ? "bg-blue-50" : "bg-white";
                         const statusText = record
                           ? displayTextByStatus.get(record.status) ?? record.status.slice(0, 1)
                           : "";
