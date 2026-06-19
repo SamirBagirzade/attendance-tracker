@@ -2,6 +2,8 @@ export type Employee = {
   id: number;
   name: string;
   department: string;
+  vacationLimit: number | null;
+  sickLimit: number | null;
 };
 
 export type Holiday = {

@@ -55,6 +55,8 @@ model Employee {
   id                Int                @id @default(autoincrement())
   name              String
   department        String
+  vacationLimit     Int?
+  sickLimit         Int?
   attendanceRecords AttendanceRecord[]
 
   createdAt DateTime @default(now())

@@ -19,7 +19,7 @@ import { AppShell } from "@/components/AppShell";
 import { statusKey, useLanguage } from "@/lib/i18n";
 import type { AttendanceRecord, AttendanceStatus, Holiday, StatusColor } from "@/types/domain";
 
-type Employee = { id: number; name: string; department: string };
+type Employee = { id: number; name: string; department: string; vacationLimit: number | null; sickLimit: number | null };
 
 function toDateKey(v: string | Date) {
   if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
@@ -149,20 +149,25 @@ export default function EmployeeHistoryPage({ params }: { params: Promise<{ id: 
         )}
 
         {/* Year summary */}
-        {topStatuses.length > 0 && (
+        {(topStatuses.length > 0 || employee?.sickLimit != null || employee?.vacationLimit != null) && (
           <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">{t("yearSummary")} {year}</p>
             <div className="flex flex-wrap gap-2">
-              {topStatuses.map(([status, count]) => (
-                <span
-                  key={status}
-                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold text-white"
-                  style={{ backgroundColor: colorByStatus.get(status as AttendanceStatus) ?? STATUS_COLORS[status] ?? "#94a3b8" }}
-                >
-                  {t(statusKey(status))}
-                  <span className="rounded-full bg-black/20 px-1.5 py-0.5">{count}</span>
-                </span>
-              ))}
+              {topStatuses.map(([status, count]) => {
+                const limit = status === "MEZUNIYYET" ? employee?.vacationLimit : status === "XESTE" ? employee?.sickLimit : null;
+                return (
+                  <span
+                    key={status}
+                    className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold text-white"
+                    style={{ backgroundColor: colorByStatus.get(status as AttendanceStatus) ?? STATUS_COLORS[status] ?? "#94a3b8" }}
+                  >
+                    {t(statusKey(status))}
+                    <span className="rounded-full bg-black/20 px-1.5 py-0.5">
+                      {count}{limit != null ? ` / ${limit}` : ""}
+                    </span>
+                  </span>
+                );
+              })}
             </div>
           </div>
         )}

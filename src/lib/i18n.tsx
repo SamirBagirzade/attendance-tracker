@@ -190,6 +190,9 @@ const dictionaries: Record<Language, Dictionary> = {
     allPresent: "Hamı qeydlidir",
     yearSummary: "İllik icmal",
     backToEmployees: "İşçilərə qayıt",
+    vacationLimit: "Məzuniyyət limiti (gün/il)",
+    sickLimit: "Xəstəlik limiti (gün/il)",
+    noLimit: "Limitsiz",
   },
   en: {
     language: "Language",
@@ -373,6 +376,9 @@ const dictionaries: Record<Language, Dictionary> = {
     allPresent: "All recorded",
     yearSummary: "Year Summary",
     backToEmployees: "Back to Employees",
+    vacationLimit: "Vacation limit (days/year)",
+    sickLimit: "Sick day limit (days/year)",
+    noLimit: "No limit",
   },
   ru: {
     language: "Язык",
@@ -556,6 +562,9 @@ const dictionaries: Record<Language, Dictionary> = {
     allPresent: "Все записаны",
     yearSummary: "Итоги года",
     backToEmployees: "К сотрудникам",
+    vacationLimit: "Лимит отпуска (дней/год)",
+    sickLimit: "Лимит больничных (дней/год)",
+    noLimit: "Без лимита",
   },
 };
 

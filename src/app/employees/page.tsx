@@ -10,7 +10,7 @@ import type { Employee } from "@/types/domain";
 export default function EmployeesPage() {
   const { t } = useLanguage();
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [form, setForm] = useState({ name: "", department: "" });
+  const [form, setForm] = useState({ name: "", department: "", vacationLimit: "", sickLimit: "" });
   const [editingId, setEditingId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
@@ -67,7 +67,7 @@ export default function EmployeesPage() {
       return;
     }
 
-    setForm({ name: "", department: "" });
+    setForm({ name: "", department: "", vacationLimit: "", sickLimit: "" });
     setEditingId(null);
     await loadEmployees();
   }
@@ -87,7 +87,12 @@ export default function EmployeesPage() {
 
   function startEdit(employee: Employee) {
     setEditingId(employee.id);
-    setForm({ name: employee.name, department: employee.department });
+    setForm({
+      name: employee.name,
+      department: employee.department,
+      vacationLimit: employee.vacationLimit?.toString() ?? "",
+      sickLimit: employee.sickLimit?.toString() ?? "",
+    });
   }
 
   return (
@@ -115,6 +120,30 @@ export default function EmployeesPage() {
               value={form.department}
             />
           </label>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="grid gap-1 text-sm font-medium text-slate-700">
+              {t("vacationLimit")}
+              <input
+                className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
+                min="0"
+                onChange={(event) => setForm((current) => ({ ...current, vacationLimit: event.target.value }))}
+                placeholder={t("noLimit")}
+                type="number"
+                value={form.vacationLimit}
+              />
+            </label>
+            <label className="grid gap-1 text-sm font-medium text-slate-700">
+              {t("sickLimit")}
+              <input
+                className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
+                min="0"
+                onChange={(event) => setForm((current) => ({ ...current, sickLimit: event.target.value }))}
+                placeholder={t("noLimit")}
+                type="number"
+                value={form.sickLimit}
+              />
+            </label>
+          </div>
           <div className="flex gap-2">
             <button
               className="inline-flex h-10 items-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800"
@@ -128,7 +157,7 @@ export default function EmployeesPage() {
                 className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 onClick={() => {
                   setEditingId(null);
-                  setForm({ name: "", department: "" });
+                  setForm({ name: "", department: "", vacationLimit: "", sickLimit: "" });
                 }}
                 type="button"
               >
@@ -191,15 +220,22 @@ export default function EmployeesPage() {
                         <td className="px-4 py-3 font-medium text-slate-950">{employee.name}</td>
                         <td className="px-4 py-3 text-slate-700">{employee.department}</td>
                         <td className="px-4 py-3 hidden sm:table-cell">
-                          {ytd ? (
+                          <div className="flex flex-col gap-1">
                             <span className="text-xs text-slate-500">
-                              <span className="text-red-600 font-medium">{ytd.xeste}</span>
-                              {" / "}
-                              <span className="text-amber-600 font-medium">{ytd.mezuniyyet}</span>
+                              <span className="text-red-600 font-semibold">{ytd?.xeste ?? 0}</span>
+                              {employee.sickLimit != null && (
+                                <span className="text-slate-400"> / {employee.sickLimit}</span>
+                              )}
+                              <span className="ml-1 text-slate-400">{t("ytdSick").split("(")[0].trim()}</span>
                             </span>
-                          ) : (
-                            <span className="text-slate-300 text-xs">—</span>
-                          )}
+                            <span className="text-xs text-slate-500">
+                              <span className="text-amber-600 font-semibold">{ytd?.mezuniyyet ?? 0}</span>
+                              {employee.vacationLimit != null && (
+                                <span className="text-slate-400"> / {employee.vacationLimit}</span>
+                              )}
+                              <span className="ml-1 text-slate-400">{t("ytdVacation").split("(")[0].trim()}</span>
+                            </span>
+                          </div>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex justify-end gap-2">
