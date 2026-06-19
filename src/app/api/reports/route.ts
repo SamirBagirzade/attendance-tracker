@@ -115,6 +115,7 @@ export async function GET(request: NextRequest) {
           location: record.location,
           workLocations: record.workLocations.map((item) => item.location.name),
           cookedHeadcount: record.cookedHeadcount,
+          cookedPaid: record.cookedPaid,
           carDriven: record.carDriven,
           car: record.car ? `${record.car.makeModel} - ${record.car.licensePlate}` : null,
           note: record.note,

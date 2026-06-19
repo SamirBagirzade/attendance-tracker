@@ -125,6 +125,11 @@ const dictionaries: Record<Language, Dictionary> = {
     people: "nəfər",
     other: "Digər",
     pricingTiers: "Qiymət cədvəli",
+    paid: "Ödənilib",
+    unpaid: "Ödənilməyib",
+    cateringPaid: "Ödənilmiş yemək",
+    cateringUnpaid: "Ödənilməmiş yemək",
+    paymentStatus: "Ödəniş statusu",
   },
   en: {
     language: "Language",
@@ -243,6 +248,11 @@ const dictionaries: Record<Language, Dictionary> = {
     people: "people",
     other: "Other",
     pricingTiers: "Pricing tiers",
+    paid: "Paid",
+    unpaid: "To be paid",
+    cateringPaid: "Catering paid",
+    cateringUnpaid: "Catering unpaid",
+    paymentStatus: "Payment status",
   },
   ru: {
     language: "Язык",
@@ -361,6 +371,11 @@ const dictionaries: Record<Language, Dictionary> = {
     people: "человек",
     other: "Прочие",
     pricingTiers: "Тарифы",
+    paid: "Оплачено",
+    unpaid: "К оплате",
+    cateringPaid: "Питание оплачено",
+    cateringUnpaid: "Питание не оплачено",
+    paymentStatus: "Статус оплаты",
   },
 };
 

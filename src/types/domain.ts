@@ -35,6 +35,7 @@ export type AttendanceRecord = {
   location: string | null;
   workLocations: Location[];
   cookedHeadcount: number | null;
+  cookedPaid: boolean;
   carDriven: boolean;
   carId: number | null;
   car: Car | null;
@@ -112,6 +113,7 @@ export type FilteredReportRow = {
   location: string | null;
   workLocations: string[];
   cookedHeadcount: number | null;
+  cookedPaid: boolean;
   carDriven: boolean;
   car: string | null;
   note: string | null;

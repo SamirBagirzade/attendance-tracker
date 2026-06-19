@@ -103,6 +103,7 @@ model AttendanceRecord {
   location        String?
   workLocations   AttendanceWorkLocation[]
   cookedHeadcount Int?
+  cookedPaid      Boolean          @default(false)
   carDriven       Boolean          @default(false)
   carId           Int?
   car             Car?             @relation(fields: [carId], references: [id], onDelete: SetNull)

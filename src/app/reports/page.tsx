@@ -159,6 +159,28 @@ export default function ReportsPage() {
     [cateringDays],
   );
 
+  // Individual cook records for the breakdown table
+  const cateringRecords = useMemo(
+    () =>
+      rows
+        .filter((r) => r.cookedHeadcount != null && r.cookedHeadcount > 0)
+        .map((r) => ({
+          ...r,
+          cost: cateringCostForHeadcount(r.cookedHeadcount!, prices),
+        })),
+    [rows, prices],
+  );
+
+  const paidCateringCost = useMemo(
+    () => cateringRecords.filter((r) => r.cookedPaid).reduce((s, r) => s + r.cost, 0),
+    [cateringRecords],
+  );
+
+  const unpaidCateringCost = useMemo(
+    () => cateringRecords.filter((r) => !r.cookedPaid).reduce((s, r) => s + r.cost, 0),
+    [cateringRecords],
+  );
+
   const statusChartData = useMemo(() => {
     if (!report) return [];
     return statusOptions
@@ -572,6 +594,17 @@ export default function ReportsPage() {
                       {cateringDays.length} {t("cateringDays")}
                     </div>
                   </div>
+                  {/* Paid / unpaid split */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-center">
+                      <div className="text-xs font-semibold text-emerald-600">{t("paid")}</div>
+                      <div className="mt-1 text-xl font-bold text-emerald-800">₼{paidCateringCost}</div>
+                    </div>
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-center">
+                      <div className="text-xs font-semibold text-amber-600">{t("unpaid")}</div>
+                      <div className="mt-1 text-xl font-bold text-amber-800">₼{unpaidCateringCost}</div>
+                    </div>
+                  </div>
                   <div className="rounded-lg border border-teal-200 bg-white/60 p-3">
                     <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-teal-600">
                       {t("pricingTiers")}
@@ -636,43 +669,44 @@ export default function ReportsPage() {
                     </BarChart>
                   </ResponsiveContainer>
 
-                  {/* Per-day breakdown table */}
+                  {/* Per-record breakdown table */}
                   <div className="overflow-x-auto rounded-lg border border-slate-100">
                     <table className="min-w-full text-sm">
                       <thead className="bg-slate-50">
                         <tr>
-                          <th className="px-4 py-2.5 text-left font-medium text-slate-600">
-                            {t("date")}
-                          </th>
-                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">
-                            {t("headcount")}
-                          </th>
-                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">
-                            {t("cost")}
-                          </th>
+                          <th className="px-4 py-2.5 text-left font-medium text-slate-600">{t("date")}</th>
+                          <th className="px-4 py-2.5 text-left font-medium text-slate-600">{t("employee")}</th>
+                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("headcount")}</th>
+                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("cost")}</th>
+                          <th className="px-4 py-2.5 text-center font-medium text-slate-600">{t("paymentStatus")}</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {cateringDays.map((day) => (
-                          <tr className="border-t border-slate-100" key={day.fullDate}>
-                            <td className="px-4 py-2.5 text-slate-700">{day.fullDate}</td>
-                            <td className="px-4 py-2.5 text-right text-slate-700">
-                              {day.cookedHeadcount}
-                            </td>
-                            <td className="px-4 py-2.5 text-right font-semibold text-teal-700">
-                              ₼{day.cost}
+                        {cateringRecords.map((r) => (
+                          <tr className="border-t border-slate-100" key={`${r.employeeId}-${r.date}`}>
+                            <td className="px-4 py-2.5 text-slate-700">{r.date}</td>
+                            <td className="px-4 py-2.5 text-slate-700">{r.employeeName}</td>
+                            <td className="px-4 py-2.5 text-right text-slate-700">{r.cookedHeadcount}</td>
+                            <td className="px-4 py-2.5 text-right font-semibold text-teal-700">₼{r.cost}</td>
+                            <td className="px-4 py-2.5 text-center">
+                              {r.cookedPaid ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                                  ✓ {t("paid")}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                                  ● {t("unpaid")}
+                                </span>
+                              )}
                             </td>
                           </tr>
                         ))}
                       </tbody>
                       <tfoot className="border-t-2 border-slate-200 bg-slate-50">
                         <tr>
-                          <td className="px-4 py-2.5 font-semibold text-slate-900" colSpan={2}>
-                            {t("total")}
-                          </td>
-                          <td className="px-4 py-2.5 text-right font-bold text-teal-900">
-                            ₼{totalCateringCost}
-                          </td>
+                          <td className="px-4 py-2.5 font-semibold text-slate-900" colSpan={3}>{t("total")}</td>
+                          <td className="px-4 py-2.5 text-right font-bold text-teal-900">₼{totalCateringCost}</td>
+                          <td />
                         </tr>
                       </tfoot>
                     </table>
@@ -701,6 +735,8 @@ export default function ReportsPage() {
                   `🍽 4 (×₼${prices.tier4})`,
                   `🍽 5+ (×₼${prices.tier5plus})`,
                   t("cateringCost"),
+                  t("cateringPaid"),
+                  t("cateringUnpaid"),
                 ]}
                 rows={byEmployee.map((item) => {
                   const otherCount = item.records - item.isdeDays - item.ezamiyyetDays;
@@ -720,6 +756,8 @@ export default function ReportsPage() {
                     item.cookedTier4 || "-",
                     item.cookedTier5plus || "-",
                     item.cateringCost > 0 ? `₼${item.cateringCost}` : "-",
+                    item.cookedPaidDays > 0 ? `${item.cookedPaidDays} day(s)` : "-",
+                    item.cookedUnpaidDays > 0 ? `${item.cookedUnpaidDays} day(s)` : "-",
                   ];
                 })}
                 title={t("byEmployee")}
@@ -989,6 +1027,8 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
       cookedTier3: number;
       cookedTier4: number;
       cookedTier5plus: number;
+      cookedPaidDays: number;
+      cookedUnpaidDays: number;
     }
   >();
 
@@ -1008,6 +1048,8 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
       cookedTier3: 0,
       cookedTier4: 0,
       cookedTier5plus: 0,
+      cookedPaidDays: 0,
+      cookedUnpaidDays: 0,
     };
 
     item.records += 1;
@@ -1022,18 +1064,23 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
     else if (row.cookedHeadcount === 3) item.cookedTier3 += 1;
     else if (row.cookedHeadcount === 4) item.cookedTier4 += 1;
     else if (row.cookedHeadcount != null && row.cookedHeadcount >= 5) item.cookedTier5plus += 1;
+    if (row.cookedHeadcount != null && row.cookedHeadcount > 0) {
+      if (row.cookedPaid) item.cookedPaidDays += 1;
+      else item.cookedUnpaidDays += 1;
+    }
     grouped.set(row.employeeId, item);
   }
 
-  return Array.from(grouped.values()).map((item) => ({
-    ...item,
-    cateringCost:
-      item.cookedTier1 * prices.tier1 +
-      item.cookedTier2 * prices.tier2 +
-      item.cookedTier3 * prices.tier3 +
-      item.cookedTier4 * prices.tier4 +
-      item.cookedTier5plus * prices.tier5plus,
-  }));
+  return Array.from(grouped.values()).map((item) => {
+    const tierCost = (hc: number, count: number) => cateringCostForHeadcount(hc, prices) * count;
+    const totalCost =
+      tierCost(1, item.cookedTier1) +
+      tierCost(2, item.cookedTier2) +
+      tierCost(3, item.cookedTier3) +
+      tierCost(4, item.cookedTier4) +
+      tierCost(5, item.cookedTier5plus);
+    return { ...item, cateringCost: totalCost };
+  });
 }
 
 function groupByLocation(rows: FilteredReportRow[]) {

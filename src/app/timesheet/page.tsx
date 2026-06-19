@@ -361,8 +361,8 @@ export default function TimesheetPage() {
                                 </span>
                               ) : null}
                               {record?.cookedHeadcount ? (
-                                <span className="text-[10px] text-emerald-700">
-                                  {t("cook")}: {record.cookedHeadcount}
+                                <span className={`text-[10px] font-medium ${record.cookedPaid ? "text-emerald-700" : "text-amber-600"}`}>
+                                  {t("cook")}: {record.cookedHeadcount} {record.cookedPaid ? "✓" : "●"}
                                 </span>
                               ) : null}
                               {carText ? (
@@ -426,6 +426,7 @@ function AttendanceModal({
   const [cookedHeadcount, setCookedHeadcount] = useState(
     activeCell.record?.cookedHeadcount?.toString() ?? "",
   );
+  const [cookedPaid, setCookedPaid] = useState(Boolean(activeCell.record?.cookedPaid));
   const [carDriven, setCarDriven] = useState(Boolean(activeCell.record?.carDriven));
   const [carId, setCarId] = useState(activeCell.record?.carId?.toString() ?? "");
   const [note, setNote] = useState(activeCell.record?.note ?? "");
@@ -471,6 +472,7 @@ function AttendanceModal({
         status === "EZAMIYYET" && actedAsCook && cookedHeadcount
           ? Number(cookedHeadcount)
           : null,
+      cookedPaid: status === "EZAMIYYET" && actedAsCook && cookedHeadcount ? cookedPaid : false,
     };
 
     const response = await fetch("/api/attendance-records", {
@@ -569,16 +571,29 @@ function AttendanceModal({
                 {t("actedAsCook")}
               </label>
               {actedAsCook ? (
-                <label className="grid gap-1 text-sm font-medium text-slate-700">
-                  {t("cookedFor")}
-                  <input
-                    className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
-                    min="1"
-                    onChange={(event) => setCookedHeadcount(event.target.value)}
-                    type="number"
-                    value={cookedHeadcount}
-                  />
-                </label>
+                <>
+                  <label className="grid gap-1 text-sm font-medium text-slate-700">
+                    {t("cookedFor")}
+                    <input
+                      className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
+                      min="1"
+                      onChange={(event) => setCookedHeadcount(event.target.value)}
+                      type="number"
+                      value={cookedHeadcount}
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                    <input
+                      checked={cookedPaid}
+                      className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
+                      onChange={(event) => setCookedPaid(event.target.checked)}
+                      type="checkbox"
+                    />
+                    <span className={cookedPaid ? "text-emerald-700" : "text-amber-700"}>
+                      {cookedPaid ? t("paid") : t("unpaid")}
+                    </span>
+                  </label>
+                </>
               ) : null}
             </>
           ) : null}
