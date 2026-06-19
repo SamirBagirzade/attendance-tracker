@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
-import { normalizeCarInput } from "@/lib/cars";
+import { normalizeCarInput, formatCarDate } from "@/lib/cars";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -8,16 +8,31 @@ export async function GET() {
     orderBy: [{ makeModel: "asc" }, { licensePlate: "asc" }],
   });
 
-  return NextResponse.json(cars);
+  return NextResponse.json(
+    cars.map((car) => ({
+      ...car,
+      oilChangeDate: formatCarDate(car.oilChangeDate),
+      insuranceDate: formatCarDate(car.insuranceDate),
+      inspectionDate: formatCarDate(car.inspectionDate),
+    })),
+  );
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const car = await prisma.car.create({
-      data: normalizeCarInput(await request.json()),
-    });
+    const body = await request.json();
+    const data = normalizeCarInput(body);
+    const car = await prisma.car.create({ data });
 
-    return NextResponse.json(car, { status: 201 });
+    return NextResponse.json(
+      {
+        ...car,
+        oilChangeDate: formatCarDate(car.oilChangeDate),
+        insuranceDate: formatCarDate(car.insuranceDate),
+        inspectionDate: formatCarDate(car.inspectionDate),
+      },
+      { status: 201 },
+    );
   } catch (error) {
     return handleCarError(error);
   }

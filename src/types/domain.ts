@@ -25,6 +25,18 @@ export type Car = {
   id: number;
   makeModel: string;
   licensePlate: string;
+  currentKm: number | null;
+  oilChangeDate: string | null;
+  oilChangeKm: number | null;
+  oilBrand: string | null;
+  oilQuantity: number | null;
+  oilChangeIntervalKm: number | null;
+  insuranceDate: string | null;
+  insuranceCompany: string | null;
+  insuranceCost: number | null;
+  insuranceIntervalMonths: number | null;
+  inspectionDate: string | null;
+  inspectionIntervalMonths: number | null;
 };
 
 export type AttendanceRecord = {
@@ -136,6 +148,23 @@ export type FilteredReport = {
     uniqueLocations: number;
   };
   records: FilteredReportRow[];
+};
+
+export type CarMaintenanceType = "OIL_CHANGE" | "INSURANCE" | "INSPECTION";
+
+export type CarMaintenanceRecord = {
+  id: number;
+  carId: number;
+  car: { makeModel: string; licensePlate: string };
+  type: CarMaintenanceType;
+  date: string;
+  km: number | null;
+  oilBrand: string | null;
+  oilQuantity: number | null;
+  company: string | null;
+  cost: number | null;
+  notes: string | null;
+  createdAt: string;
 };
 
 export type AppUserRole = "EDITOR" | "VIEWER";

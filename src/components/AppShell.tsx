@@ -12,6 +12,7 @@ import {
   LogOut,
   UserCog,
   Car,
+  Wrench,
   DatabaseBackup,
 } from "lucide-react";
 import { languages, useLanguage } from "@/lib/i18n";
@@ -23,6 +24,7 @@ const navItems = [
   { href: "/holidays", labelKey: "holidays", icon: Umbrella },
   { href: "/locations", labelKey: "locations", icon: MapPin },
   { href: "/cars", labelKey: "cars", icon: Car },
+  { href: "/maintenance", labelKey: "maintenanceHistory", icon: Wrench },
   { href: "/status-colors", labelKey: "statusColors", icon: Palette },
   { href: "/reports", labelKey: "reports", icon: ClipboardList },
   { href: "/backup", labelKey: "backup", icon: DatabaseBackup },

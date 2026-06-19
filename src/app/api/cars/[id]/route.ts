@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
-import { normalizeCarInput } from "@/lib/cars";
+import { normalizeCarInput, formatCarDate } from "@/lib/cars";
 import { prisma } from "@/lib/prisma";
 import { handleCarError } from "../route";
 
@@ -18,12 +18,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 
   try {
-    const car = await prisma.car.update({
-      where: { id },
-      data: normalizeCarInput(await request.json()),
-    });
+    const data = normalizeCarInput(await request.json());
+    const car = await prisma.car.update({ where: { id }, data });
 
-    return NextResponse.json(car);
+    return NextResponse.json({
+      ...car,
+      oilChangeDate: formatCarDate(car.oilChangeDate),
+      insuranceDate: formatCarDate(car.insuranceDate),
+      inspectionDate: formatCarDate(car.inspectionDate),
+    });
   } catch (error) {
     return handleCarError(error);
   }
