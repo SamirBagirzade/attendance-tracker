@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Check, History, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { useLanguage } from "@/lib/i18n";
 import type { Employee } from "@/types/domain";
@@ -12,17 +13,37 @@ export default function EmployeesPage() {
   const [form, setForm] = useState({ name: "", department: "" });
   const [editingId, setEditingId] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [search, setSearch] = useState("");
+  const [ytdCounts, setYtdCounts] = useState<Record<number, { xeste: number; mezuniyyet: number }>>({});
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data?.role === "ADMIN") setIsAdmin(true); })
+      .catch(() => {});
+  }, []);
 
   const loadEmployees = useCallback(async () => {
     setError("");
-    const response = await fetch("/api/employees");
+    const [empRes, ytdRes] = await Promise.all([
+      fetch("/api/employees"),
+      fetch(`/api/employees/summary?year=${new Date().getFullYear()}`),
+    ]);
 
-    if (!response.ok) {
+    if (!empRes.ok) {
       setError("Could not load employees.");
       return;
     }
 
-    setEmployees(await response.json());
+    setEmployees(await empRes.json());
+
+    if (ytdRes.ok) {
+      const summary = await ytdRes.json() as { employeeId: number; xeste: number; mezuniyyet: number }[];
+      const map: Record<number, { xeste: number; mezuniyyet: number }> = {};
+      for (const row of summary) map[row.employeeId] = { xeste: row.xeste, mezuniyyet: row.mezuniyyet };
+      setYtdCounts(map);
+    }
   }, []);
 
   useEffect(() => {
@@ -123,53 +144,98 @@ export default function EmployeesPage() {
           ) : null}
         </form>
 
-        <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-          <table className="min-w-full text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50 text-left">
-              <tr>
-                <th className="px-4 py-3 font-semibold text-slate-700">{t("name")}</th>
-                <th className="px-4 py-3 font-semibold text-slate-700">{t("department")}</th>
-                <th className="w-28 px-4 py-3 text-right font-semibold text-slate-700">{t("actions")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {employees.length === 0 ? (
+        <div className="flex flex-col gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+            <input
+              className="h-10 w-full rounded-md border border-slate-300 pl-9 pr-3 text-sm outline-none focus:border-slate-500"
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("searchPlaceholder")}
+              value={search}
+            />
+          </div>
+
+          <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <table className="min-w-full text-sm">
+              <thead className="border-b border-slate-200 bg-slate-50 text-left">
                 <tr>
-                  <td className="px-4 py-8 text-center text-slate-500" colSpan={3}>
-                    {t("noEmployees")}
-                  </td>
+                  {isAdmin && <th className="w-16 px-4 py-3 font-semibold text-slate-700">ID</th>}
+                  <th className="px-4 py-3 font-semibold text-slate-700">{t("name")}</th>
+                  <th className="px-4 py-3 font-semibold text-slate-700">{t("department")}</th>
+                  <th className="px-4 py-3 font-semibold text-slate-700 hidden sm:table-cell">{t("ytdSick")} / {t("ytdVacation")}</th>
+                  <th className="w-32 px-4 py-3 text-right font-semibold text-slate-700">{t("actions")}</th>
                 </tr>
-              ) : (
-                employees.map((employee) => (
-                  <tr className="border-b border-slate-100" key={employee.id}>
-                    <td className="px-4 py-3 font-medium text-slate-950">{employee.name}</td>
-                    <td className="px-4 py-3 text-slate-700">{employee.department}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50"
-                          onClick={() => startEdit(employee)}
-                          title={t("edit")}
-                          type="button"
-                        >
-                          <Pencil size={16} />
-                        </button>
-                        <button
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-red-600 hover:bg-red-50"
-                          onClick={() => void deleteEmployee(employee.id)}
-                          title={t("delete")}
-                          type="button"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </section>
+              </thead>
+              <tbody>
+                {(() => {
+                  const filtered = employees.filter(
+                    (e) =>
+                      !search ||
+                      e.name.toLowerCase().includes(search.toLowerCase()) ||
+                      e.department.toLowerCase().includes(search.toLowerCase()),
+                  );
+                  if (filtered.length === 0) {
+                    return (
+                      <tr>
+                        <td className="px-4 py-8 text-center text-slate-500" colSpan={isAdmin ? 5 : 4}>
+                          {t("noEmployees")}
+                        </td>
+                      </tr>
+                    );
+                  }
+                  return filtered.map((employee) => {
+                    const ytd = ytdCounts[employee.id];
+                    return (
+                      <tr className="border-b border-slate-100" key={employee.id}>
+                        {isAdmin && <td className="px-4 py-3 text-slate-400">{employee.id}</td>}
+                        <td className="px-4 py-3 font-medium text-slate-950">{employee.name}</td>
+                        <td className="px-4 py-3 text-slate-700">{employee.department}</td>
+                        <td className="px-4 py-3 hidden sm:table-cell">
+                          {ytd ? (
+                            <span className="text-xs text-slate-500">
+                              <span className="text-red-600 font-medium">{ytd.xeste}</span>
+                              {" / "}
+                              <span className="text-amber-600 font-medium">{ytd.mezuniyyet}</span>
+                            </span>
+                          ) : (
+                            <span className="text-slate-300 text-xs">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex justify-end gap-2">
+                            <Link
+                              href={`/employees/${employee.id}`}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50"
+                              title={t("viewHistory")}
+                            >
+                              <History size={16} />
+                            </Link>
+                            <button
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50"
+                              onClick={() => startEdit(employee)}
+                              title={t("edit")}
+                              type="button"
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            <button
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-red-600 hover:bg-red-50"
+                              onClick={() => void deleteEmployee(employee.id)}
+                              title={t("delete")}
+                              type="button"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()}
+              </tbody>
+            </table>
+          </section>
+        </div>
       </div>
     </AppShell>
   );

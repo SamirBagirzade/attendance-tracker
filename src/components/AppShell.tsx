@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   CalendarDays,
@@ -68,8 +69,13 @@ const adminGroup: NavGroup = {
   ],
 };
 
-const pillClass =
-  "inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950";
+function pillClass(active = false) {
+  return `inline-flex h-10 items-center gap-2 rounded-md border px-3 text-sm font-medium shadow-sm transition ${
+    active
+      ? "border-slate-900 bg-slate-900 text-white"
+      : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:text-slate-950"
+  }`;
+}
 
 export function AppShell({
   title,
@@ -81,6 +87,7 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const { language, setLanguage, t } = useLanguage();
+  const pathname = usePathname();
   const [session, setSession] = useState<SessionInfo>(null);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const navRef = useRef<HTMLDivElement>(null);
@@ -115,7 +122,7 @@ export function AppShell({
             <h1 className="mt-1 text-2xl font-semibold text-slate-950">{title}</h1>
           </div>
           <nav ref={navRef} className="flex flex-wrap gap-2">
-            <Link href="/" className={pillClass}>
+            <Link href="/" className={pillClass(pathname === "/")}>
               <Home aria-hidden="true" size={16} />
               {t("home")}
             </Link>
@@ -123,11 +130,12 @@ export function AppShell({
             {groups.map((group) => {
               const GroupIcon = group.icon;
               const isOpen = openGroup === group.labelKey;
+              const isGroupActive = group.items.some((item) => pathname === item.href || pathname.startsWith(item.href + "/"));
 
               return (
                 <div key={group.labelKey} className="relative">
                   <button
-                    className={pillClass}
+                    className={pillClass(isGroupActive && !isOpen)}
                     onClick={() => setOpenGroup(isOpen ? null : group.labelKey)}
                     onKeyDown={(e) => { if (e.key === "Escape") setOpenGroup(null); }}
                     aria-expanded={isOpen}
@@ -145,12 +153,13 @@ export function AppShell({
                     <div className="absolute left-0 top-full z-10 mt-1 min-w-max rounded-md border border-slate-200 bg-white py-1 shadow-lg">
                       {group.items.map((item) => {
                         const ItemIcon = item.icon;
+                        const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
                         return (
                           <Link
                             key={item.href}
                             href={item.href}
                             onClick={() => setOpenGroup(null)}
-                            className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                            className={`flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 ${isActive ? "font-semibold text-slate-950 bg-slate-50" : "text-slate-700"}`}
                           >
                             <ItemIcon aria-hidden="true" size={15} />
                             {t(item.labelKey)}
@@ -169,7 +178,7 @@ export function AppShell({
               </span>
             )}
 
-            <label className={pillClass}>
+            <label className={pillClass()}>
               {t("language")}
               <select
                 className="bg-transparent text-sm outline-none"
@@ -185,7 +194,7 @@ export function AppShell({
             </label>
 
             <form action="/api/auth/logout" method="post">
-              <button className={pillClass} type="submit">
+              <button className={pillClass()} type="submit">
                 <LogOut aria-hidden="true" size={16} />
                 {t("logout")}
               </button>

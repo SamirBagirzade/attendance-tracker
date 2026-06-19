@@ -11,7 +11,7 @@ import {
 } from "date-fns";
 import type { Locale } from "date-fns";
 import { az, enUS, ru } from "date-fns/locale";
-import { Check, ChevronLeft, ChevronRight, Plus, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Flag, Plus, Printer, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { statusKey, useLanguage } from "@/lib/i18n";
 import type {
@@ -71,6 +71,8 @@ export default function TimesheetPage() {
   const [employeeForm, setEmployeeForm] = useState({ name: "", department: "" });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [collapsedDepts, setCollapsedDepts] = useState<Set<string>>(new Set());
+  const [confirmFillDate, setConfirmFillDate] = useState<string | null>(null);
   const todayDateKey = format(new Date(), "yyyy-MM-dd");
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const todayCellRef = useRef<HTMLTableCellElement>(null);
@@ -174,6 +176,44 @@ export default function TimesheetPage() {
     void loadData();
   }, [loadData]);
 
+  // Auto-refresh every 30 s so concurrent editors stay in sync
+  useEffect(() => {
+    const timer = setInterval(() => void loadData(), 30_000);
+    return () => clearInterval(timer);
+  }, [loadData]);
+
+  const departments = useMemo(() => {
+    const seen = new Set<string>();
+    const order: string[] = [];
+    for (const e of employees) {
+      if (!seen.has(e.department)) { seen.add(e.department); order.push(e.department); }
+    }
+    return order;
+  }, [employees]);
+
+  function toggleDept(dept: string) {
+    setCollapsedDepts((prev) => {
+      const next = new Set(prev);
+      if (next.has(dept)) next.delete(dept); else next.add(dept);
+      return next;
+    });
+  }
+
+  function toggleAllDepts(collapse: boolean) {
+    setCollapsedDepts(collapse ? new Set(departments) : new Set());
+  }
+
+  async function bulkMarkHoliday(dateKey: string) {
+    setConfirmFillDate(null);
+    const res = await fetch("/api/attendance-records/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: dateKey, status: "BAYRAM" }),
+    });
+    if (res.ok) await loadData();
+    else setError("Could not mark column as holiday.");
+  }
+
   async function addEmployee(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -210,7 +250,7 @@ export default function TimesheetPage() {
   return (
     <AppShell title={t("timesheet")} eyebrow={format(month, "MMMM yyyy", { locale: dateLocale })}>
       <div className="flex flex-col gap-4">
-        <section className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm lg:flex-row lg:items-end lg:justify-between">
+        <section className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm lg:flex-row lg:items-end lg:justify-between print:hidden">
           <div className="flex items-center gap-2">
             <button
               className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50"
@@ -231,6 +271,32 @@ export default function TimesheetPage() {
             >
               <ChevronRight size={18} />
             </button>
+            <div className="ml-2 flex gap-1">
+              <button
+                className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 px-2 text-xs text-slate-600 hover:bg-slate-50"
+                onClick={() => toggleAllDepts(false)}
+                title={t("expandAll")}
+                type="button"
+              >
+                <ChevronDown size={13} /> {t("expandAll")}
+              </button>
+              <button
+                className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 px-2 text-xs text-slate-600 hover:bg-slate-50"
+                onClick={() => toggleAllDepts(true)}
+                title={t("collapseAll")}
+                type="button"
+              >
+                <ChevronUp size={13} /> {t("collapseAll")}
+              </button>
+              <button
+                className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 px-2 text-xs text-slate-600 hover:bg-slate-50"
+                onClick={() => window.print()}
+                title={t("print")}
+                type="button"
+              >
+                <Printer size={13} /> {t("print")}
+              </button>
+            </div>
           </div>
           <form className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" onSubmit={addEmployee}>
             <input
@@ -275,6 +341,7 @@ export default function TimesheetPage() {
                     const dateKey = format(day, "yyyy-MM-dd");
                     const holiday = holidayByDate.get(dateKey);
                     const isToday = dateKey === todayDateKey;
+                    const isConfirming = confirmFillDate === dateKey;
                     const shaded = holiday
                       ? "bg-orange-100 text-orange-950"
                       : isWeekend(day)
@@ -285,14 +352,40 @@ export default function TimesheetPage() {
 
                     return (
                       <th
-                        className={`border-r border-slate-200 px-2 py-2 text-center font-semibold ${shaded}`}
+                        className={`border-r border-slate-200 px-1 py-1 text-center font-semibold ${shaded}`}
                         key={dateKey}
                         ref={isToday ? todayCellRef : undefined}
                         style={{ minWidth: cellWidth, width: cellWidth }}
                         title={holiday?.description}
                       >
-                        <div>{format(day, "d")}</div>
+                        <div className="text-sm">{format(day, "d")}</div>
                         <div className="text-[11px] font-medium uppercase">{format(day, "EEE", { locale: dateLocale })}</div>
+                        <div className="mt-0.5 flex justify-center print:hidden">
+                          {isConfirming ? (
+                            <div className="flex gap-0.5">
+                              <button
+                                className="rounded bg-amber-500 px-1 py-0.5 text-[9px] font-bold text-white hover:bg-amber-600"
+                                onClick={() => void bulkMarkHoliday(dateKey)}
+                                type="button"
+                                title={t("markColumnConfirm")}
+                              >✓</button>
+                              <button
+                                className="rounded bg-slate-300 px-1 py-0.5 text-[9px] font-bold text-slate-700 hover:bg-slate-400"
+                                onClick={() => setConfirmFillDate(null)}
+                                type="button"
+                              >✕</button>
+                            </div>
+                          ) : (
+                            <button
+                              className="rounded p-0.5 text-slate-300 hover:text-amber-500"
+                              onClick={() => setConfirmFillDate(dateKey)}
+                              type="button"
+                              title={t("markAsHoliday")}
+                            >
+                              <Flag size={9} />
+                            </button>
+                          )}
+                        </div>
                       </th>
                     );
                   })}
@@ -312,75 +405,93 @@ export default function TimesheetPage() {
                     </td>
                   </tr>
                 ) : (
-                  employees.map((employee) => (
-                    <tr className="border-b border-slate-100" key={employee.id}>
-                      <th className="sticky left-0 z-10 min-w-56 border-r border-slate-200 bg-white px-3 py-2 text-left">
-                        <div className="font-semibold text-slate-950">{employee.name}</div>
-                        <div className="text-xs text-slate-500">{employee.department}</div>
-                      </th>
-                      {days.map((day) => {
-                        const dateKey = format(day, "yyyy-MM-dd");
-                        const record = recordByCell.get(`${employee.id}:${dateKey}`);
-                        const holiday = holidayByDate.get(dateKey);
-                        const isToday = dateKey === todayDateKey;
-                        const base = holiday ? "bg-orange-50" : isWeekend(day) ? "bg-slate-100" : isToday ? "bg-blue-50" : "bg-white";
-                        const statusText = record
-                          ? displayTextByStatus.get(record.status) ?? record.status.slice(0, 1)
-                          : "";
-                        const statusColor = record ? colorByStatus.get(record.status) : undefined;
-                        const ezamiyyetLocation =
-                          record?.status === "EZAMIYYET" ? record.location : null;
-                        const workLocationText =
-                          record?.status === "ISDE"
-                            ? record.workLocations.map((item) => item.name).join(", ")
-                            : "";
-                        const carText = record?.carDriven && record.car ? record.car.licensePlate : "";
-
-                        return (
-                          <td
-                            className={`border-r border-slate-100 p-1 ${base}`}
-                            key={dateKey}
-                            style={{ minWidth: cellWidth, width: cellWidth }}
+                  departments.flatMap((dept) => {
+                    const deptEmployees = employees.filter((e) => e.department === dept);
+                    const isCollapsed = collapsedDepts.has(dept);
+                    return [
+                      // Department header row
+                      <tr key={`dept-${dept}`} className="border-b border-slate-200 bg-slate-100">
+                        <th
+                          className="sticky left-0 z-10 border-r border-slate-200 bg-slate-100 px-3 py-1.5 text-left"
+                          colSpan={1}
+                        >
+                          <button
+                            className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600 hover:text-slate-900"
+                            onClick={() => toggleDept(dept)}
+                            type="button"
                           >
-                            <button
-                              className="flex min-h-14 w-full flex-col items-center justify-center rounded-md border border-transparent px-1 py-1 text-center text-xs font-semibold text-slate-800 hover:border-slate-300 hover:bg-white"
-                              onClick={() => openCell(employee, dateKey)}
-                              style={statusColor ? { backgroundColor: statusColor } : undefined}
-                              title={`${employee.name} ${dateKey}`}
-                              type="button"
-                            >
-                              <span className="max-w-full truncate">{statusText}</span>
-                              {ezamiyyetLocation ? (
-                                <span className="max-w-full truncate text-[10px] font-medium text-slate-700">
-                                  {ezamiyyetLocation}
-                                </span>
-                              ) : null}
-                              {workLocationText ? (
-                                <span className="max-w-full truncate text-[10px] font-medium text-slate-700">
-                                  {workLocationText}
-                                </span>
-                              ) : null}
-                              {record?.cookedHeadcount ? (
-                                <span className={`text-[10px] font-medium ${record.cookedPaid ? "text-emerald-700" : "text-amber-600"}`}>
-                                  {t("cook")}: {record.cookedHeadcount} {record.cookedPaid ? "✓" : "●"}
-                                </span>
-                              ) : null}
-                              {carText ? (
-                                <span className="max-w-full truncate text-[10px] font-medium text-slate-700">
-                                  Car: {carText}
-                                </span>
-                              ) : null}
-                              {record?.note ? (
-                                <span className="max-w-full truncate text-[10px] font-medium text-red-700">
-                                  Note
-                                </span>
-                              ) : null}
-                            </button>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))
+                            {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+                            {dept}
+                            <span className="font-normal text-slate-400">({deptEmployees.length})</span>
+                          </button>
+                        </th>
+                        {days.map((day) => (
+                          <td
+                            key={format(day, "yyyy-MM-dd")}
+                            className="border-r border-slate-200 bg-slate-100"
+                            style={{ minWidth: cellWidth, width: cellWidth }}
+                          />
+                        ))}
+                      </tr>,
+                      // Employee rows (hidden when collapsed)
+                      ...(!isCollapsed ? deptEmployees.map((employee) => (
+                        <tr className="border-b border-slate-100" key={employee.id}>
+                          <th className="sticky left-0 z-10 min-w-56 border-r border-slate-200 bg-white px-3 py-2 text-left">
+                            <div className="font-semibold text-slate-950">{employee.name}</div>
+                          </th>
+                          {days.map((day) => {
+                            const dateKey = format(day, "yyyy-MM-dd");
+                            const record = recordByCell.get(`${employee.id}:${dateKey}`);
+                            const holiday = holidayByDate.get(dateKey);
+                            const isToday = dateKey === todayDateKey;
+                            const base = holiday ? "bg-orange-50" : isWeekend(day) ? "bg-slate-100" : isToday ? "bg-blue-50" : "bg-white";
+                            const statusText = record
+                              ? displayTextByStatus.get(record.status) ?? record.status.slice(0, 1)
+                              : "";
+                            const statusColor = record ? colorByStatus.get(record.status) : undefined;
+                            const ezamiyyetLocation = record?.status === "EZAMIYYET" ? record.location : null;
+                            const workLocationText = record?.status === "ISDE" ? record.workLocations.map((item) => item.name).join(", ") : "";
+                            const carText = record?.carDriven && record.car ? record.car.licensePlate : "";
+
+                            return (
+                              <td
+                                className={`border-r border-slate-100 p-1 ${base}`}
+                                key={dateKey}
+                                style={{ minWidth: cellWidth, width: cellWidth }}
+                              >
+                                <button
+                                  className="flex min-h-14 w-full flex-col items-center justify-center rounded-md border border-transparent px-1 py-1 text-center text-xs font-semibold text-slate-800 hover:border-slate-300 hover:bg-white"
+                                  onClick={() => openCell(employee, dateKey)}
+                                  style={statusColor ? { backgroundColor: statusColor } : undefined}
+                                  title={`${employee.name} ${dateKey}`}
+                                  type="button"
+                                >
+                                  <span className="max-w-full truncate">{statusText}</span>
+                                  {ezamiyyetLocation ? (
+                                    <span className="max-w-full truncate text-[10px] font-medium text-slate-700">{ezamiyyetLocation}</span>
+                                  ) : null}
+                                  {workLocationText ? (
+                                    <span className="max-w-full truncate text-[10px] font-medium text-slate-700">{workLocationText}</span>
+                                  ) : null}
+                                  {record?.cookedHeadcount ? (
+                                    <span className={`text-[10px] font-medium ${record.cookedPaid ? "text-emerald-700" : "text-amber-600"}`}>
+                                      {t("cook")}: {record.cookedHeadcount} {record.cookedPaid ? "✓" : "●"}
+                                    </span>
+                                  ) : null}
+                                  {carText ? (
+                                    <span className="max-w-full truncate text-[10px] font-medium text-slate-700">Car: {carText}</span>
+                                  ) : null}
+                                  {record?.note ? (
+                                    <span className="max-w-full truncate text-[10px] font-medium text-red-700">Note</span>
+                                  ) : null}
+                                </button>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      )) : []),
+                    ];
+                  })
                 )}
               </tbody>
             </table>
@@ -508,6 +619,24 @@ function AttendanceModal({
 
     await onClose(true);
   }
+
+  // Keyboard shortcuts: 1-9 select status, Enter saves, Escape closes
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
+      const idx = Number(e.key) - 1;
+      if (idx >= 0 && idx < statusValues.length) {
+        setStatus(statusValues[idx]);
+      } else if (e.key === "Enter") {
+        void saveAttendance();
+      } else if (e.key === "Escape") {
+        void onClose(false);
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, location, workLocationIds, newWorkLocationNames, actedAsCook, cookedHeadcount, cookedPaid, carDriven, carId, note]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 px-4">

@@ -10,6 +10,22 @@ type RouteContext = {
   }>;
 };
 
+export async function GET(_request: NextRequest, context: RouteContext) {
+  const id = Number((await context.params).id);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return NextResponse.json({ error: "id must be a positive integer." }, { status: 400 });
+  }
+
+  const employee = await prisma.employee.findUnique({ where: { id } });
+
+  if (!employee) {
+    return NextResponse.json({ error: "Employee not found." }, { status: 404 });
+  }
+
+  return NextResponse.json(employee);
+}
+
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const id = Number((await context.params).id);
 

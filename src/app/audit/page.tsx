@@ -168,13 +168,16 @@ export default function AuditPage() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
+  const PAGE_SIZE = 100;
 
   const [username, setUsername] = useState("");
   const [entity, setEntity] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
 
-  async function runQuery() {
+  async function runQuery(p = 0) {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -182,10 +185,14 @@ export default function AuditPage() {
       if (entity) params.set("entity", entity);
       if (from) params.set("from", from);
       if (to) params.set("to", to);
+      params.set("page", String(p));
 
       const res = await fetch(`/api/audit?${params}`);
       if (res.ok) {
-        setLogs(await res.json());
+        const data = await res.json() as { logs: AuditLog[]; total: number; page: number };
+        setLogs(data.logs);
+        setTotal(data.total);
+        setPage(p);
       }
     } finally {
       setLoading(false);
@@ -193,7 +200,7 @@ export default function AuditPage() {
   }
 
   useEffect(() => {
-    void runQuery();
+    void runQuery(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -259,7 +266,7 @@ export default function AuditPage() {
             />
           </div>
           <button
-            onClick={() => void runQuery()}
+            onClick={() => void runQuery(0)}
             disabled={loading}
             className="rounded bg-slate-800 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
           >
@@ -326,8 +333,28 @@ export default function AuditPage() {
             </tbody>
           </table>
         </div>
-        {logs.length > 0 && (
-          <p className="text-xs text-slate-400">{logs.length} records (max 500)</p>
+        {total > 0 && (
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span>
+              {t("page")} {page + 1} / {Math.ceil(total / PAGE_SIZE)} &nbsp;·&nbsp; {total} {t("records")}
+            </span>
+            <div className="flex gap-2">
+              <button
+                disabled={page === 0 || loading}
+                onClick={() => void runQuery(page - 1)}
+                className="rounded border border-slate-200 px-3 py-1 hover:bg-slate-50 disabled:opacity-40"
+              >
+                {t("previous")}
+              </button>
+              <button
+                disabled={(page + 1) * PAGE_SIZE >= total || loading}
+                onClick={() => void runQuery(page + 1)}
+                className="rounded border border-slate-200 px-3 py-1 hover:bg-slate-50 disabled:opacity-40"
+              >
+                {t("next")}
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </AppShell>

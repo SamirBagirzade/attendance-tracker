@@ -31,13 +31,23 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const logs = await prisma.auditLog.findMany({
-    where,
-    orderBy: { createdAt: "desc" },
-    take: 500,
-  });
+  const page = Math.max(0, Number(searchParams.get("page") ?? 0));
+  const pageSize = 100;
 
-  return NextResponse.json(
-    logs.map((log) => ({ ...log, createdAt: log.createdAt.toISOString() })),
-  );
+  const [total, logs] = await Promise.all([
+    prisma.auditLog.count({ where }),
+    prisma.auditLog.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: page * pageSize,
+      take: pageSize,
+    }),
+  ]);
+
+  return NextResponse.json({
+    total,
+    page,
+    pageSize,
+    logs: logs.map((log) => ({ ...log, createdAt: log.createdAt.toISOString() })),
+  });
 }
