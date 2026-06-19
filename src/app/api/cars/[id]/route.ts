@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { normalizeCarInput, formatCarDate } from "@/lib/cars";
+import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { handleCarError } from "../route";
 
@@ -21,6 +22,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const data = normalizeCarInput(await request.json());
     const car = await prisma.car.update({ where: { id }, data });
 
+    void logAudit(request, "UPDATE", "Car", id, { makeModel: car.makeModel, licensePlate: car.licensePlate });
     return NextResponse.json({
       ...car,
       oilChangeDate: formatCarDate(car.oilChangeDate),
@@ -32,7 +34,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 }
 
-export async function DELETE(_request: NextRequest, context: RouteContext) {
+export async function DELETE(request: NextRequest, context: RouteContext) {
   const id = Number((await context.params).id);
 
   if (!Number.isInteger(id) || id <= 0) {
@@ -41,6 +43,7 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
 
   try {
     await prisma.car.delete({ where: { id } });
+    void logAudit(request, "DELETE", "Car", id);
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
       return NextResponse.json({ error: "Car not found." }, { status: 404 });

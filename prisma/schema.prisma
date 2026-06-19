@@ -24,6 +24,22 @@ enum UserRole {
   VIEWER
 }
 
+model AuditLog {
+  id       Int      @id @default(autoincrement())
+  username String
+  role     String
+  action   String
+  entity   String
+  entityId Int?
+  details  String?
+
+  createdAt DateTime @default(now())
+
+  @@index([username])
+  @@index([entity])
+  @@index([createdAt])
+}
+
 model AppUser {
   id           Int      @id @default(autoincrement())
   username     String   @unique

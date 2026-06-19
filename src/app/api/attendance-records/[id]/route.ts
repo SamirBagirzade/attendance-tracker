@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { normalizeAttendanceInput } from "@/lib/attendance";
 import { toApiDateKey } from "@/lib/dates";
+import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = {
@@ -120,6 +121,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       });
     });
 
+    void logAudit(request, "UPDATE", "AttendanceRecord", id, { status: record.status, date: record.date });
     return NextResponse.json(serializeAttendanceRecord(record));
   } catch (error) {
     return handleAttendanceError(error);
@@ -155,7 +157,7 @@ function serializeAttendanceRecord<
   };
 }
 
-export async function DELETE(_request: NextRequest, context: RouteContext) {
+export async function DELETE(request: NextRequest, context: RouteContext) {
   const id = Number((await context.params).id);
 
   if (!Number.isInteger(id) || id <= 0) {
@@ -174,6 +176,7 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Unexpected attendance record error." }, { status: 500 });
   }
 
+  void logAudit(request, "DELETE", "AttendanceRecord", id);
   return new NextResponse(null, { status: 204 });
 }
 

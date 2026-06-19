@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { CarMaintenanceType } from "@prisma/client";
+import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 function formatDate(date: Date | null | undefined): string | null {
@@ -60,5 +61,6 @@ export async function POST(request: NextRequest) {
     include: { car: { select: { makeModel: true, licensePlate: true } } },
   });
 
+  void logAudit(request, "UPSERT", "MaintenanceRecord", record.id, { carId: record.carId, type: record.type, date: formatDate(record.date) });
   return NextResponse.json({ ...record, date: formatDate(record.date) }, { status: 201 });
 }

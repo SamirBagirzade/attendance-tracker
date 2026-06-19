@@ -167,6 +167,17 @@ export type CarMaintenanceRecord = {
   createdAt: string;
 };
 
+export type AuditLog = {
+  id: number;
+  username: string;
+  role: string;
+  action: string;
+  entity: string;
+  entityId: number | null;
+  details: string | null;
+  createdAt: string;
+};
+
 export type AppUserRole = "EDITOR" | "VIEWER";
 
 export type AppUser = {

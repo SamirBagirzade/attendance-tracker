@@ -161,6 +161,11 @@ const dictionaries: Record<Language, Dictionary> = {
     typeInsurance: "İcbari sığorta",
     typeInspection: "Texniki baxış",
     overdue: "Vaxtı keçib",
+    davamiyyet: "Davamiyyət",
+    melumatlar: "Məlumatlar",
+    avtopark: "Avtopark",
+    admin: "Admin",
+    auditLog: "Audit jurnalı",
   },
   en: {
     language: "Language",
@@ -315,6 +320,11 @@ const dictionaries: Record<Language, Dictionary> = {
     typeInsurance: "İcbari sığorta",
     typeInspection: "Texniki baxış",
     overdue: "Overdue",
+    davamiyyet: "Attendance",
+    melumatlar: "Data",
+    avtopark: "Fleet",
+    admin: "Admin",
+    auditLog: "Audit Log",
   },
   ru: {
     language: "Язык",
@@ -469,6 +479,11 @@ const dictionaries: Record<Language, Dictionary> = {
     typeInsurance: "İcbari sığorta",
     typeInspection: "Texniki baxış",
     overdue: "Просрочено",
+    davamiyyet: "Посещаемость",
+    melumatlar: "Данные",
+    avtopark: "Автопарк",
+    admin: "Админ",
+    auditLog: "Журнал аудита",
   },
 };
 

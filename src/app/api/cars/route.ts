@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { normalizeCarInput, formatCarDate } from "@/lib/cars";
+import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -24,6 +25,7 @@ export async function POST(request: NextRequest) {
     const data = normalizeCarInput(body);
     const car = await prisma.car.create({ data });
 
+    void logAudit(request, "CREATE", "Car", car.id, { makeModel: car.makeModel, licensePlate: car.licensePlate });
     return NextResponse.json(
       {
         ...car,

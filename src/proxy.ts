@@ -31,6 +31,10 @@ export async function proxy(request: NextRequest) {
       return denyRequest(request);
     }
 
+    if (isAdminOnlyMutation(request) && session.role !== "ADMIN") {
+      return denyRequest(request);
+    }
+
     if (isViewerBlockedRequest(request) && session.role === "VIEWER") {
       return denyRequest(request);
     }
@@ -44,9 +48,16 @@ export async function proxy(request: NextRequest) {
 function isAdminOnlyPath(pathname: string) {
   return (
     pathname === "/users" ||
-    pathname === "/backup" ||
+    pathname === "/audit" ||
     pathname.startsWith("/api/users") ||
-    pathname.startsWith("/api/backups")
+    pathname.startsWith("/api/audit")
+  );
+}
+
+function isAdminOnlyMutation(request: NextRequest) {
+  return (
+    request.nextUrl.pathname.startsWith("/api/backups") &&
+    request.method === "POST"
   );
 }
 

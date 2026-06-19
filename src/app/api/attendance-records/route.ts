@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { normalizeAttendanceInput } from "@/lib/attendance";
 import { dateRangeWhere, toApiDateKey } from "@/lib/dates";
+import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
@@ -57,6 +58,7 @@ export async function POST(request: NextRequest) {
 
     const record = await saveAttendanceRecord(input, false);
 
+    void logAudit(request, "CREATE", "AttendanceRecord", record.id, { employeeId: record.employeeId, date: record.date, status: record.status });
     return NextResponse.json(serializeAttendanceRecord(record), { status: 201 });
   } catch (error) {
     return handleAttendanceError(error);
@@ -69,6 +71,7 @@ export async function PUT(request: NextRequest) {
 
     const record = await saveAttendanceRecord(input, true);
 
+    void logAudit(request, "UPSERT", "AttendanceRecord", record.id, { employeeId: record.employeeId, date: record.date, status: record.status });
     return NextResponse.json(serializeAttendanceRecord(record));
   } catch (error) {
     return handleAttendanceError(error);
