@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { hashPassword } from "@/lib/passwords";
 import { requireAdmin } from "@/lib/permissions";
+import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import {
   normalizeIsActive,
@@ -64,6 +65,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    void logAudit(request, "CREATE", "User", user.id, { username: user.username, role: user.role });
     return NextResponse.json(
       {
         ...user,

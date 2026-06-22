@@ -2,6 +2,8 @@ export type Employee = {
   id: number;
   name: string;
   department: string;
+  vacationLimit: number | null;
+  sickLimit: number | null;
 };
 
 export type Holiday = {
@@ -25,6 +27,18 @@ export type Car = {
   id: number;
   makeModel: string;
   licensePlate: string;
+  currentKm: number | null;
+  oilChangeDate: string | null;
+  oilChangeKm: number | null;
+  oilBrand: string | null;
+  oilQuantity: number | null;
+  oilChangeIntervalKm: number | null;
+  insuranceDate: string | null;
+  insuranceCompany: string | null;
+  insuranceCost: number | null;
+  insuranceIntervalMonths: number | null;
+  inspectionDate: string | null;
+  inspectionIntervalMonths: number | null;
 };
 
 export type AttendanceRecord = {
@@ -35,6 +49,7 @@ export type AttendanceRecord = {
   location: string | null;
   workLocations: Location[];
   cookedHeadcount: number | null;
+  cookedPaid: boolean;
   carDriven: boolean;
   carId: number | null;
   car: Car | null;
@@ -112,6 +127,7 @@ export type FilteredReportRow = {
   location: string | null;
   workLocations: string[];
   cookedHeadcount: number | null;
+  cookedPaid: boolean;
   carDriven: boolean;
   car: string | null;
   note: string | null;
@@ -134,6 +150,34 @@ export type FilteredReport = {
     uniqueLocations: number;
   };
   records: FilteredReportRow[];
+};
+
+export type CarMaintenanceType = "OIL_CHANGE" | "INSURANCE" | "INSPECTION";
+
+export type CarMaintenanceRecord = {
+  id: number;
+  carId: number;
+  car: { makeModel: string; licensePlate: string };
+  type: CarMaintenanceType;
+  date: string;
+  km: number | null;
+  oilBrand: string | null;
+  oilQuantity: number | null;
+  company: string | null;
+  cost: number | null;
+  notes: string | null;
+  createdAt: string;
+};
+
+export type AuditLog = {
+  id: number;
+  username: string;
+  role: string;
+  action: string;
+  entity: string;
+  entityId: number | null;
+  details: string | null;
+  createdAt: string;
 };
 
 export type AppUserRole = "EDITOR" | "VIEWER";

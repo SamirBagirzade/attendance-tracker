@@ -9,6 +9,7 @@ export type AttendanceRecordInput = {
   workLocationIds?: unknown;
   newWorkLocationNames?: unknown;
   cookedHeadcount?: number | null;
+  cookedPaid?: unknown;
   carDriven?: unknown;
   carId?: unknown;
   note?: unknown;
@@ -29,6 +30,7 @@ export function normalizeAttendanceInput(input: AttendanceRecordInput) {
     input.status === "EZAMIYYET" && input.cookedHeadcount != null
       ? Number(input.cookedHeadcount)
       : null;
+  const cookedPaid = cookedHeadcount != null ? input.cookedPaid === true : false;
   const workLocationIds =
     Array.isArray(input.workLocationIds) && input.status === "ISDE"
       ? input.workLocationIds.map(Number).filter((id) => Number.isInteger(id) && id > 0)
@@ -82,6 +84,7 @@ export function normalizeAttendanceInput(input: AttendanceRecordInput) {
     workLocationIds,
     newWorkLocationNames,
     cookedHeadcount,
+    cookedPaid,
     carDriven,
     carId,
     note,

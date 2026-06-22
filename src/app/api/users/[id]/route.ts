@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { hashPassword } from "@/lib/passwords";
 import { requireAdmin } from "@/lib/permissions";
+import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { normalizeManagedRole, normalizePassword } from "@/lib/users";
 import { handleUserError } from "../route";
@@ -54,6 +55,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       },
     });
 
+    void logAudit(request, "UPDATE", "User", id, { role: user.role, isActive: user.isActive });
     return NextResponse.json({
       ...user,
       createdAt: user.createdAt.toISOString(),
@@ -87,5 +89,6 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     return handleUserError(error);
   }
 
+  void logAudit(request, "DELETE", "User", id);
   return new NextResponse(null, { status: 204 });
 }

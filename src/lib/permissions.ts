@@ -15,6 +15,20 @@ export async function getSessionUser(request: NextRequest): Promise<SessionUser 
   }
 }
 
+export async function requireEditor(request: NextRequest) {
+  const user = await getSessionUser(request);
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  }
+
+  if (user.role === "VIEWER") {
+    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  }
+
+  return null;
+}
+
 export async function requireAdmin(request: NextRequest) {
   const user = await getSessionUser(request);
 

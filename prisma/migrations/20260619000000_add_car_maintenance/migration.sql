@@ -1,0 +1,12 @@
+ALTER TABLE "Car" ADD COLUMN "currentKm" INTEGER;
+ALTER TABLE "Car" ADD COLUMN "oilChangeDate" DATE;
+ALTER TABLE "Car" ADD COLUMN "oilChangeKm" INTEGER;
+ALTER TABLE "Car" ADD COLUMN "oilBrand" TEXT;
+ALTER TABLE "Car" ADD COLUMN "oilQuantity" DOUBLE PRECISION;
+ALTER TABLE "Car" ADD COLUMN "oilChangeIntervalKm" INTEGER;
+ALTER TABLE "Car" ADD COLUMN "insuranceDate" DATE;
+ALTER TABLE "Car" ADD COLUMN "insuranceCompany" TEXT;
+ALTER TABLE "Car" ADD COLUMN "insuranceCost" DOUBLE PRECISION;
+ALTER TABLE "Car" ADD COLUMN "insuranceIntervalMonths" INTEGER;
+ALTER TABLE "Car" ADD COLUMN "inspectionDate" DATE;
+ALTER TABLE "Car" ADD COLUMN "inspectionIntervalMonths" INTEGER;

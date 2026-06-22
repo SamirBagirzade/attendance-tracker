@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AttendanceStatus, UserRole } from "@prisma/client";
-import { requireAdmin } from "@/lib/permissions";
+import { requireAdmin, requireEditor } from "@/lib/permissions";
+import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 const backupVersion = 1;
@@ -105,7 +106,7 @@ const sequenceTables = [
 ] as const;
 
 export async function GET(request: NextRequest) {
-  const denied = await requireAdmin(request);
+  const denied = await requireEditor(request);
 
   if (denied) {
     return denied;
@@ -143,6 +144,7 @@ export async function POST(request: NextRequest) {
     const backup = normalizeBackup(body.backup);
     await restoreBackup(backup.data);
 
+    void logAudit(request, "RESTORE", "Backup", null, { exportedAt: backup.exportedAt });
     return NextResponse.json({
       ok: true,
       restoredAt: new Date().toISOString(),

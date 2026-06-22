@@ -24,6 +24,22 @@ enum UserRole {
   VIEWER
 }
 
+model AuditLog {
+  id       Int      @id @default(autoincrement())
+  username String
+  role     String
+  action   String
+  entity   String
+  entityId Int?
+  details  String?
+
+  createdAt DateTime @default(now())
+
+  @@index([username])
+  @@index([entity])
+  @@index([createdAt])
+}
+
 model AppUser {
   id           Int      @id @default(autoincrement())
   username     String   @unique
@@ -39,6 +55,8 @@ model Employee {
   id                Int                @id @default(autoincrement())
   name              String
   department        String
+  vacationLimit     Int?
+  sickLimit         Int?
   attendanceRecords AttendanceRecord[]
 
   createdAt DateTime @default(now())
@@ -63,11 +81,55 @@ model Location {
   updatedAt DateTime @updatedAt
 }
 
+enum CarMaintenanceType {
+  OIL_CHANGE
+  INSURANCE
+  INSPECTION
+}
+
+model CarMaintenanceRecord {
+  id          Int                @id @default(autoincrement())
+  carId       Int
+  car         Car                @relation(fields: [carId], references: [id], onDelete: Cascade)
+  type        CarMaintenanceType
+  date        DateTime           @db.Date
+  km          Int?
+  oilBrand    String?
+  oilQuantity Float?
+  company     String?
+  cost        Float?
+  notes       String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([carId, type, date])
+  @@index([carId])
+  @@index([type])
+  @@index([date])
+}
+
 model Car {
   id           Int                @id @default(autoincrement())
   makeModel    String
   licensePlate String             @unique
-  records      AttendanceRecord[]
+  currentKm    Int?
+
+  oilChangeDate       DateTime? @db.Date
+  oilChangeKm         Int?
+  oilBrand            String?
+  oilQuantity         Float?
+  oilChangeIntervalKm Int?
+
+  insuranceDate           DateTime? @db.Date
+  insuranceCompany        String?
+  insuranceCost           Float?
+  insuranceIntervalMonths Int?
+
+  inspectionDate           DateTime? @db.Date
+  inspectionIntervalMonths Int?
+
+  records            AttendanceRecord[]
+  maintenanceRecords CarMaintenanceRecord[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -103,6 +165,7 @@ model AttendanceRecord {
   location        String?
   workLocations   AttendanceWorkLocation[]
   cookedHeadcount Int?
+  cookedPaid      Boolean          @default(false)
   carDriven       Boolean          @default(false)
   carId           Int?
   car             Car?             @relation(fields: [carId], references: [id], onDelete: SetNull)

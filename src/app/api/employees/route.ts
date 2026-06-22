@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { normalizeEmployeeInput } from "@/lib/employee";
+import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -16,6 +17,7 @@ export async function POST(request: NextRequest) {
       data: normalizeEmployeeInput(await request.json()),
     });
 
+    void logAudit(request, "CREATE", "Employee", employee.id, { name: employee.name, department: employee.department });
     return NextResponse.json(employee, { status: 201 });
   } catch (error) {
     return handleEmployeeError(error);
