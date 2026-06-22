@@ -18,10 +18,10 @@ const STATUS_COLORS: Record<string, string> = {
   ISDE_XESARET: "#f43f5e",
 };
 
-const MAINTENANCE_TYPE_LABELS: Record<string, string> = {
-  OIL_CHANGE: "Oil",
-  INSURANCE: "Insurance",
-  INSPECTION: "Inspection",
+const MAINTENANCE_TYPE_KEYS: Record<string, string> = {
+  OIL_CHANGE: "typeOilChange",
+  INSURANCE: "typeInsurance",
+  INSPECTION: "typeInspection",
 };
 
 type DashboardData = {
@@ -114,7 +114,7 @@ export default function Home() {
                   <div key={i} className={`flex items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium ${alert.severity === "overdue" ? "border-red-200 bg-red-50 text-red-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
                     <AlertTriangle size={13} className="shrink-0" />
                     <span className="truncate">{alert.makeModel} · {alert.licensePlate}</span>
-                    <span className="ml-auto shrink-0">{MAINTENANCE_TYPE_LABELS[alert.type] ?? alert.type}</span>
+                    <span className="ml-auto shrink-0">{t(MAINTENANCE_TYPE_KEYS[alert.type] ?? alert.type)}</span>
                   </div>
                 ))}
               </div>

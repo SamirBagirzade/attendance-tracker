@@ -1,9 +1,9 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { endOfMonth, format, startOfMonth } from "date-fns";
-import { Car, ChefHat, Download, Search, Users } from "lucide-react";
+import { Car, ChefHat, ChevronDown, ChevronRight, Download, Search, Users } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -54,6 +54,15 @@ const STATUS_COLORS: Record<AttendanceStatus, string> = {
 
 type Prices = { tier1: number; tier2: number; tier3: number; tier4: number; tier5plus: number };
 
+type CookGroup = {
+  employeeId: number;
+  employeeName: string;
+  sessions: Array<{ id: number; date: string; headcount: number; cost: number; paid: boolean }>;
+  totalCost: number;
+  paidCost: number;
+  unpaidCost: number;
+};
+
 const DEFAULT_PRICES: Prices = { tier1: 10, tier2: 20, tier3: 25, tier4: 30, tier5plus: 35 };
 
 const TIER_KEYS: Array<{ key: keyof Prices; label: string }> = [
@@ -98,6 +107,27 @@ export default function ReportsPage() {
       return DEFAULT_PRICES;
     }
   });
+
+  const [expandedCookEmployees, setExpandedCookEmployees] = useState<Set<number>>(new Set());
+
+  function updateRecord(id: number, updates: Partial<FilteredReportRow>) {
+    setReport((prev) =>
+      prev
+        ? { ...prev, records: prev.records.map((r) => (r.id === id ? { ...r, ...updates } : r)) }
+        : null,
+    );
+  }
+
+  async function toggleCookPaid(recordId: number, currentPaid: boolean) {
+    const newPaid = !currentPaid;
+    updateRecord(recordId, { cookedPaid: newPaid });
+    const res = await fetch(`/api/attendance-records/${recordId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cookedPaid: newPaid }),
+    });
+    if (!res.ok) updateRecord(recordId, { cookedPaid: currentPaid });
+  }
 
   function updatePrice(key: keyof Prices, value: number) {
     const next = { ...prices, [key]: Math.max(0, value) };
@@ -180,6 +210,26 @@ export default function ReportsPage() {
     () => cateringRecords.filter((r) => !r.cookedPaid).reduce((s, r) => s + r.cost, 0),
     [cateringRecords],
   );
+
+  const cateringByEmployee = useMemo<CookGroup[]>(() => {
+    const grouped = new Map<number, CookGroup>();
+    for (const r of cateringRecords) {
+      const group = grouped.get(r.employeeId) ?? {
+        employeeId: r.employeeId,
+        employeeName: r.employeeName,
+        sessions: [],
+        totalCost: 0,
+        paidCost: 0,
+        unpaidCost: 0,
+      };
+      group.sessions.push({ id: r.id, date: r.date, headcount: r.cookedHeadcount!, cost: r.cost, paid: r.cookedPaid });
+      group.totalCost += r.cost;
+      if (r.cookedPaid) group.paidCost += r.cost;
+      else group.unpaidCost += r.cost;
+      grouped.set(r.employeeId, group);
+    }
+    return Array.from(grouped.values()).sort((a, b) => a.employeeName.localeCompare(b.employeeName));
+  }, [cateringRecords]);
 
   const statusChartData = useMemo(() => {
     if (!report) return [];
@@ -295,23 +345,30 @@ export default function ReportsPage() {
     XLSX.utils.book_append_sheet(
       workbook,
       XLSX.utils.json_to_sheet(
-        byEmployee.map((item) => ({
-          Employee: item.employeeName,
-          Department: item.department,
-          Records: item.records,
-          "İşdə": item.isdeDays,
-          "Ezamiyyət": item.ezamiyyetDays,
-          ...statusCountsForExport(item.statusCounts, t),
-          "Weekend Worked": item.weekendWorkedDays,
-          "Holiday Worked": item.holidayWorkedDays,
-          "Cars Driven": item.carsDrivenDays,
-          [`Cooked 1 person (×₼${prices.tier1})`]: item.cookedTier1 || 0,
-          [`Cooked 2 people (×₼${prices.tier2})`]: item.cookedTier2 || 0,
-          [`Cooked 3 people (×₼${prices.tier3})`]: item.cookedTier3 || 0,
-          [`Cooked 4 people (×₼${prices.tier4})`]: item.cookedTier4 || 0,
-          [`Cooked 5+ people (×₼${prices.tier5plus})`]: item.cookedTier5plus || 0,
-          "Catering Cost (₼)": item.cateringCost,
-        })),
+        byEmployee.map((item) => {
+          const emp = employees.find((e) => e.id === item.employeeId);
+          return {
+            Employee: item.employeeName,
+            Department: item.department,
+            Records: item.records,
+            "İşdə": item.isdeDays,
+            "Ezamiyyət": item.ezamiyyetDays,
+            ...statusCountsForExport(item.statusCounts, t),
+            "Weekend Worked": item.weekendWorkedDays,
+            "Holiday Worked": item.holidayWorkedDays,
+            "Cars Driven": item.carsDrivenDays,
+            [`Cooked 1 person (×₼${prices.tier1})`]: item.cookedTier1 || 0,
+            [`Cooked 2 people (×₼${prices.tier2})`]: item.cookedTier2 || 0,
+            [`Cooked 3 people (×₼${prices.tier3})`]: item.cookedTier3 || 0,
+            [`Cooked 4 people (×₼${prices.tier4})`]: item.cookedTier4 || 0,
+            [`Cooked 5+ people (×₼${prices.tier5plus})`]: item.cookedTier5plus || 0,
+            "Catering Cost (₼)": item.cateringCost,
+            "Vacation Days (used)": item.statusCounts.MEZUNIYYET,
+            "Vacation Limit": emp?.vacationLimit ?? "",
+            "Sick Days (used)": item.statusCounts.XESTE,
+            "Sick Day Limit": emp?.sickLimit ?? "",
+          };
+        }),
       ),
       "By Employee",
     );
@@ -669,44 +726,96 @@ export default function ReportsPage() {
                     </BarChart>
                   </ResponsiveContainer>
 
-                  {/* Per-record breakdown table */}
+                  {/* Per-employee catering table */}
                   <div className="overflow-x-auto rounded-lg border border-slate-100">
                     <table className="min-w-full text-sm">
                       <thead className="bg-slate-50">
                         <tr>
-                          <th className="px-4 py-2.5 text-left font-medium text-slate-600">{t("date")}</th>
                           <th className="px-4 py-2.5 text-left font-medium text-slate-600">{t("employee")}</th>
-                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("headcount")}</th>
+                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("records")}</th>
                           <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("cost")}</th>
-                          <th className="px-4 py-2.5 text-center font-medium text-slate-600">{t("paymentStatus")}</th>
+                          <th className="px-4 py-2.5 text-center font-medium text-slate-600">{t("paid")}</th>
+                          <th className="px-4 py-2.5 text-center font-medium text-slate-600">{t("unpaid")}</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {cateringRecords.map((r) => (
-                          <tr className="border-t border-slate-100" key={`${r.employeeId}-${r.date}`}>
-                            <td className="px-4 py-2.5 text-slate-700">{r.date}</td>
-                            <td className="px-4 py-2.5 text-slate-700">{r.employeeName}</td>
-                            <td className="px-4 py-2.5 text-right text-slate-700">{r.cookedHeadcount}</td>
-                            <td className="px-4 py-2.5 text-right font-semibold text-teal-700">₼{r.cost}</td>
-                            <td className="px-4 py-2.5 text-center">
-                              {r.cookedPaid ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">
-                                  ✓ {t("paid")}
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
-                                  ● {t("unpaid")}
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
+                        {cateringByEmployee.map((group) => {
+                          const isExpanded = expandedCookEmployees.has(group.employeeId);
+                          const toggle = () =>
+                            setExpandedCookEmployees((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(group.employeeId)) next.delete(group.employeeId);
+                              else next.add(group.employeeId);
+                              return next;
+                            });
+                          return (
+                            <Fragment key={group.employeeId}>
+                              <tr
+                                className="cursor-pointer border-t border-slate-100 hover:bg-slate-50"
+                                key={`group-${group.employeeId}`}
+                                onClick={toggle}
+                              >
+                                <td className="px-4 py-2.5 font-medium text-slate-800">
+                                  <span className="inline-flex items-center gap-1.5">
+                                    {group.sessions.length > 1 ? (
+                                      isExpanded ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />
+                                    ) : (
+                                      <span className="w-[14px]" />
+                                    )}
+                                    {group.employeeName}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2.5 text-right text-slate-700">{group.sessions.length}</td>
+                                <td className="px-4 py-2.5 text-right font-semibold text-teal-700">₼{group.totalCost}</td>
+                                <td className="px-4 py-2.5 text-center">
+                                  {group.paidCost > 0 ? (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                                      ₼{group.paidCost}
+                                    </span>
+                                  ) : <span className="text-slate-300">–</span>}
+                                </td>
+                                <td className="px-4 py-2.5 text-center">
+                                  {group.unpaidCost > 0 ? (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                                      ₼{group.unpaidCost}
+                                    </span>
+                                  ) : <span className="text-slate-300">–</span>}
+                                </td>
+                              </tr>
+                              {isExpanded && group.sessions.map((s) => (
+                                <tr className="border-t border-slate-50 bg-slate-50/60" key={`session-${s.id}`}>
+                                  <td className="py-2 pl-10 pr-4 text-slate-500">{s.date}</td>
+                                  <td className="px-4 py-2 text-right text-slate-500">{s.headcount} {t("people")}</td>
+                                  <td className="px-4 py-2 text-right text-teal-600">₼{s.cost}</td>
+                                  <td className="px-4 py-2 text-center" colSpan={2}>
+                                    <button
+                                      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold transition ${
+                                        s.paid
+                                          ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                                          : "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                                      }`}
+                                      onClick={(e) => { e.stopPropagation(); void toggleCookPaid(s.id, s.paid); }}
+                                      type="button"
+                                    >
+                                      {s.paid ? `✓ ${t("paid")}` : `● ${t("unpaid")}`}
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </Fragment>
+                          );
+                        })}
                       </tbody>
                       <tfoot className="border-t-2 border-slate-200 bg-slate-50">
                         <tr>
-                          <td className="px-4 py-2.5 font-semibold text-slate-900" colSpan={3}>{t("total")}</td>
+                          <td className="px-4 py-2.5 font-semibold text-slate-900" colSpan={2}>{t("total")}</td>
                           <td className="px-4 py-2.5 text-right font-bold text-teal-900">₼{totalCateringCost}</td>
-                          <td />
+                          <td className="px-4 py-2.5 text-center">
+                            {paidCateringCost > 0 && <span className="text-xs font-semibold text-emerald-700">₼{paidCateringCost}</span>}
+                          </td>
+                          <td className="px-4 py-2.5 text-center">
+                            {unpaidCateringCost > 0 && <span className="text-xs font-semibold text-amber-700">₼{unpaidCateringCost}</span>}
+                          </td>
                         </tr>
                       </tfoot>
                     </table>
@@ -737,9 +846,16 @@ export default function ReportsPage() {
                   t("cateringCost"),
                   t("cateringPaid"),
                   t("cateringUnpaid"),
+                  t("statusMEZUNIYYET"),
+                  t("statusXESTE"),
                 ]}
                 rows={byEmployee.map((item) => {
                   const otherCount = item.records - item.isdeDays - item.ezamiyyetDays;
+                  const emp = employees.find((e) => e.id === item.employeeId);
+                  const vacDays = item.statusCounts.MEZUNIYYET;
+                  const sickDays = item.statusCounts.XESTE;
+                  const vacStr = emp?.vacationLimit != null ? `${vacDays} / ${emp.vacationLimit}` : vacDays > 0 ? `${vacDays}` : "-";
+                  const sickStr = emp?.sickLimit != null ? `${sickDays} / ${emp.sickLimit}` : sickDays > 0 ? `${sickDays}` : "-";
                   return [
                     item.employeeName,
                     item.department,
@@ -758,6 +874,8 @@ export default function ReportsPage() {
                     item.cateringCost > 0 ? `₼${item.cateringCost}` : "-",
                     item.cookedPaidDays > 0 ? `${item.cookedPaidDays} day(s)` : "-",
                     item.cookedUnpaidDays > 0 ? `${item.cookedUnpaidDays} day(s)` : "-",
+                    vacStr,
+                    sickStr,
                   ];
                 })}
                 title={t("byEmployee")}
@@ -1013,6 +1131,7 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
   const grouped = new Map<
     number,
     {
+      employeeId: number;
       employeeName: string;
       department: string;
       records: number;
@@ -1034,6 +1153,7 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
 
   for (const row of rows) {
     const item = grouped.get(row.employeeId) ?? {
+      employeeId: row.employeeId,
       employeeName: row.employeeName,
       department: row.department,
       records: 0,
