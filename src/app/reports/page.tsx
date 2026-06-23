@@ -52,7 +52,7 @@ const STATUS_COLORS: Record<AttendanceStatus, string> = {
   ISDE_XESARET: "#f43f5e",
 };
 
-type Prices = { tier1: number; tier2: number; tier3: number; tier4: number; tier5plus: number };
+import { type Prices, DEFAULT_PRICES, cateringCostForHeadcount } from "@/lib/ai/catering";
 
 type CookGroup = {
   employeeId: number;
@@ -63,8 +63,6 @@ type CookGroup = {
   unpaidCost: number;
 };
 
-const DEFAULT_PRICES: Prices = { tier1: 10, tier2: 20, tier3: 25, tier4: 30, tier5plus: 35 };
-
 const TIER_KEYS: Array<{ key: keyof Prices; label: string }> = [
   { key: "tier1", label: "1" },
   { key: "tier2", label: "2" },
@@ -72,15 +70,6 @@ const TIER_KEYS: Array<{ key: keyof Prices; label: string }> = [
   { key: "tier4", label: "4" },
   { key: "tier5plus", label: "5+" },
 ];
-
-function cateringCostForHeadcount(headcount: number, prices: Prices): number {
-  if (headcount <= 0) return 0;
-  if (headcount === 1) return prices.tier1;
-  if (headcount === 2) return prices.tier2;
-  if (headcount === 3) return prices.tier3;
-  if (headcount === 4) return prices.tier4;
-  return prices.tier5plus;
-}
 
 export default function ReportsPage() {
   const { t } = useLanguage();

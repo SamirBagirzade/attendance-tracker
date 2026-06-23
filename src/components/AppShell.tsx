@@ -12,6 +12,7 @@ import {
   Home,
   LogOut,
   MapPin,
+  MessageSquare,
   Palette,
   ScrollText,
   Shield,
@@ -39,6 +40,7 @@ const navGroups: NavGroup[] = [
       { href: "/timesheet", labelKey: "timesheet", icon: CalendarDays },
       { href: "/reports", labelKey: "reports", icon: ClipboardList },
       { href: "/reports-v2", labelKey: "reportsV2", icon: TrendingUp },
+      { href: "/ai-chat", labelKey: "aiChat", icon: MessageSquare },
     ],
   },
   {

@@ -194,6 +194,9 @@ const dictionaries: Record<Language, Dictionary> = {
     vacationLimit: "Məzuniyyət limiti (gün/il)",
     sickLimit: "Xəstəlik limiti (gün/il)",
     noLimit: "Limitsiz",
+    aiChat: "AI Söhbəti",
+    chatPlaceholder: "Sual verin... (Enter göndər, Shift+Enter yeni sətir)",
+    chatHint: "Yalnız oxuma rejimi · Məlumatlar real bazadan götürülür",
   },
   en: {
     language: "Language",
@@ -381,6 +384,9 @@ const dictionaries: Record<Language, Dictionary> = {
     vacationLimit: "Vacation limit (days/year)",
     sickLimit: "Sick day limit (days/year)",
     noLimit: "No limit",
+    aiChat: "AI Chat",
+    chatPlaceholder: "Ask a question… (Enter to send, Shift+Enter for new line)",
+    chatHint: "Read-only · Data is fetched from the live database",
   },
   ru: {
     language: "Язык",
@@ -568,6 +574,9 @@ const dictionaries: Record<Language, Dictionary> = {
     vacationLimit: "Лимит отпуска (дней/год)",
     sickLimit: "Лимит больничных (дней/год)",
     noLimit: "Без лимита",
+    aiChat: "AI Чат",
+    chatPlaceholder: "Задайте вопрос… (Enter — отправить, Shift+Enter — новая строка)",
+    chatHint: "Только чтение · Данные из живой базы",
   },
 };
 
