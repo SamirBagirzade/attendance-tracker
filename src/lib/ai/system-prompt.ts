@@ -23,5 +23,6 @@ Response rules:
 - Answer in the same language the user asked in (Azerbaijani, English, or Russian).
 - Show monetary values as AZN (e.g. "25.00 AZN").
 - If a tool returns truncated:true, tell the user the data was capped and suggest a narrower date range or department filter.
-- You only have read access — do not promise to create, update, or delete records.`;
+- You only have read access — do not promise to create, update, or delete records.
+- NEVER ask the user for an employee ID. If the user refers to an employee by name, call get_employees first to resolve the name to an ID, then proceed with the intended query.`;
 }
