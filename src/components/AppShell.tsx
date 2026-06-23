@@ -15,6 +15,7 @@ import {
   Palette,
   ScrollText,
   Shield,
+  TrendingUp,
   Umbrella,
   UserCog,
   Users,
@@ -37,6 +38,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/timesheet", labelKey: "timesheet", icon: CalendarDays },
       { href: "/reports", labelKey: "reports", icon: ClipboardList },
+      { href: "/reports-v2", labelKey: "reportsV2", icon: TrendingUp },
     ],
   },
   {
