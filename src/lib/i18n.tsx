@@ -197,6 +197,7 @@ const dictionaries: Record<Language, Dictionary> = {
     aiChat: "AI Söhbəti",
     chatPlaceholder: "Sual verin... (Enter göndər, Shift+Enter yeni sətir)",
     chatHint: "Yalnız oxuma rejimi · Məlumatlar real bazadan götürülür",
+    chatWelcome: "Salam! Davamiyyət, işçilər, iaşə xərcləri və avtomobil parkı haqqında suallarınıza cavab verə bilərəm. Sınayın:\n\n- \"Bu həftə neçə işçi işə gəldi?\"\n- \"2025-ci ilin iyun ayı üçün iaşə xərclərini göstər\"\n- \"Hansı avtomobillər texniki xidmətə ehtiyac duyur?\"\n- \"Bu il ən çox məzuniyyət günü kim istifadə etdi?\"",
   },
   en: {
     language: "Language",
@@ -387,6 +388,7 @@ const dictionaries: Record<Language, Dictionary> = {
     aiChat: "AI Chat",
     chatPlaceholder: "Ask a question… (Enter to send, Shift+Enter for new line)",
     chatHint: "Read-only · Data is fetched from the live database",
+    chatWelcome: "Hello! I can answer questions about attendance, employees, catering costs, and the fleet. Try asking:\n\n- \"How many employees worked this week?\"\n- \"Show catering costs for June 2025\"\n- \"Which cars need maintenance?\"\n- \"Who used the most vacation days this year?\"",
   },
   ru: {
     language: "Язык",
@@ -577,6 +579,7 @@ const dictionaries: Record<Language, Dictionary> = {
     aiChat: "AI Чат",
     chatPlaceholder: "Задайте вопрос… (Enter — отправить, Shift+Enter — новая строка)",
     chatHint: "Только чтение · Данные из живой базы",
+    chatWelcome: "Здравствуйте! Я могу отвечать на вопросы о посещаемости, сотрудниках, расходах на питание и автопарке. Попробуйте:\n\n- \"Сколько сотрудников работало на этой неделе?\"\n- \"Показать расходы на питание за июнь 2025\"\n- \"Каким автомобилям нужно техническое обслуживание?\"\n- \"Кто использовал больше всего дней отпуска в этом году?\"",
   },
 };
 

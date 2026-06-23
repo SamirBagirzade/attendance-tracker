@@ -13,22 +13,13 @@ import {
   type ChatSession,
 } from "@/lib/chat-storage";
 
-const WELCOME: Message = {
-  id: "0",
-  role: "assistant",
-  content:
-    "Hello! I can answer questions about attendance, employees, catering costs, and the fleet. Try asking:\n\n- \"How many employees worked this week?\"\n- \"Show catering costs for June 2025\"\n- \"Which cars need maintenance?\"\n- \"Who used the most vacation days this year?\"",
-  toolEvents: [],
-  isStreaming: false,
-};
-
 function nextId() {
   return crypto.randomUUID();
 }
 
 export function ChatShell() {
   const { t } = useLanguage();
-  const [messages, setMessages] = useState<Message[]>([WELCOME]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -49,15 +40,14 @@ export function ChatShell() {
     if (messages.some((m) => m.isStreaming)) return;
     needsSaveRef.current = false;
 
-    const userMessages = messages.filter((m) => m.id !== "0");
-    if (userMessages.length === 0) return;
+    if (messages.length === 0) return;
 
     upsertSession({
       id: currentSessionId,
-      title: deriveTitle(userMessages),
+      title: deriveTitle(messages),
       createdAt: sessionCreatedAtRef.current,
       updatedAt: new Date().toISOString(),
-      messages: userMessages.map((m) => ({ ...m, isStreaming: false })),
+      messages: messages.map((m) => ({ ...m, isStreaming: false })),
     });
     setSessions(getSessions());
   }, [messages, currentSessionId]);
@@ -65,7 +55,7 @@ export function ChatShell() {
   function startNewSession() {
     setCurrentSessionId(crypto.randomUUID());
     sessionCreatedAtRef.current = new Date().toISOString();
-    setMessages([WELCOME]);
+    setMessages([]);
     setInput("");
     setError("");
   }
@@ -73,7 +63,7 @@ export function ChatShell() {
   function handleSelectSession(session: ChatSession) {
     setCurrentSessionId(session.id);
     sessionCreatedAtRef.current = session.createdAt;
-    setMessages([WELCOME, ...session.messages.map((m) => ({ ...m, isStreaming: false }))]);
+    setMessages(session.messages.map((m) => ({ ...m, isStreaming: false })));
     setInput("");
     setError("");
   }
@@ -111,7 +101,6 @@ export function ChatShell() {
       setError("");
 
       const history = [...messages, userMsg]
-        .filter((m) => m.id !== "0")
         .map((m) => ({ role: m.role, content: m.content }));
 
       try {
@@ -238,6 +227,9 @@ export function ChatShell() {
         </div>
 
         <div className="flex-1 overflow-y-auto space-y-4 pb-4 pr-1">
+          <ChatMessage
+            message={{ id: "welcome", role: "assistant", content: t("chatWelcome"), toolEvents: [], isStreaming: false }}
+          />
           {messages.map((m) => (
             <ChatMessage key={m.id} message={m} />
           ))}
