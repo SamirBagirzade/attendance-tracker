@@ -91,6 +91,30 @@ export const toolDefinitions: Anthropic.Tool[] = [
     },
   },
   {
+    name: "get_employee_details",
+    description:
+      "Get detailed info for a specific employee: basic data (name, department, leave limits), custom text fields (e.g. ID number, driving licence), and list of uploaded documents. Use when asked about an employee's personal details, custom attributes, or what documents they have on file.",
+    input_schema: {
+      type: "object",
+      properties: {
+        employeeId: { type: "number", description: "Employee ID" },
+      },
+      required: ["employeeId"],
+    },
+  },
+  {
+    name: "get_car_details",
+    description:
+      "Get detailed info for a specific car: make/model, licence plate, km, maintenance dates, custom text fields (e.g. VIN, owner), and list of uploaded documents. Use when asked about a car's attributes, VIN, or documents.",
+    input_schema: {
+      type: "object",
+      properties: {
+        carId: { type: "number", description: "Car ID" },
+      },
+      required: ["carId"],
+    },
+  },
+  {
     name: "get_fuel_transactions",
     description:
       "Query cached Azpetrol fuel card transactions (Card Sale type only). Includes ALL fill-ups — both company cars and external/non-company vehicles (cards not tied to a specific car, e.g. plate 'mehdudiyyetsiz'). Returns date, plate, car name if matched, product (fuel type), quantity in litres, cost in AZN, and station. Use for ALL fuel spending questions including total company fuel cost, consumption by car or driver, cost by station, or external vehicle spend.",

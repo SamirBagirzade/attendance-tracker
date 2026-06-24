@@ -11,7 +11,7 @@ import {
 } from "date-fns";
 import type { Locale } from "date-fns";
 import { az, enUS, ru } from "date-fns/locale";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Flag, Plus, Printer, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Flag, Plus, Printer, Trash2, Users, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { statusKey, useLanguage } from "@/lib/i18n";
 import type {
@@ -73,6 +73,11 @@ export default function TimesheetPage() {
   const [error, setError] = useState("");
   const [collapsedDepts, setCollapsedDepts] = useState<Set<string>>(new Set());
   const [confirmFillDate, setConfirmFillDate] = useState<string | null>(null);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkStatus, setBulkStatus] = useState<AttendanceStatus | "">("");
+  const [bulkDate, setBulkDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
+  const [bulkLoading, setBulkLoading] = useState(false);
   const todayDateKey = format(new Date(), "yyyy-MM-dd");
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const todayCellRef = useRef<HTMLTableCellElement>(null);
@@ -214,6 +219,23 @@ export default function TimesheetPage() {
     else setError("Could not mark column as holiday.");
   }
 
+  async function bulkApply() {
+    if (!bulkStatus || selectedIds.size === 0) return;
+    setBulkLoading(true);
+    const res = await fetch("/api/attendance-records/bulk-selected", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: bulkDate, status: bulkStatus, employeeIds: [...selectedIds] }),
+    });
+    if (res.ok) {
+      setSelectedIds(new Set());
+      await loadData();
+    } else {
+      setError("Bulk update failed.");
+    }
+    setBulkLoading(false);
+  }
+
   async function addEmployee(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -296,6 +318,13 @@ export default function TimesheetPage() {
               >
                 <Printer size={13} /> {t("print")}
               </button>
+              <button
+                className={`inline-flex h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium transition ${bulkMode ? "border-blue-400 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                onClick={() => { setBulkMode((v) => !v); setSelectedIds(new Set()); }}
+                type="button"
+              >
+                <Users size={13} /> {t("bulkSelect")}
+              </button>
             </div>
           </div>
           <form className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" onSubmit={addEmployee}>
@@ -335,7 +364,16 @@ export default function TimesheetPage() {
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
                   <th className="sticky left-0 z-10 min-w-56 border-r border-slate-200 bg-slate-50 px-3 py-3 text-left font-semibold text-slate-700">
-                    {t("employee")}
+                    <div className="flex items-center gap-2">
+                      {bulkMode && (
+                        <input type="checkbox"
+                          className="h-4 w-4 rounded border-slate-300"
+                          checked={employees.length > 0 && selectedIds.size === employees.length}
+                          onChange={(e) => setSelectedIds(e.target.checked ? new Set(employees.map((emp) => emp.id)) : new Set())}
+                        />
+                      )}
+                      {t("employee")}
+                    </div>
                   </th>
                   {days.map((day) => {
                     const dateKey = format(day, "yyyy-MM-dd");
@@ -437,7 +475,20 @@ export default function TimesheetPage() {
                       ...(!isCollapsed ? deptEmployees.map((employee) => (
                         <tr className="border-b border-slate-100" key={employee.id}>
                           <th className="sticky left-0 z-10 min-w-56 border-r border-slate-200 bg-white px-3 py-2 text-left">
-                            <div className="font-semibold text-slate-950">{employee.name}</div>
+                            <div className="flex items-center gap-2">
+                              {bulkMode && (
+                                <input type="checkbox"
+                                  className="h-4 w-4 shrink-0 rounded border-slate-300"
+                                  checked={selectedIds.has(employee.id)}
+                                  onChange={(e) => setSelectedIds((prev) => {
+                                    const next = new Set(prev);
+                                    if (e.target.checked) next.add(employee.id); else next.delete(employee.id);
+                                    return next;
+                                  })}
+                                />
+                              )}
+                              <div className="font-semibold text-slate-950">{employee.name}</div>
+                            </div>
                           </th>
                           {days.map((day) => {
                             const dateKey = format(day, "yyyy-MM-dd");
@@ -498,6 +549,30 @@ export default function TimesheetPage() {
           </div>
         </section>
       </div>
+
+      {/* Bulk action bar */}
+      {bulkMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-xl border border-slate-300 bg-white px-5 py-3 shadow-xl">
+          <span className="text-sm font-semibold text-slate-700">{selectedIds.size} {t("employee")}</span>
+          <input type="date" value={bulkDate} onChange={(e) => setBulkDate(e.target.value)}
+            className="h-8 rounded-md border border-slate-200 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" />
+          <select value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value as AttendanceStatus)}
+            className="h-8 rounded-md border border-slate-200 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+            <option value="">{t("status")}</option>
+            {statusValues.map((s) => <option key={s} value={s}>{t(statusKey(s))}</option>)}
+          </select>
+          <button onClick={() => void bulkApply()} disabled={!bulkStatus || bulkLoading}
+            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-slate-900 px-3 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40 transition">
+            {bulkLoading ? "…" : <Check size={13} />}
+            {t("apply")}
+          </button>
+          <button onClick={() => setSelectedIds(new Set())}
+            className="h-8 w-8 inline-flex items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 transition">
+            <X size={13} />
+          </button>
+        </div>
+      )}
+
       {activeCell ? (
         <AttendanceModal
           key={`${activeCell.employee.id}:${activeCell.dateKey}`}

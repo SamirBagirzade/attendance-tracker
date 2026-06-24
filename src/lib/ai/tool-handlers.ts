@@ -34,6 +34,10 @@ export async function handleToolCall(
       return getCarStatus();
     case "get_fuel_transactions":
       return getFuelTransactions(input);
+    case "get_employee_details":
+      return getEmployeeDetails(input);
+    case "get_car_details":
+      return getCarDetails(input);
     default:
       throw new Error(`Unknown tool: ${toolName}`);
   }
@@ -428,6 +432,44 @@ async function getCarStatus() {
   });
 
   return { cars: result };
+}
+
+async function getEmployeeDetails(input: Record<string, unknown>) {
+  const employeeId = Number(input.employeeId);
+  const [employee, customFields, documents] = await Promise.all([
+    prisma.employee.findUnique({ where: { id: employeeId } }),
+    prisma.customField.findMany({ where: { employeeId }, orderBy: { createdAt: "asc" } }),
+    prisma.document.findMany({
+      where: { employeeId },
+      select: { id: true, name: true, filename: true, size: true, uploadedAt: true },
+      orderBy: { uploadedAt: "desc" },
+    }),
+  ]);
+  if (!employee) return { error: `Employee ${employeeId} not found.` };
+  return {
+    employee,
+    customFields: customFields.map((f) => ({ name: f.name, value: f.value })),
+    documents: documents.map((d) => ({ name: d.name, filename: d.filename })),
+  };
+}
+
+async function getCarDetails(input: Record<string, unknown>) {
+  const carId = Number(input.carId);
+  const [car, customFields, documents] = await Promise.all([
+    prisma.car.findUnique({ where: { id: carId } }),
+    prisma.customField.findMany({ where: { carId }, orderBy: { createdAt: "asc" } }),
+    prisma.document.findMany({
+      where: { carId },
+      select: { id: true, name: true, filename: true, size: true, uploadedAt: true },
+      orderBy: { uploadedAt: "desc" },
+    }),
+  ]);
+  if (!car) return { error: `Car ${carId} not found.` };
+  return {
+    car: { ...car, oilChangeDate: car.oilChangeDate?.toISOString().slice(0, 10) ?? null, insuranceDate: car.insuranceDate?.toISOString().slice(0, 10) ?? null, inspectionDate: car.inspectionDate?.toISOString().slice(0, 10) ?? null },
+    customFields: customFields.map((f) => ({ name: f.name, value: f.value })),
+    documents: documents.map((d) => ({ name: d.name, filename: d.filename })),
+  };
 }
 
 async function getFuelTransactions(input: Record<string, unknown>) {

@@ -234,6 +234,14 @@ function getToolPreview(toolName: string, result: unknown): string {
       const cars = r.cars as unknown[];
       return `${cars?.length ?? 0} cars`;
     }
+    case "get_employee_details": {
+      const emp = (r.employee as Record<string, unknown> | undefined);
+      return emp ? `${emp.name}` : "";
+    }
+    case "get_car_details": {
+      const car = (r.car as Record<string, unknown> | undefined);
+      return car ? `${car.makeModel} ${car.licensePlate}` : "";
+    }
     case "get_fuel_transactions": {
       const s = r.summary as Record<string, number> | undefined;
       return s ? `${s.totalTransactions} fill-ups, ${s.totalAmount} AZN` : "";
