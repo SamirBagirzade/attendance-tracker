@@ -49,6 +49,27 @@ export default function AzpetrolPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
 
+  const [filters, setFilters] = useState({
+    cardNumber: "", productName: "", minAmount: "", maxAmount: "",
+    stationName: "", plate: "", transactionType: "",
+  });
+
+  const hasFilters = Object.values(filters).some(Boolean);
+
+  const filteredTransactions = transactions.filter((tx) => {
+    if (filters.cardNumber && !String(tx.cardNumber ?? "").toLowerCase().includes(filters.cardNumber.toLowerCase())) return false;
+    if (filters.productName && String(tx.productName ?? "") !== filters.productName) return false;
+    if (filters.minAmount && Number(tx.amount) < Number(filters.minAmount)) return false;
+    if (filters.maxAmount && Number(tx.amount) > Number(filters.maxAmount)) return false;
+    if (filters.stationName && String(tx.stationName ?? "") !== filters.stationName) return false;
+    if (filters.plate && !String(tx.plate ?? "").toLowerCase().includes(filters.plate.toLowerCase())) return false;
+    if (filters.transactionType && String(tx.transactionType ?? "") !== filters.transactionType) return false;
+    return true;
+  });
+
+  const uniqueValues = (key: keyof Transaction) =>
+    [...new Set(transactions.map((tx) => String(tx[key] ?? "")).filter(Boolean))].sort();
+
   function buildChunks(fromStr: string, toStr: string): Array<{ start: string; end: string }> {
     const chunks: Array<{ start: string; end: string }> = [];
     let cursor = new Date(fromStr);
@@ -75,6 +96,7 @@ export default function AzpetrolPage() {
     setFetchInfo(`Fetching ${chunks.length} month${chunks.length !== 1 ? "s" : ""}…`);
     setError("");
     setTransactions([]);
+    setFilters({ cardNumber: "", productName: "", minAmount: "", maxAmount: "", stationName: "", plate: "", transactionType: "" });
     setRawResponse(null);
     setSelectedId(null);
     setDetail(null);
@@ -202,11 +224,23 @@ export default function AzpetrolPage() {
         <div className="bg-white border border-slate-200 rounded-lg overflow-hidden mb-4">
           <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
             <span className="text-sm font-medium text-slate-700">
-              {transactions.length} transaction{transactions.length !== 1 ? "s" : ""}
+              {hasFilters
+                ? `${filteredTransactions.length} of ${transactions.length} transactions`
+                : `${transactions.length} transaction${transactions.length !== 1 ? "s" : ""}`}
             </span>
-            {txId(transactions[0]) && (
-              <span className="text-xs text-slate-400">Click row for detail</span>
-            )}
+            <div className="flex items-center gap-3">
+              {hasFilters && (
+                <button
+                  onClick={() => setFilters({ cardNumber: "", productName: "", minAmount: "", maxAmount: "", stationName: "", plate: "", transactionType: "" })}
+                  className="text-xs text-slate-500 hover:text-red-500 transition"
+                >
+                  Clear filters
+                </button>
+              )}
+              {txId(transactions[0]) && (
+                <span className="text-xs text-slate-400">Click row for detail</span>
+              )}
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -223,9 +257,45 @@ export default function AzpetrolPage() {
                   <th className="px-3 py-2 text-left whitespace-nowrap">Plate</th>
                   <th className="px-3 py-2 text-left whitespace-nowrap">Type</th>
                 </tr>
+                <tr className="border-t border-slate-200 bg-white">
+                  <th className="px-3 py-1.5"></th>
+                  <th className="px-3 py-1.5"></th>
+                  <th className="px-3 py-1.5"></th>
+                  <th className="px-3 py-1.5">
+                    <input type="text" value={filters.cardNumber} onChange={(e) => setFilters((f) => ({ ...f, cardNumber: e.target.value }))} placeholder="Filter…" className="w-full text-xs rounded border border-slate-200 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-slate-400 font-normal normal-case" />
+                  </th>
+                  <th className="px-3 py-1.5">
+                    <select value={filters.productName} onChange={(e) => setFilters((f) => ({ ...f, productName: e.target.value }))} className="w-full text-xs rounded border border-slate-200 px-1 py-1 focus:outline-none focus:ring-1 focus:ring-slate-400 font-normal normal-case">
+                      <option value="">All</option>
+                      {uniqueValues("productName").map((v) => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                  </th>
+                  <th className="px-3 py-1.5"></th>
+                  <th className="px-3 py-1.5">
+                    <div className="flex gap-1">
+                      <input type="number" value={filters.minAmount} onChange={(e) => setFilters((f) => ({ ...f, minAmount: e.target.value }))} placeholder="Min" className="w-14 text-xs rounded border border-slate-200 px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-slate-400 font-normal normal-case" />
+                      <input type="number" value={filters.maxAmount} onChange={(e) => setFilters((f) => ({ ...f, maxAmount: e.target.value }))} placeholder="Max" className="w-14 text-xs rounded border border-slate-200 px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-slate-400 font-normal normal-case" />
+                    </div>
+                  </th>
+                  <th className="px-3 py-1.5">
+                    <select value={filters.stationName} onChange={(e) => setFilters((f) => ({ ...f, stationName: e.target.value }))} className="w-full text-xs rounded border border-slate-200 px-1 py-1 focus:outline-none focus:ring-1 focus:ring-slate-400 font-normal normal-case">
+                      <option value="">All</option>
+                      {uniqueValues("stationName").map((v) => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                  </th>
+                  <th className="px-3 py-1.5">
+                    <input type="text" value={filters.plate} onChange={(e) => setFilters((f) => ({ ...f, plate: e.target.value }))} placeholder="Filter…" className="w-full text-xs rounded border border-slate-200 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-slate-400 font-normal normal-case" />
+                  </th>
+                  <th className="px-3 py-1.5">
+                    <select value={filters.transactionType} onChange={(e) => setFilters((f) => ({ ...f, transactionType: e.target.value }))} className="w-full text-xs rounded border border-slate-200 px-1 py-1 focus:outline-none focus:ring-1 focus:ring-slate-400 font-normal normal-case">
+                      <option value="">All</option>
+                      {uniqueValues("transactionType").map((v) => <option key={v} value={v}>{TRANSACTION_TYPES[v] ?? v}</option>)}
+                    </select>
+                  </th>
+                </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {transactions.map((tx, i) => {
+                {filteredTransactions.map((tx, i) => {
                   const id = txId(tx);
                   const isSelected = id && selectedId === id;
                   return (
