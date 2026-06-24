@@ -10,3 +10,4 @@ coverage
 tsconfig.tsbuildinfo
 prisma/dev.db
 .admin-password
+docs
