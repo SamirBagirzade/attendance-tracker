@@ -199,13 +199,12 @@ export default function FuelReportPage() {
 
       {data && (<>
         {/* KPI cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
           <KpiCard label={t("totalCost")} value={`${data.summary.totalAmount.toFixed(2)} AZN`} />
           <KpiCard label={t("totalQuantity")} value={`${data.summary.totalQuantity.toFixed(2)} L`} />
           <KpiCard label={t("fillUps")} value={String(data.summary.totalFillUps)} />
           <KpiCard label={t("avgPerFill")} value={`${data.summary.avgCostPerFill.toFixed(2)} AZN`} />
           <KpiCard label={t("avgQtyPerFill")} value={`${data.summary.avgQtyPerFill.toFixed(2)} L`} />
-          <KpiCard label={t("uniquePlates")} value={String(data.summary.uniquePlates)} />
           <KpiCard label={t("uniqueStations")} value={String(data.summary.uniqueStations)} />
         </div>
 
