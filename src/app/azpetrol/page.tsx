@@ -49,6 +49,18 @@ export default function AzpetrolPage() {
   const [detailError, setDetailError] = useState("");
 
   async function handleSearch() {
+    // Client-side: enforce max 1 month range
+    const diffMs = new Date(to).getTime() - new Date(from).getTime();
+    const diffDays = diffMs / 86400000;
+    if (diffDays > 31) {
+      setError("Date range must be 31 days or less (API limit).");
+      return;
+    }
+    if (diffDays < 0) {
+      setError("'From' date must be before 'To' date.");
+      return;
+    }
+
     setLoading(true);
     setError("");
     setTransactions([]);
@@ -73,6 +85,7 @@ export default function AzpetrolPage() {
       setRawResponse(json);
 
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      if (json.isSuccess === false) throw new Error(json.message ?? json.title ?? "Request failed");
 
       const data = json.data;
       if (Array.isArray(data)) {
