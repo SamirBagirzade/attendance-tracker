@@ -51,6 +51,23 @@ model AppUser {
   updatedAt DateTime @updatedAt
 }
 
+model Document {
+  id          Int       @id @default(autoincrement())
+  name        String
+  filename    String
+  mimetype    String
+  size        Int
+  storedName  String
+  carId       Int?
+  car         Car?      @relation(fields: [carId], references: [id], onDelete: Cascade)
+  employeeId  Int?
+  employee    Employee? @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  uploadedAt  DateTime  @default(now())
+
+  @@index([carId])
+  @@index([employeeId])
+}
+
 model Employee {
   id                Int                @id @default(autoincrement())
   name              String
@@ -58,6 +75,7 @@ model Employee {
   vacationLimit     Int?
   sickLimit         Int?
   attendanceRecords AttendanceRecord[]
+  documents         Document[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -130,9 +148,31 @@ model Car {
 
   records            AttendanceRecord[]
   maintenanceRecords CarMaintenanceRecord[]
+  fuelTransactions   FuelTransaction[]
+  documents          Document[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model FuelTransaction {
+  id              String   @id
+  transactionTime DateTime
+  cardHolderName  String?
+  cardNumber      String?
+  productName     String?
+  productQuantity Float?
+  productMeasure  String?
+  amount          Float
+  stationName     String?
+  plate           String
+  carId           Int?
+  car             Car?     @relation(fields: [carId], references: [id], onDelete: SetNull)
+  syncedAt        DateTime @default(now())
+
+  @@index([carId])
+  @@index([transactionTime])
+  @@index([plate])
 }
 
 model AttendanceWorkLocation {

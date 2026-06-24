@@ -9,12 +9,15 @@ import {
   ChevronDown,
   ClipboardList,
   DatabaseBackup,
+  Fuel,
   Home,
   LogOut,
   MapPin,
+  MessageSquare,
   Palette,
   ScrollText,
   Shield,
+  TrendingUp,
   Umbrella,
   UserCog,
   Users,
@@ -37,6 +40,8 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/timesheet", labelKey: "timesheet", icon: CalendarDays },
       { href: "/reports", labelKey: "reports", icon: ClipboardList },
+      { href: "/reports-v2", labelKey: "reportsV2", icon: TrendingUp },
+      { href: "/ai-chat", labelKey: "aiChat", icon: MessageSquare },
     ],
   },
   {
@@ -55,6 +60,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/cars", labelKey: "cars", icon: Car },
       { href: "/maintenance", labelKey: "maintenanceHistory", icon: Wrench },
+      { href: "/fuel-report", labelKey: "fuelReport", icon: Fuel },
     ],
   },
 ];
@@ -66,6 +72,7 @@ const adminGroup: NavGroup = {
     { href: "/users", labelKey: "users", icon: UserCog },
     { href: "/backup", labelKey: "backup", icon: DatabaseBackup },
     { href: "/audit", labelKey: "auditLog", icon: ScrollText },
+    { href: "/azpetrol", labelKey: "azpetrol", icon: Fuel },
   ],
 };
 

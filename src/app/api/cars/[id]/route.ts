@@ -11,6 +11,16 @@ type RouteContext = {
   }>;
 };
 
+export async function GET(_request: NextRequest, context: RouteContext) {
+  const id = Number((await context.params).id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return NextResponse.json({ error: "id must be a positive integer." }, { status: 400 });
+  }
+  const car = await prisma.car.findUnique({ where: { id } });
+  if (!car) return NextResponse.json({ error: "Car not found." }, { status: 404 });
+  return NextResponse.json({ ...car, oilChangeDate: formatCarDate(car.oilChangeDate), insuranceDate: formatCarDate(car.insuranceDate), inspectionDate: formatCarDate(car.inspectionDate) });
+}
+
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const id = Number((await context.params).id);
 

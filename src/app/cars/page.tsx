@@ -1,8 +1,10 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { Check, ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Check, ChevronDown, ChevronUp, Fuel, Plus, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { DocumentsSection } from "@/components/DocumentsSection";
 import { useLanguage } from "@/lib/i18n";
 import type { Car } from "@/types/domain";
 
@@ -106,6 +108,14 @@ export default function CarsPage() {
   const [expandedCarId, setExpandedCarId] = useState<number | null>(null);
   const [maintenanceDrafts, setMaintenanceDrafts] = useState<Record<number, MaintenanceDraft>>({});
   const [savedMaintenanceCarId, setSavedMaintenanceCarId] = useState<number | null>(null);
+  const [externalVehicles, setExternalVehicles] = useState<Array<{ plate: string }>>([]);
+
+  useEffect(() => {
+    fetch("/api/azpetrol/external-vehicles")
+      .then((r) => r.json())
+      .then((data) => setExternalVehicles(data.groups ?? []))
+      .catch(() => {});
+  }, []);
 
   const loadCars = useCallback(async () => {
     setError("");
@@ -420,6 +430,13 @@ export default function CarsPage() {
                                   Saved
                                 </span>
                               ) : null}
+                              <Link
+                                href={`/cars/${car.id}/fuel`}
+                                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-slate-200 px-3 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                              >
+                                <Fuel size={15} />
+                                Fuel
+                              </Link>
                               <button
                                 className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-red-200 px-3 text-sm font-medium text-red-700 hover:bg-red-50"
                                 onClick={() => void deleteCar(car.id)}
@@ -630,6 +647,7 @@ export default function CarsPage() {
                                   </span>
                                 )}
                               </div>
+                              <DocumentsSection carId={car.id} />
                             </td>
                           </tr>
                         ) : null}
@@ -641,6 +659,42 @@ export default function CarsPage() {
             </table>
           </div>
         </section>
+
+        {externalVehicles.length > 0 && (
+          <section className="mt-8">
+            <div className="mb-3 flex items-center gap-2">
+              <div className="h-px flex-1 bg-slate-200" />
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">{t("externalVehicles")}</span>
+              <div className="h-px flex-1 bg-slate-200" />
+            </div>
+            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+              <table className="min-w-full text-sm">
+                <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase text-slate-600">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">{t("licensePlate")}</th>
+                    <th className="px-4 py-3 font-semibold">{t("actions")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {externalVehicles.map((g) => (
+                    <tr key={g.plate} className="border-b border-slate-100">
+                      <td className="px-4 py-3 font-mono font-medium text-slate-800">{g.plate}</td>
+                      <td className="px-4 py-3">
+                        <Link
+                          href={`/cars/external/${encodeURIComponent(g.plate)}`}
+                          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-slate-200 px-3 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                        >
+                          <Fuel size={15} />
+                          Fuel
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
       </div>
     </AppShell>
   );
