@@ -1,12 +1,12 @@
 import { NextRequest } from "next/server";
-import { getSessionUser } from "@/lib/permissions";
+import { requireEditor } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
-  const user = await getSessionUser(request);
-  if (!user) return Response.json({ error: "Unauthorized." }, { status: 401 });
+  const denied = await requireEditor(request);
+  if (denied) return denied;
 
   const body = await request.json();
   const name = String(body.name ?? "").trim();
