@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { format, subDays } from "date-fns";
+import { format, subDays, endOfMonth, startOfMonth, addMonths } from "date-fns";
 import { Search, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { useLanguage } from "@/lib/i18n";
@@ -39,6 +39,7 @@ export default function AzpetrolPage() {
   const [cardNumber, setCardNumber] = useState("");
 
   const [loading, setLoading] = useState(false);
+  const [fetchInfo, setFetchInfo] = useState("");
   const [error, setError] = useState("");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [rawResponse, setRawResponse] = useState<object | null>(null);
@@ -48,20 +49,30 @@ export default function AzpetrolPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
 
-  async function handleSearch() {
-    // Client-side: enforce max 1 month range
-    const diffMs = new Date(to).getTime() - new Date(from).getTime();
-    const diffDays = diffMs / 86400000;
-    if (diffDays > 31) {
-      setError("Date range must be 31 days or less (API limit).");
-      return;
+  function buildChunks(fromStr: string, toStr: string): Array<{ start: string; end: string }> {
+    const chunks: Array<{ start: string; end: string }> = [];
+    let cursor = new Date(fromStr);
+    const end = new Date(toStr);
+    while (cursor <= end) {
+      const monthEnd = endOfMonth(cursor);
+      chunks.push({
+        start: format(cursor, "yyyy-MM-dd"),
+        end: format(monthEnd < end ? monthEnd : end, "yyyy-MM-dd"),
+      });
+      cursor = startOfMonth(addMonths(cursor, 1));
     }
-    if (diffDays < 0) {
+    return chunks;
+  }
+
+  async function handleSearch() {
+    if (new Date(from) > new Date(to)) {
       setError("'From' date must be before 'To' date.");
       return;
     }
 
+    const chunks = buildChunks(from, to);
     setLoading(true);
+    setFetchInfo(`Fetching ${chunks.length} month${chunks.length !== 1 ? "s" : ""}…`);
     setError("");
     setTransactions([]);
     setRawResponse(null);
@@ -69,36 +80,45 @@ export default function AzpetrolPage() {
     setDetail(null);
 
     try {
-      const body: Record<string, string> = {
-        StartDate: `${from}T00:00:00`,
-        EndDate: `${to}T23:59:59`,
-      };
-      if (cardNumber.trim()) body.CardNumber = cardNumber.trim();
+      const results = await Promise.all(
+        chunks.map(async ({ start, end }) => {
+          const body: Record<string, string> = {
+            StartDate: `${start}T00:00:00`,
+            EndDate: `${end}T23:59:59`,
+          };
+          if (cardNumber.trim()) body.CardNumber = cardNumber.trim();
 
-      const res = await fetch("/api/azpetrol/transactions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+          const res = await fetch("/api/azpetrol/transactions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
 
-      const json = await res.json();
-      setRawResponse(json);
+          const json = await res.json();
+          if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+          if (json.isSuccess === false) throw new Error(json.message ?? json.title ?? "Request failed");
+          return json;
+        })
+      );
 
-      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
-      if (json.isSuccess === false) throw new Error(json.message ?? json.title ?? "Request failed");
-
-      const data = json.data;
-      if (Array.isArray(data)) {
-        setTransactions(data as Transaction[]);
-      } else if (data && typeof data === "object") {
-        setTransactions([data as Transaction]);
-      } else {
-        setTransactions([]);
+      const all: Transaction[] = [];
+      for (const json of results) {
+        const data = json.data;
+        if (Array.isArray(data)) all.push(...(data as Transaction[]));
+        else if (data && typeof data === "object") all.push(data as Transaction);
       }
+
+      setTransactions(all);
+      setRawResponse(
+        chunks.length === 1
+          ? results[0]
+          : ({ chunks: chunks.length, total: all.length } as object)
+      );
     } catch (err) {
       setError(String(err));
     } finally {
       setLoading(false);
+      setFetchInfo("");
     }
   }
 
@@ -167,7 +187,7 @@ export default function AzpetrolPage() {
           className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50 transition"
         >
           {loading ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
-          Search
+          {loading && fetchInfo ? fetchInfo : "Search"}
         </button>
       </div>
 
