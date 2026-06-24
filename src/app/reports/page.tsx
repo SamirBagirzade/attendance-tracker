@@ -173,11 +173,6 @@ export default function ReportsPage() {
     [dailyChartData],
   );
 
-  const totalCateringCost = useMemo(
-    () => cateringDays.reduce((sum, d) => sum + d.cost, 0),
-    [cateringDays],
-  );
-
   // Individual cook records for the breakdown table
   const cateringRecords = useMemo(
     () =>
@@ -188,6 +183,11 @@ export default function ReportsPage() {
           cost: cateringCostForHeadcount(r.cookedHeadcount!, prices),
         })),
     [rows, prices],
+  );
+
+  const totalCateringCost = useMemo(
+    () => cateringRecords.reduce((s, r) => s + r.cost, 0),
+    [cateringRecords],
   );
 
   const paidCateringCost = useMemo(
