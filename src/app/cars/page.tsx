@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Check, ChevronDown, ChevronUp, Fuel, Plus, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { DocumentsSection } from "@/components/DocumentsSection";
+import { CustomFieldsSection } from "@/components/CustomFieldsSection";
 import { useLanguage } from "@/lib/i18n";
 import type { Car } from "@/types/domain";
 
@@ -647,6 +648,7 @@ export default function CarsPage() {
                                   </span>
                                 )}
                               </div>
+                              <CustomFieldsSection carId={car.id} />
                               <DocumentsSection carId={car.id} />
                             </td>
                           </tr>
