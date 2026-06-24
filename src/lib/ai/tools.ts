@@ -93,7 +93,7 @@ export const toolDefinitions: Anthropic.Tool[] = [
   {
     name: "get_fuel_transactions",
     description:
-      "Query cached Azpetrol fuel card transactions (Card Sale type only). Returns individual fill-ups with date, plate, car, product (fuel type), quantity in litres, cost in AZN, and station. Use for questions about fuel spending, fuel consumption, which cars or drivers refuelled, cost by station, etc.",
+      "Query cached Azpetrol fuel card transactions (Card Sale type only). Includes ALL fill-ups — both company cars and external/non-company vehicles (cards not tied to a specific car, e.g. plate 'mehdudiyyetsiz'). Returns date, plate, car name if matched, product (fuel type), quantity in litres, cost in AZN, and station. Use for ALL fuel spending questions including total company fuel cost, consumption by car or driver, cost by station, or external vehicle spend.",
     input_schema: {
       type: "object",
       properties: {
