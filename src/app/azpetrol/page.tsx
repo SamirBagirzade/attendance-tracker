@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format, subDays, endOfMonth, startOfMonth, addMonths } from "date-fns";
-import { Search, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { Search, ChevronDown, ChevronRight, Loader2, RefreshCw } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { useLanguage } from "@/lib/i18n";
+
+type Tab = "query" | "sync" | "external";
 
 const TRANSACTION_TYPES: Record<string, string> = {
   "21": "Card Sale",
@@ -31,8 +33,195 @@ function txLabel(type: unknown): string {
   return TRANSACTION_TYPES[String(type)] ?? String(type);
 }
 
+function SyncTab() {
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<Record<string, unknown> | null>(null);
+  const [syncError, setSyncError] = useState("");
+  const [stats, setStats] = useState<{ total: number; earliest: string | null; latest: string | null } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/azpetrol/sync")
+      .then((r) => r.json())
+      .then(setStats)
+      .catch(() => {});
+  }, []);
+
+  async function handleSync() {
+    setSyncing(true);
+    setSyncError("");
+    setSyncResult(null);
+    try {
+      const res = await fetch("/api/azpetrol/sync", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      setSyncResult(json);
+      // Refresh stats
+      fetch("/api/azpetrol/sync").then((r) => r.json()).then(setStats).catch(() => {});
+    } catch (err) {
+      setSyncError(String(err));
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {stats && (
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-white border border-slate-200 rounded-lg px-4 py-3">
+            <p className="text-xs text-slate-500 mb-1">Cached Transactions</p>
+            <p className="text-xl font-semibold text-slate-900">{stats.total.toLocaleString()}</p>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-lg px-4 py-3">
+            <p className="text-xs text-slate-500 mb-1">Earliest</p>
+            <p className="text-sm font-medium text-slate-700">{stats.earliest ? format(new Date(stats.earliest), "dd.MM.yyyy") : "—"}</p>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-lg px-4 py-3">
+            <p className="text-xs text-slate-500 mb-1">Latest</p>
+            <p className="text-sm font-medium text-slate-700">{stats.latest ? format(new Date(stats.latest), "dd.MM.yyyy HH:mm") : "—"}</p>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white border border-slate-200 rounded-lg p-4 flex flex-wrap gap-4 items-start">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-slate-700 mb-1">Manual Sync</p>
+          <p className="text-xs text-slate-500">Fetches Card Sale transactions from last synced date to today and upserts into local DB. Skips non-company plates (they appear in External Vehicles tab).</p>
+        </div>
+        <button onClick={() => void handleSync()} disabled={syncing}
+          className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50 transition shrink-0">
+          {syncing ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+          {syncing ? "Syncing…" : "Sync Now"}
+        </button>
+      </div>
+
+      {syncError && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{syncError}</div>}
+
+      {syncResult && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm text-emerald-800">
+          Sync complete — fetched <strong>{String(syncResult.fetched)}</strong>, inserted/updated <strong>{String(syncResult.inserted)}</strong>,
+          skipped <strong>{String(syncResult.skipped)}</strong> · range: {String(syncResult.fromDate)} → {String(syncResult.toDate)} ({String(syncResult.chunks)} chunk{Number(syncResult.chunks) !== 1 ? "s" : ""})
+        </div>
+      )}
+
+      <div className="bg-white border border-slate-200 rounded-lg p-4">
+        <p className="text-sm font-medium text-slate-700 mb-2">Daily Auto-Sync (Cron)</p>
+        <p className="text-xs text-slate-500 mb-3">Add this to your crontab to sync at 23:30 every day:</p>
+        <pre className="text-xs bg-slate-50 border border-slate-200 rounded p-3 overflow-x-auto">
+{`30 23 * * * curl -s -X POST http://localhost:${process.env.PORT ?? 3000}/api/azpetrol/sync -H "x-cron-secret: YOUR_CRON_SECRET" >> /var/log/fuel-sync.log 2>&1`}
+        </pre>
+        <p className="text-xs text-slate-400 mt-2">Set <code>CRON_SECRET</code> in .env — the cron call bypasses session auth when this header matches.</p>
+      </div>
+    </div>
+  );
+}
+
+function ExternalVehiclesTab() {
+  const [from, setFrom] = useState(format(subDays(new Date(), 30), "yyyy-MM-dd"));
+  const [to, setTo] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [groups, setGroups] = useState<Array<{ plate: string; count: number; totalAmount: number; totalQuantity: number; transactions: unknown[] }>>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  async function load() {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/azpetrol/external-vehicles?from=${from}&to=${to}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      setGroups(json.groups);
+      setTotal(json.total);
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white border border-slate-200 rounded-lg p-4 flex flex-wrap gap-3 items-end">
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">From</label>
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="rounded-md border border-slate-200 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-400" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">To</label>
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="rounded-md border border-slate-200 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-400" />
+        </div>
+        <button onClick={() => void load()} disabled={loading} className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50 transition">
+          {loading ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
+          Load
+        </button>
+      </div>
+
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{error}</div>}
+
+      {groups.length > 0 && (
+        <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100">
+            <span className="text-sm font-medium text-slate-700">{groups.length} external plates · {total} transactions</span>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {groups.map((g) => (
+              <div key={g.plate}>
+                <button
+                  onClick={() => setExpanded(expanded === g.plate ? null : g.plate)}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition text-left"
+                >
+                  {expanded === g.plate ? <ChevronDown size={14} className="text-slate-400 shrink-0" /> : <ChevronRight size={14} className="text-slate-400 shrink-0" />}
+                  <span className="font-mono text-sm font-medium text-slate-800 w-28">{g.plate}</span>
+                  <span className="text-sm text-slate-500">{g.count} fill-ups</span>
+                  <span className="ml-auto text-sm font-medium text-slate-700">{g.totalAmount.toFixed(2)} AZN</span>
+                  <span className="text-sm text-slate-500 ml-4">{g.totalQuantity.toFixed(2)} L</span>
+                </button>
+                {expanded === g.plate && (
+                  <div className="px-4 pb-3 overflow-x-auto">
+                    <table className="min-w-full text-xs">
+                      <thead className="text-slate-500 uppercase">
+                        <tr>
+                          <th className="pr-4 py-1 text-left">Date</th>
+                          <th className="pr-4 py-1 text-left">Product</th>
+                          <th className="pr-4 py-1 text-right">Qty</th>
+                          <th className="pr-4 py-1 text-right">Cost</th>
+                          <th className="pr-4 py-1 text-left">Station</th>
+                          <th className="py-1 text-left">Card Holder</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {(g.transactions as Array<Record<string, unknown>>).map((tx, i) => (
+                          <tr key={i} className="text-slate-700">
+                            <td className="pr-4 py-1.5 whitespace-nowrap">{tx.transactionTime ? format(new Date(String(tx.transactionTime)), "dd.MM.yyyy HH:mm") : "—"}</td>
+                            <td className="pr-4 py-1.5">{String(tx.productName ?? "—")}</td>
+                            <td className="pr-4 py-1.5 text-right">{tx.productQuantity != null ? `${tx.productQuantity} ${tx.productMeasure ?? ""}`.trim() : "—"}</td>
+                            <td className="pr-4 py-1.5 text-right font-medium">{Number(tx.amount).toFixed(2)} AZN</td>
+                            <td className="pr-4 py-1.5">{String(tx.stationName ?? "—")}</td>
+                            <td className="py-1.5">{String(tx.cardHolderName ?? "—")}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!loading && groups.length === 0 && total === 0 && (
+        <p className="text-sm text-slate-400 text-center py-8">No external vehicle transactions found. Run a sync first.</p>
+      )}
+    </div>
+  );
+}
+
 export default function AzpetrolPage() {
   const { t } = useLanguage();
+  const [tab, setTab] = useState<Tab>("query");
 
   const [from, setFrom] = useState(format(subDays(new Date(), 7), "yyyy-MM-dd"));
   const [to, setTo] = useState(format(new Date(), "yyyy-MM-dd"));
@@ -172,7 +361,23 @@ export default function AzpetrolPage() {
   }
 
   return (
-    <AppShell title="Azpetrol Transactions" eyebrow={t("attendanceTracker")}>
+    <AppShell title="Azpetrol" eyebrow={t("attendanceTracker")}>
+      {/* Tab bar */}
+      <div className="flex gap-1 mb-5 border-b border-slate-200">
+        {(["query", "sync", "external"] as Tab[]).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${tab === t ? "border-slate-900 text-slate-900" : "border-transparent text-slate-500 hover:text-slate-700"}`}
+          >
+            {t === "query" ? "Live Query" : t === "sync" ? "Sync" : "External Vehicles"}
+          </button>
+        ))}
+      </div>
+
+      {tab === "sync" && <SyncTab />}
+      {tab === "external" && <ExternalVehiclesTab />}
+      {tab === "query" && (<>
       {/* Filters */}
       <div className="bg-white border border-slate-200 rounded-lg p-4 mb-4 flex flex-wrap gap-3 items-end">
         <div>
@@ -367,6 +572,7 @@ export default function AzpetrolPage() {
       {!loading && transactions.length === 0 && !error && rawResponse && (
         <p className="text-sm text-slate-400 text-center py-8">No transactions found for this range.</p>
       )}
+      </>)}
     </AppShell>
   );
 }

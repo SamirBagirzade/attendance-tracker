@@ -130,9 +130,30 @@ model Car {
 
   records            AttendanceRecord[]
   maintenanceRecords CarMaintenanceRecord[]
+  fuelTransactions   FuelTransaction[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model FuelTransaction {
+  id              String   @id
+  transactionTime DateTime
+  cardHolderName  String?
+  cardNumber      String?
+  productName     String?
+  productQuantity Float?
+  productMeasure  String?
+  amount          Float
+  stationName     String?
+  plate           String
+  carId           Int?
+  car             Car?     @relation(fields: [carId], references: [id], onDelete: SetNull)
+  syncedAt        DateTime @default(now())
+
+  @@index([carId])
+  @@index([transactionTime])
+  @@index([plate])
 }
 
 model AttendanceWorkLocation {

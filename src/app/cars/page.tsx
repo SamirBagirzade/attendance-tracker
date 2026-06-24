@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { Check, ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Check, ChevronDown, ChevronUp, Fuel, Plus, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { useLanguage } from "@/lib/i18n";
 import type { Car } from "@/types/domain";
@@ -420,6 +421,13 @@ export default function CarsPage() {
                                   Saved
                                 </span>
                               ) : null}
+                              <Link
+                                href={`/cars/${car.id}/fuel`}
+                                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-slate-200 px-3 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                              >
+                                <Fuel size={15} />
+                                Fuel
+                              </Link>
                               <button
                                 className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-red-200 px-3 text-sm font-medium text-red-700 hover:bg-red-50"
                                 onClick={() => void deleteCar(car.id)}
