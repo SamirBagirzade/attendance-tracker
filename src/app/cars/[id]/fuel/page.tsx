@@ -37,7 +37,6 @@ export default function CarFuelPage() {
   const [carLabel, setCarLabel] = useState("");
 
   useEffect(() => {
-    // Fetch car name for heading
     fetch(`/api/cars/${carId}`)
       .then((r) => r.json())
       .then((data) => { if (data.makeModel) setCarLabel(`${data.makeModel} · ${data.licensePlate}`); })
@@ -65,9 +64,8 @@ export default function CarFuelPage() {
     }
   }
 
-  // Group by product for summary
   const byProduct = transactions.reduce<Record<string, { quantity: number; amount: number; measure: string }>>((acc, tx) => {
-    const key = tx.productName ?? "Unknown";
+    const key = tx.productName ?? "—";
     acc[key] = acc[key] ?? { quantity: 0, amount: 0, measure: tx.productMeasure ?? "" };
     acc[key].quantity += tx.productQuantity ?? 0;
     acc[key].amount += tx.amount;
@@ -75,29 +73,29 @@ export default function CarFuelPage() {
   }, {});
 
   return (
-    <AppShell title={carLabel || "Fuel History"} eyebrow={t("attendanceTracker")}>
+    <AppShell title={carLabel || t("fuelHistory")} eyebrow={t("attendanceTracker")}>
       <div className="mb-4">
         <Link href="/cars" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition">
-          <ArrowLeft size={14} /> Back to Cars
+          <ArrowLeft size={14} /> {t("backToCars")}
         </Link>
       </div>
 
       {/* Filters */}
       <div className="bg-white border border-slate-200 rounded-lg p-4 mb-4 flex flex-wrap gap-3 items-end">
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">From</label>
+          <label className="block text-xs font-medium text-slate-600 mb-1">{t("from")}</label>
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
             className="rounded-md border border-slate-200 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-400" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">To</label>
+          <label className="block text-xs font-medium text-slate-600 mb-1">{t("to")}</label>
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
             className="rounded-md border border-slate-200 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-400" />
         </div>
         <button onClick={() => void loadFuel()} disabled={loading}
           className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50 transition">
           {loading ? <Loader2 size={15} className="animate-spin" /> : <Fuel size={15} />}
-          Load
+          {t("loadData")}
         </button>
       </div>
 
@@ -109,19 +107,19 @@ export default function CarFuelPage() {
       {transactions.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
           <div className="bg-white border border-slate-200 rounded-lg px-4 py-3">
-            <p className="text-xs text-slate-500 mb-1">Total Cost</p>
+            <p className="text-xs text-slate-500 mb-1">{t("totalCost")}</p>
             <p className="text-lg font-semibold text-slate-900">{totals.amount.toFixed(2)} AZN</p>
           </div>
           <div className="bg-white border border-slate-200 rounded-lg px-4 py-3">
-            <p className="text-xs text-slate-500 mb-1">Total Quantity</p>
+            <p className="text-xs text-slate-500 mb-1">{t("totalQuantity")}</p>
             <p className="text-lg font-semibold text-slate-900">{totals.quantity.toFixed(2)} L</p>
           </div>
           <div className="bg-white border border-slate-200 rounded-lg px-4 py-3">
-            <p className="text-xs text-slate-500 mb-1">Fill-ups</p>
+            <p className="text-xs text-slate-500 mb-1">{t("fillUps")}</p>
             <p className="text-lg font-semibold text-slate-900">{transactions.length}</p>
           </div>
           <div className="bg-white border border-slate-200 rounded-lg px-4 py-3">
-            <p className="text-xs text-slate-500 mb-1">Avg Cost / Fill</p>
+            <p className="text-xs text-slate-500 mb-1">{t("avgCostPerFill")}</p>
             <p className="text-lg font-semibold text-slate-900">
               {transactions.length > 0 ? (totals.amount / transactions.length).toFixed(2) : "0.00"} AZN
             </p>
@@ -132,7 +130,7 @@ export default function CarFuelPage() {
       {/* By-product breakdown */}
       {Object.keys(byProduct).length > 1 && (
         <div className="bg-white border border-slate-200 rounded-lg p-4 mb-4">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">By Product</p>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">{t("byProduct")}</p>
           <div className="flex flex-wrap gap-4">
             {Object.entries(byProduct).map(([product, data]) => (
               <div key={product} className="text-sm">
@@ -148,18 +146,18 @@ export default function CarFuelPage() {
       {transactions.length > 0 ? (
         <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-100">
-            <span className="text-sm font-medium text-slate-700">{transactions.length} transactions</span>
+            <span className="text-sm font-medium text-slate-700">{transactions.length} {t("fuelTransactions")}</span>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead className="bg-slate-50 text-slate-600 text-xs uppercase">
                 <tr>
-                  <th className="px-3 py-2 text-left whitespace-nowrap">Date</th>
-                  <th className="px-3 py-2 text-left whitespace-nowrap">Product</th>
-                  <th className="px-3 py-2 text-right whitespace-nowrap">Qty</th>
-                  <th className="px-3 py-2 text-right whitespace-nowrap">Cost</th>
-                  <th className="px-3 py-2 text-left whitespace-nowrap">Station</th>
-                  <th className="px-3 py-2 text-left whitespace-nowrap">Card Holder</th>
+                  <th className="px-3 py-2 text-left whitespace-nowrap">{t("date")}</th>
+                  <th className="px-3 py-2 text-left whitespace-nowrap">{t("fuelProduct")}</th>
+                  <th className="px-3 py-2 text-right whitespace-nowrap">{t("fuelQty")}</th>
+                  <th className="px-3 py-2 text-right whitespace-nowrap">{t("fuelCost")}</th>
+                  <th className="px-3 py-2 text-left whitespace-nowrap">{t("fuelStation")}</th>
+                  <th className="px-3 py-2 text-left whitespace-nowrap">{t("cardHolder")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -186,7 +184,7 @@ export default function CarFuelPage() {
       ) : (
         !loading && (
           <div className="bg-white border border-slate-200 rounded-lg py-12 text-center text-slate-400 text-sm">
-            No fuel transactions found for this period.
+            {t("noFuelTransactions")}
           </div>
         )
       )}
