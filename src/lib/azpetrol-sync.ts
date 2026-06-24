@@ -21,9 +21,11 @@ function buildChunks(from: Date, to: Date): Array<{ start: string; end: string }
 }
 
 function txId(tx: Record<string, unknown>): string | null {
-  const id = tx.id ?? tx.transactionId ?? tx.oid;
-  if (!id) return null;
-  return String(id);
+  const cardNumber = String(tx.cardNumber ?? "");
+  const time = String(tx.transactionTime ?? "");
+  if (!cardNumber && !time) return null;
+  // API has no ID field — build stable composite key
+  return `${cardNumber}|${time}|${tx.amount ?? ""}|${tx.stationName ?? ""}|${tx.plate ?? ""}`;
 }
 
 export type SyncResult = {
@@ -104,7 +106,7 @@ export async function syncFuelTransactions(): Promise<SyncResult> {
         cardHolderName: tx.cardHolderName ? String(tx.cardHolderName) : null,
         cardNumber: tx.cardNumber ? String(tx.cardNumber) : null,
         productName: tx.productName ? String(tx.productName) : null,
-        productQuantity: tx.productQuantity != null ? Number(tx.productQuantity) : null,
+        productQuantity: tx.measureAmount != null ? Number(tx.measureAmount) : null,
         productMeasure: tx.productMeasure ? String(tx.productMeasure) : null,
         amount: Number(tx.amount ?? 0),
         stationName: tx.stationName ? String(tx.stationName) : null,
