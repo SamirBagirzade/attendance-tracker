@@ -197,7 +197,7 @@ const dictionaries: Record<Language, Dictionary> = {
     aiChat: "AI Söhbəti",
     chatPlaceholder: "Sual verin... (Enter göndər, Shift+Enter yeni sətir)",
     chatHint: "Yalnız oxuma rejimi · Məlumatlar real bazadan götürülür",
-    chatWelcome: "Salam! Davamiyyət, işçilər, iaşə xərcləri və avtomobil parkı haqqında suallarınıza cavab verə bilərəm. Sınayın:\n\n- \"Bu həftə neçə işçi işə gəldi?\"\n- \"2025-ci ilin iyun ayı üçün iaşə xərclərini göstər\"\n- \"Hansı avtomobillər texniki xidmətə ehtiyac duyur?\"\n- \"Bu il ən çox məzuniyyət günü kim istifadə etdi?\"",
+    chatWelcome: "Salam! Davamiyyət, işçilər, iaşə xərcləri, yanacaq və avtomobil parkı haqqında suallarınıza cavab verə bilərəm. Sınayın:\n\n- \"Bu həftə neçə işçi işə gəldi?\"\n- \"Bu ay yanacağa nə qədər xərclədik?\"\n- \"Hansı maşın ən çox yanacaq istifadə etdi?\"\n- \"Bu il ən çox məzuniyyət günü kim istifadə etdi?\"",
     azpetrol: "Azpetrol",
   },
   en: {
@@ -389,7 +389,7 @@ const dictionaries: Record<Language, Dictionary> = {
     aiChat: "AI Chat",
     chatPlaceholder: "Ask a question… (Enter to send, Shift+Enter for new line)",
     chatHint: "Read-only · Data is fetched from the live database",
-    chatWelcome: "Hello! I can answer questions about attendance, employees, catering costs, and the fleet. Try asking:\n\n- \"How many employees worked this week?\"\n- \"Show catering costs for June 2025\"\n- \"Which cars need maintenance?\"\n- \"Who used the most vacation days this year?\"",
+    chatWelcome: "Hello! I can answer questions about attendance, employees, catering costs, fuel spending, and the fleet. Try asking:\n\n- \"How many employees worked this week?\"\n- \"How much did we spend on fuel this month?\"\n- \"Which car used the most fuel?\"\n- \"Who used the most vacation days this year?\"",
     azpetrol: "Azpetrol",
   },
   ru: {
@@ -581,7 +581,7 @@ const dictionaries: Record<Language, Dictionary> = {
     aiChat: "AI Чат",
     chatPlaceholder: "Задайте вопрос… (Enter — отправить, Shift+Enter — новая строка)",
     chatHint: "Только чтение · Данные из живой базы",
-    chatWelcome: "Здравствуйте! Я могу отвечать на вопросы о посещаемости, сотрудниках, расходах на питание и автопарке. Попробуйте:\n\n- \"Сколько сотрудников работало на этой неделе?\"\n- \"Показать расходы на питание за июнь 2025\"\n- \"Каким автомобилям нужно техническое обслуживание?\"\n- \"Кто использовал больше всего дней отпуска в этом году?\"",
+    chatWelcome: "Здравствуйте! Я могу отвечать на вопросы о посещаемости, сотрудниках, питании, расходах на топливо и автопарке. Попробуйте:\n\n- \"Сколько сотрудников работало на этой неделе?\"\n- \"Сколько потратили на топливо в этом месяце?\"\n- \"Какой автомобиль использовал больше всего топлива?\"\n- \"Кто использовал больше всего дней отпуска в этом году?\"",
     azpetrol: "Azpetrol",
   },
 };

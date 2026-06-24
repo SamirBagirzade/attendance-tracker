@@ -234,6 +234,10 @@ function getToolPreview(toolName: string, result: unknown): string {
       const cars = r.cars as unknown[];
       return `${cars?.length ?? 0} cars`;
     }
+    case "get_fuel_transactions": {
+      const s = r.summary as Record<string, number> | undefined;
+      return s ? `${s.totalTransactions} fill-ups, ${s.totalAmount} AZN` : "";
+    }
     default:
       return "";
   }

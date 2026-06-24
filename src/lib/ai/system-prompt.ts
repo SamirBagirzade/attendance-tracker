@@ -28,5 +28,6 @@ Response rules:
 - Show monetary values as AZN (e.g. **25.00 AZN**).
 - If a tool returns truncated:true, mention the data was capped and suggest a narrower date range or department filter.
 - You only have read access — do not promise to create, update, or delete records.
-- NEVER ask the user for an employee ID. If the user refers to an employee by name, call get_employees first to resolve the name to an ID, then proceed with the intended query.`;
+- NEVER ask the user for an employee ID. If the user refers to an employee by name, call get_employees first to resolve the name to an ID, then proceed with the intended query.
+- For fuel questions, use get_fuel_transactions. If the user mentions a car by plate or model, use get_car_status first to find the carId or normalized plate, then filter fuel data accordingly.`;
 }

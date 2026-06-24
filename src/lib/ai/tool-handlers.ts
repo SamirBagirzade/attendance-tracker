@@ -32,6 +32,8 @@ export async function handleToolCall(
       return getCookReport(input);
     case "get_car_status":
       return getCarStatus();
+    case "get_fuel_transactions":
+      return getFuelTransactions(input);
     default:
       throw new Error(`Unknown tool: ${toolName}`);
   }
@@ -426,4 +428,57 @@ async function getCarStatus() {
   });
 
   return { cars: result };
+}
+
+async function getFuelTransactions(input: Record<string, unknown>) {
+  const from = String(input.from);
+  const to = String(input.to);
+  const plate = input.plate ? String(input.plate) : undefined;
+  const carId = input.carId ? Number(input.carId) : undefined;
+  const stationName = input.stationName ? String(input.stationName) : undefined;
+
+  const where: Prisma.FuelTransactionWhereInput = {
+    transactionTime: {
+      gte: new Date(from + "T00:00:00"),
+      lte: new Date(to + "T23:59:59"),
+    },
+  };
+  if (plate) where.plate = { contains: plate, mode: "insensitive" };
+  if (carId) where.carId = carId;
+  if (stationName) where.stationName = { contains: stationName, mode: "insensitive" };
+
+  const transactions = await prisma.fuelTransaction.findMany({
+    where,
+    include: { car: { select: { makeModel: true, licensePlate: true } } },
+    orderBy: { transactionTime: "desc" },
+  });
+
+  const totalAmount = transactions.reduce((s, tx) => s + tx.amount, 0);
+  const totalQuantity = transactions.reduce((s, tx) => s + (tx.productQuantity ?? 0), 0);
+
+  const RECORD_CAP = 100;
+  const truncated = transactions.length > RECORD_CAP;
+
+  const rows = transactions.slice(0, RECORD_CAP).map((tx) => ({
+    date: tx.transactionTime.toISOString().slice(0, 10),
+    time: tx.transactionTime.toISOString().slice(11, 16),
+    plate: tx.plate,
+    car: tx.car ? `${tx.car.makeModel} (${tx.car.licensePlate})` : null,
+    product: tx.productName,
+    quantity: tx.productQuantity,
+    measure: tx.productMeasure,
+    amount: tx.amount,
+    station: tx.stationName,
+    cardHolder: tx.cardHolderName?.trim() ?? null,
+  }));
+
+  return {
+    summary: {
+      totalTransactions: transactions.length,
+      totalAmount: Math.round(totalAmount * 100) / 100,
+      totalQuantity: Math.round(totalQuantity * 100) / 100,
+    },
+    transactions: rows,
+    truncated,
+  };
 }

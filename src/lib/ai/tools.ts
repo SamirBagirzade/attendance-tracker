@@ -90,4 +90,20 @@ export const toolDefinitions: Anthropic.Tool[] = [
       required: [],
     },
   },
+  {
+    name: "get_fuel_transactions",
+    description:
+      "Query cached Azpetrol fuel card transactions (Card Sale type only). Returns individual fill-ups with date, plate, car, product (fuel type), quantity in litres, cost in AZN, and station. Use for questions about fuel spending, fuel consumption, which cars or drivers refuelled, cost by station, etc.",
+    input_schema: {
+      type: "object",
+      properties: {
+        from: { type: "string", description: "Start date YYYY-MM-DD" },
+        to: { type: "string", description: "End date YYYY-MM-DD" },
+        plate: { type: "string", description: "Filter by licence plate (optional) — normalized uppercase, no dashes e.g. 90YG862" },
+        carId: { type: "number", description: "Filter by car ID (optional)" },
+        stationName: { type: "string", description: "Filter by station name partial match (optional)" },
+      },
+      required: ["from", "to"],
+    },
+  },
 ];
