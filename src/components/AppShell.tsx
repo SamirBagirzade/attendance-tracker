@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ClipboardList,
   DatabaseBackup,
+  Fuel,
   Home,
   LogOut,
   MapPin,
@@ -70,6 +71,7 @@ const adminGroup: NavGroup = {
     { href: "/users", labelKey: "users", icon: UserCog },
     { href: "/backup", labelKey: "backup", icon: DatabaseBackup },
     { href: "/audit", labelKey: "auditLog", icon: ScrollText },
+    { href: "/azpetrol", labelKey: "azpetrol", icon: Fuel },
   ],
 };
 
