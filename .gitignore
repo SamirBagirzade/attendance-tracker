@@ -11,3 +11,4 @@ tsconfig.tsbuildinfo
 prisma/dev.db
 .admin-password
 docs
+uploads/documents

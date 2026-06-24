@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Check, ChevronDown, ChevronUp, Fuel, Plus, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { DocumentsSection } from "@/components/DocumentsSection";
 import { useLanguage } from "@/lib/i18n";
 import type { Car } from "@/types/domain";
 
@@ -646,6 +647,7 @@ export default function CarsPage() {
                                   </span>
                                 )}
                               </div>
+                              <DocumentsSection carId={car.id} />
                             </td>
                           </tr>
                         ) : null}

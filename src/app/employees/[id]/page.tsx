@@ -18,6 +18,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { statusKey, useLanguage } from "@/lib/i18n";
 import type { AttendanceRecord, AttendanceStatus, Holiday, StatusColor } from "@/types/domain";
+import { DocumentsSection } from "@/components/DocumentsSection";
 
 type Employee = { id: number; name: string; department: string; vacationLimit: number | null; sickLimit: number | null };
 
@@ -284,6 +285,11 @@ export default function EmployeeHistoryPage({ params }: { params: Promise<{ id: 
           );
         })()}
       </div>
+      {employee && (
+        <div className="mt-6">
+          <DocumentsSection employeeId={employee.id} />
+        </div>
+      )}
     </AppShell>
   );
 }
