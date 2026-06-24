@@ -60,6 +60,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/cars", labelKey: "cars", icon: Car },
       { href: "/maintenance", labelKey: "maintenanceHistory", icon: Wrench },
+      { href: "/fuel-report", labelKey: "fuelReport", icon: Fuel },
     ],
   },
 ];
