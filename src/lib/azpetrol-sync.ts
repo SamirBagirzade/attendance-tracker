@@ -33,6 +33,8 @@ export type SyncResult = {
   fromDate: string;
   toDate: string;
   chunks: number;
+  sampleKeys?: string[];   // debug: field names of first skipped tx
+  sampleTx?: unknown;      // debug: first raw tx
 };
 
 export async function syncFuelTransactions(): Promise<SyncResult> {
@@ -71,10 +73,15 @@ export async function syncFuelTransactions(): Promise<SyncResult> {
 
   let inserted = 0;
   let skipped = 0;
+  let firstSkipped: Record<string, unknown> | undefined;
 
   for (const tx of rawTransactions) {
     const id = txId(tx);
-    if (!id) { skipped++; continue; }
+    if (!id) {
+      if (!firstSkipped) firstSkipped = tx;
+      skipped++;
+      continue;
+    }
 
     const rawPlate = String(tx.plate ?? "");
     const plate = normalizePlate(rawPlate);
@@ -116,5 +123,6 @@ export async function syncFuelTransactions(): Promise<SyncResult> {
     fromDate: format(fromDate, "yyyy-MM-dd"),
     toDate: format(toDate, "yyyy-MM-dd"),
     chunks: chunks.length,
+    ...(firstSkipped ? { sampleKeys: Object.keys(firstSkipped), sampleTx: firstSkipped } : {}),
   };
 }

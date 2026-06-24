@@ -35,7 +35,7 @@ function txLabel(type: unknown): string {
 
 function SyncTab() {
   const [syncing, setSyncing] = useState(false);
-  const [syncResult, setSyncResult] = useState<Record<string, unknown> | null>(null);
+  const [syncResult, setSyncResult] = useState<Record<string, unknown> & { sampleKeys?: string[]; sampleTx?: object } | null>(null);
   const [syncError, setSyncError] = useState("");
   const [stats, setStats] = useState<{ total: number; earliest: string | null; latest: string | null } | null>(null);
 
@@ -98,9 +98,15 @@ function SyncTab() {
       {syncError && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{syncError}</div>}
 
       {syncResult && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm text-emerald-800">
+        <div className={`border rounded-lg px-4 py-3 text-sm ${Number(syncResult.inserted) > 0 ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-amber-50 border-amber-200 text-amber-800"}`}>
           Sync complete — fetched <strong>{String(syncResult.fetched)}</strong>, inserted/updated <strong>{String(syncResult.inserted)}</strong>,
           skipped <strong>{String(syncResult.skipped)}</strong> · range: {String(syncResult.fromDate)} → {String(syncResult.toDate)} ({String(syncResult.chunks)} chunk{Number(syncResult.chunks) !== 1 ? "s" : ""})
+          {syncResult.sampleKeys && (
+            <div className="mt-2">
+              <p className="font-medium">Fields in transaction object: <code className="font-mono">{(syncResult.sampleKeys as string[]).join(", ")}</code></p>
+              <pre className="mt-1 text-xs overflow-x-auto whitespace-pre-wrap break-words max-h-48 bg-white/60 rounded p-2">{JSON.stringify(syncResult.sampleTx, null, 2)}</pre>
+            </div>
+          )}
         </div>
       )}
 
