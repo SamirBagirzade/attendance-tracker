@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Check, ChevronDown, ChevronRight, ChevronUp, Fuel, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Fuel, Plus, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { useLanguage } from "@/lib/i18n";
 import type { Car } from "@/types/domain";
@@ -107,8 +107,7 @@ export default function CarsPage() {
   const [expandedCarId, setExpandedCarId] = useState<number | null>(null);
   const [maintenanceDrafts, setMaintenanceDrafts] = useState<Record<number, MaintenanceDraft>>({});
   const [savedMaintenanceCarId, setSavedMaintenanceCarId] = useState<number | null>(null);
-  const [externalVehicles, setExternalVehicles] = useState<Array<{ plate: string; count: number; totalAmount: number; totalQuantity: number; transactions: Array<Record<string, unknown>> }>>([]);
-  const [expandedPlate, setExpandedPlate] = useState<string | null>(null);
+  const [externalVehicles, setExternalVehicles] = useState<Array<{ plate: string }>>([]);
 
   useEffect(() => {
     fetch("/api/azpetrol/external-vehicles")
@@ -670,62 +669,24 @@ export default function CarsPage() {
               <table className="min-w-full text-sm">
                 <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase text-slate-600">
                   <tr>
-                    <th className="w-4 px-4 py-3" />
                     <th className="px-4 py-3 font-semibold">{t("licensePlate")}</th>
-                    <th className="px-4 py-3 font-semibold text-right">{t("fillUps")}</th>
-                    <th className="px-4 py-3 font-semibold text-right">{t("totalQuantity")}</th>
-                    <th className="px-4 py-3 font-semibold text-right">{t("totalCost")}</th>
+                    <th className="px-4 py-3 font-semibold">{t("actions")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {externalVehicles.map((g) => (
-                    <>
-                      <tr
-                        key={g.plate}
-                        onClick={() => setExpandedPlate(expandedPlate === g.plate ? null : g.plate)}
-                        className="cursor-pointer border-b border-slate-100 hover:bg-slate-50 transition"
-                      >
-                        <td className="px-4 py-3 text-slate-400">
-                          {expandedPlate === g.plate ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                        </td>
-                        <td className="px-4 py-3 font-mono font-medium">{g.plate}</td>
-                        <td className="px-4 py-3 text-right text-slate-600">{g.count}</td>
-                        <td className="px-4 py-3 text-right text-slate-600">{g.totalQuantity.toFixed(2)} L</td>
-                        <td className="px-4 py-3 text-right font-semibold text-slate-800">{g.totalAmount.toFixed(2)} AZN</td>
-                      </tr>
-                      {expandedPlate === g.plate && (
-                        <tr key={`${g.plate}-detail`} className="border-b border-slate-100 bg-slate-50">
-                          <td colSpan={5} className="px-6 py-3 overflow-x-auto">
-                            <table className="min-w-full text-xs">
-                              <thead className="text-slate-500 uppercase">
-                                <tr>
-                                  <th className="pr-4 py-1 text-left font-medium">{t("date")}</th>
-                                  <th className="pr-4 py-1 text-left font-medium">{t("fuelProduct")}</th>
-                                  <th className="pr-4 py-1 text-right font-medium">{t("fuelQty")}</th>
-                                  <th className="pr-4 py-1 text-right font-medium">{t("fuelCost")}</th>
-                                  <th className="pr-4 py-1 text-left font-medium">{t("fuelStation")}</th>
-                                  <th className="py-1 text-left font-medium">{t("cardHolder")}</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-200">
-                                {g.transactions.map((tx, i) => (
-                                  <tr key={i} className="text-slate-700">
-                                    <td className="pr-4 py-1.5 whitespace-nowrap">
-                                      {tx.transactionTime ? new Date(String(tx.transactionTime)).toLocaleString("az-AZ", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
-                                    </td>
-                                    <td className="pr-4 py-1.5">{String(tx.productName ?? "—")}</td>
-                                    <td className="pr-4 py-1.5 text-right">{tx.productQuantity != null ? `${tx.productQuantity} ${tx.productMeasure ?? ""}`.trim() : "—"}</td>
-                                    <td className="pr-4 py-1.5 text-right font-medium">{Number(tx.amount).toFixed(2)} AZN</td>
-                                    <td className="pr-4 py-1.5">{String(tx.stationName ?? "—")}</td>
-                                    <td className="py-1.5">{String(tx.cardHolderName ?? "—")}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </td>
-                        </tr>
-                      )}
-                    </>
+                    <tr key={g.plate} className="border-b border-slate-100">
+                      <td className="px-4 py-3 font-mono font-medium text-slate-800">{g.plate}</td>
+                      <td className="px-4 py-3">
+                        <Link
+                          href={`/cars/external/${encodeURIComponent(g.plate)}`}
+                          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-slate-200 px-3 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                        >
+                          <Fuel size={15} />
+                          Fuel
+                        </Link>
+                      </td>
+                    </tr>
                   ))}
                 </tbody>
               </table>
