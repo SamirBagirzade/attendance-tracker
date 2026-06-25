@@ -1,12 +1,12 @@
 import { NextRequest } from "next/server";
-import { requireAdmin } from "@/lib/permissions";
+import { getSessionUser } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
-  const denied = await requireAdmin(request);
-  if (denied) return denied;
+  const user = await getSessionUser(request);
+  if (!user) return Response.json({ error: "Unauthorized." }, { status: 401 });
 
   const url = new URL(request.url);
   const from = url.searchParams.get("from");

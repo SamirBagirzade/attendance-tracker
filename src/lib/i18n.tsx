@@ -247,6 +247,7 @@ const dictionaries: Record<Language, Dictionary> = {
     presentEmployees: "işdə olan",
     noFuelData: "Yanacaq məlumatı yoxdur",
     terminalView: "Terminal",
+    cardNumber: "Kart nömrəsi",
   },
   en: {
     language: "Language",
@@ -487,6 +488,7 @@ const dictionaries: Record<Language, Dictionary> = {
     presentEmployees: "present",
     noFuelData: "No fuel data",
     terminalView: "Terminal",
+    cardNumber: "Card No.",
   },
   ru: {
     language: "Язык",
@@ -727,6 +729,7 @@ const dictionaries: Record<Language, Dictionary> = {
     presentEmployees: "присутствуют",
     noFuelData: "Нет данных о топливе",
     terminalView: "Терминал",
+    cardNumber: "Номер карты",
   },
 };
 

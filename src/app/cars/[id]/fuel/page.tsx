@@ -158,6 +158,7 @@ export default function CarFuelPage() {
                   <th className="px-3 py-2 text-right whitespace-nowrap">{t("fuelCost")}</th>
                   <th className="px-3 py-2 text-left whitespace-nowrap">{t("fuelStation")}</th>
                   <th className="px-3 py-2 text-left whitespace-nowrap">{t("cardHolder")}</th>
+                  <th className="px-3 py-2 text-left whitespace-nowrap">{t("cardNumber")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -175,6 +176,7 @@ export default function CarFuelPage() {
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">{tx.stationName ?? "—"}</td>
                     <td className="px-3 py-2 whitespace-nowrap text-slate-500">{tx.cardHolderName ?? "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-slate-400 font-mono text-xs">{tx.cardNumber ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>

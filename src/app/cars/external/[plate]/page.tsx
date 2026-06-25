@@ -17,6 +17,7 @@ type FuelTx = {
   amount: number;
   stationName: string | null;
   cardHolderName: string | null;
+  cardNumber: string | null;
   plate: string;
 };
 
@@ -140,6 +141,7 @@ export default function ExternalVehicleFuelPage() {
                   <th className="px-3 py-2 text-right whitespace-nowrap">{t("fuelCost")}</th>
                   <th className="px-3 py-2 text-left whitespace-nowrap">{t("fuelStation")}</th>
                   <th className="px-3 py-2 text-left whitespace-nowrap">{t("cardHolder")}</th>
+                  <th className="px-3 py-2 text-left whitespace-nowrap">{t("cardNumber")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -155,6 +157,7 @@ export default function ExternalVehicleFuelPage() {
                     <td className="px-3 py-2 text-right whitespace-nowrap font-medium">{tx.amount.toFixed(2)} AZN</td>
                     <td className="px-3 py-2 whitespace-nowrap">{tx.stationName ?? "—"}</td>
                     <td className="px-3 py-2 whitespace-nowrap text-slate-500">{tx.cardHolderName ?? "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-slate-400 font-mono text-xs">{tx.cardNumber ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>
