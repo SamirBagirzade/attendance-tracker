@@ -17,6 +17,7 @@ import {
   Palette,
   ScrollText,
   Shield,
+  TerminalSquare,
   TrendingUp,
   Umbrella,
   UserCog,
@@ -73,6 +74,7 @@ const adminGroup: NavGroup = {
     { href: "/backup", labelKey: "backup", icon: DatabaseBackup },
     { href: "/audit", labelKey: "auditLog", icon: ScrollText },
     { href: "/azpetrol", labelKey: "azpetrol", icon: Fuel },
+    { href: "/terminal", labelKey: "terminalView", icon: TerminalSquare },
   ],
 };
 
