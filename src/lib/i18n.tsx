@@ -249,6 +249,7 @@ const dictionaries: Record<Language, Dictionary> = {
     terminalView: "Terminal",
     cardNumber: "Kart nömrəsi",
     fuelCardNumber: "Yanacaq kartı nömrəsi",
+    byCardNumber: "Kart nömrəsinə görə",
   },
   en: {
     language: "Language",
@@ -491,6 +492,7 @@ const dictionaries: Record<Language, Dictionary> = {
     terminalView: "Terminal",
     cardNumber: "Card No.",
     fuelCardNumber: "Fuel Card Number",
+    byCardNumber: "By Card Number",
   },
   ru: {
     language: "Язык",
@@ -733,6 +735,7 @@ const dictionaries: Record<Language, Dictionary> = {
     terminalView: "Терминал",
     cardNumber: "Номер карты",
     fuelCardNumber: "Номер топливной карты",
+    byCardNumber: "По номеру карты",
   },
 };
 

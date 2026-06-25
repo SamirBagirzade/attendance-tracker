@@ -27,8 +27,13 @@ export async function GET(request: NextRequest) {
       include: { car: { select: { makeModel: true, licensePlate: true } } },
       orderBy: { transactionTime: "asc" },
     }),
-    prisma.car.findMany({ select: { id: true, makeModel: true, licensePlate: true } }),
+    prisma.car.findMany({ select: { id: true, makeModel: true, licensePlate: true, fuelCardNumber: true } }),
   ]);
+
+  const cardNumberToPlate = new Map<string, string>();
+  for (const c of cars) {
+    if (c.fuelCardNumber) cardNumberToPlate.set(c.fuelCardNumber, c.licensePlate);
+  }
 
   // Summary
   const totalAmount = transactions.reduce((s, t) => s + t.amount, 0);
@@ -98,19 +103,25 @@ export async function GET(request: NextRequest) {
     .map(([station, d]) => ({ station, ...d, amount: Math.round(d.amount * 100) / 100 }))
     .sort((a, b) => b.amount - a.amount);
 
-  // By card holder
-  const holderMap = new Map<string, { amount: number; fillUps: number }>();
+  // By card number
+  const cardNumMap = new Map<string, { amount: number; quantity: number; fillUps: number }>();
   for (const tx of transactions) {
-    const key = (tx.cardHolderName ?? "Unknown").trim();
-    const existing = holderMap.get(key) ?? { amount: 0, fillUps: 0 };
+    const key = tx.cardNumber ?? "Unknown";
+    const existing = cardNumMap.get(key) ?? { amount: 0, quantity: 0, fillUps: 0 };
     existing.amount += tx.amount;
+    existing.quantity += tx.productQuantity ?? 0;
     existing.fillUps++;
-    holderMap.set(key, existing);
+    cardNumMap.set(key, existing);
   }
-  const byCardHolder = Array.from(holderMap.entries())
-    .map(([holder, d]) => ({ holder, ...d, amount: Math.round(d.amount * 100) / 100 }))
-    .sort((a, b) => b.amount - a.amount)
-    .slice(0, 15);
+  const byCardNumber = Array.from(cardNumMap.entries())
+    .map(([cardNumber, d]) => ({
+      cardNumber,
+      licensePlate: cardNumberToPlate.get(cardNumber) ?? null,
+      ...d,
+      amount: Math.round(d.amount * 100) / 100,
+      quantity: Math.round(d.quantity * 100) / 100,
+    }))
+    .sort((a, b) => b.amount - a.amount);
 
   return Response.json({
     summary: {
@@ -126,6 +137,6 @@ export async function GET(request: NextRequest) {
     byProduct,
     byCar,
     byStation,
-    byCardHolder,
+    byCardNumber,
   });
 }
