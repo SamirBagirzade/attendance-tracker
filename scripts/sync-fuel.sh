@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Daily fuel sync — call from crontab:
-# 30 23 * * * /home/dietpi/attendance-tracker/scripts/sync-fuel.sh >> /var/log/fuel-sync.log 2>&1
+# 59 23 * * * /home/dietpi/attendance-tracker/scripts/sync-fuel.sh >> /home/dietpi/fuel-sync.log 2>&1
 
 set -euo pipefail
 
