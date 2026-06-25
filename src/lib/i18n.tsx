@@ -248,6 +248,7 @@ const dictionaries: Record<Language, Dictionary> = {
     noFuelData: "Yanacaq məlumatı yoxdur",
     terminalView: "Terminal",
     cardNumber: "Kart nömrəsi",
+    fuelCardNumber: "Yanacaq kartı nömrəsi",
   },
   en: {
     language: "Language",
@@ -489,6 +490,7 @@ const dictionaries: Record<Language, Dictionary> = {
     noFuelData: "No fuel data",
     terminalView: "Terminal",
     cardNumber: "Card No.",
+    fuelCardNumber: "Fuel Card Number",
   },
   ru: {
     language: "Язык",
@@ -730,6 +732,7 @@ const dictionaries: Record<Language, Dictionary> = {
     noFuelData: "Нет данных о топливе",
     terminalView: "Терминал",
     cardNumber: "Номер карты",
+    fuelCardNumber: "Номер топливной карты",
   },
 };
 

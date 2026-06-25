@@ -35,6 +35,7 @@ export default function CarFuelPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [carLabel, setCarLabel] = useState("");
+  const [carFuelCardNumber, setCarFuelCardNumber] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/cars/${carId}`)
@@ -57,6 +58,7 @@ export default function CarFuelPage() {
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
       setTransactions(json.transactions);
       setTotals(json.totals);
+      setCarFuelCardNumber(json.fuelCardNumber ?? null);
     } catch (err) {
       setError(String(err));
     } finally {
@@ -157,12 +159,15 @@ export default function CarFuelPage() {
                   <th className="px-3 py-2 text-right whitespace-nowrap">{t("fuelQty")}</th>
                   <th className="px-3 py-2 text-right whitespace-nowrap">{t("fuelCost")}</th>
                   <th className="px-3 py-2 text-left whitespace-nowrap">{t("fuelStation")}</th>
-                  <th className="px-3 py-2 text-left whitespace-nowrap">{t("cardHolder")}</th>
                   <th className="px-3 py-2 text-left whitespace-nowrap">{t("cardNumber")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {transactions.map((tx) => (
+                {transactions.map((tx) => {
+                  const cardMatch = carFuelCardNumber && tx.cardNumber
+                    ? tx.cardNumber === carFuelCardNumber
+                    : null;
+                  return (
                   <tr key={tx.id} className="hover:bg-slate-50 transition">
                     <td className="px-3 py-2 whitespace-nowrap text-slate-700">
                       {format(new Date(tx.transactionTime), "dd.MM.yyyy HH:mm")}
@@ -175,10 +180,12 @@ export default function CarFuelPage() {
                       {tx.amount.toFixed(2)} AZN
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">{tx.stationName ?? "—"}</td>
-                    <td className="px-3 py-2 whitespace-nowrap text-slate-500">{tx.cardHolderName ?? "—"}</td>
-                    <td className="px-3 py-2 whitespace-nowrap text-slate-400 font-mono text-xs">{tx.cardNumber ?? "—"}</td>
+                    <td className={`px-3 py-2 whitespace-nowrap font-mono text-xs font-medium ${cardMatch === true ? "text-emerald-600" : cardMatch === false ? "text-red-500" : "text-slate-400"}`}>
+                      {tx.cardNumber ?? "—"}
+                    </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

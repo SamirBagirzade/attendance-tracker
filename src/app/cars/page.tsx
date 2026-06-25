@@ -22,6 +22,7 @@ type MaintenanceDraft = {
   insuranceIntervalMonths: string;
   inspectionDate: string;
   inspectionIntervalMonths: string;
+  fuelCardNumber: string;
 };
 
 function carToMaintenanceDraft(car: Car): MaintenanceDraft {
@@ -38,6 +39,7 @@ function carToMaintenanceDraft(car: Car): MaintenanceDraft {
     insuranceIntervalMonths: car.insuranceIntervalMonths?.toString() ?? "12",
     inspectionDate: car.inspectionDate ?? "",
     inspectionIntervalMonths: car.inspectionIntervalMonths?.toString() ?? "12",
+    fuelCardNumber: car.fuelCardNumber ?? "",
   };
 }
 
@@ -193,6 +195,7 @@ export default function CarsPage() {
       insuranceIntervalMonths: draft.insuranceIntervalMonths || null,
       inspectionDate: draft.inspectionDate || null,
       inspectionIntervalMonths: draft.inspectionIntervalMonths || null,
+      fuelCardNumber: draft.fuelCardNumber || null,
     };
 
     const response = await fetch(`/api/cars/${car.id}`, {
@@ -630,6 +633,20 @@ export default function CarsPage() {
                                     </div>
                                   )}
                                 </div>
+                              </div>
+
+                              {/* Fuel card number */}
+                              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                                <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">{t("fuelCardNumber")}</h4>
+                                <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+                                  {t("cardNumber")}
+                                  <input
+                                    className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-mono outline-none focus:border-violet-500"
+                                    type="text" placeholder="e.g. 1234567890"
+                                    value={draft.fuelCardNumber}
+                                    onChange={(e) => updateDraft(car.id, "fuelCardNumber", e.target.value)}
+                                  />
+                                </label>
                               </div>
 
                               <div className="mt-4 flex items-center gap-3">

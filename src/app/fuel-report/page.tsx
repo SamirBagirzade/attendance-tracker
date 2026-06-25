@@ -19,15 +19,12 @@ type MonthRow = { month: string; amount: number; quantity: number; fillUps: numb
 type ProductRow = { product: string; amount: number; quantity: number; fillUps: number };
 type CarRow = { plate: string; carName: string | null; isExternal: boolean; amount: number; quantity: number; fillUps: number };
 type StationRow = { station: string; amount: number; quantity: number; fillUps: number };
-type HolderRow = { holder: string; amount: number; fillUps: number };
-
 type ReportData = {
   summary: Summary;
   byMonth: MonthRow[];
   byProduct: ProductRow[];
   byCar: CarRow[];
   byStation: StationRow[];
-  byCardHolder: HolderRow[];
 };
 
 const PRESETS = [
@@ -149,11 +146,6 @@ export default function FuelReportPage() {
     xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(data.byProduct.map((r) => ({
       Product: r.product, "Cost (AZN)": r.amount, "Qty (L)": r.quantity, "Fill-ups": r.fillUps,
     }))), t("byProduct"));
-
-    // By card holder
-    xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(data.byCardHolder.map((r) => ({
-      "Card Holder": r.holder, "Cost (AZN)": r.amount, "Fill-ups": r.fillUps,
-    }))), t("byCardHolder"));
 
     xlsx.writeFile(wb, `fuel-report-${from}-${to}.xlsx`);
   }
@@ -293,24 +285,6 @@ export default function FuelReportPage() {
             </ResponsiveContainer>
           </div>
         </div>
-
-        {/* Car holder bar */}
-        {data.byCardHolder.length > 0 && (
-          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm mb-4">
-            <SectionTitle>{t("byCardHolder")}</SectionTitle>
-            <ResponsiveContainer width="100%" height={Math.max(160, data.byCardHolder.length * 28)}>
-              <BarChart data={data.byCardHolder} layout="vertical" margin={{ top: 0, right: 70, bottom: 0, left: 0 }}>
-                <CartesianGrid stroke="#f1f5f9" strokeDasharray="3 3" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={(v) => `₼${v}`} />
-                <YAxis type="category" dataKey="holder" tick={{ fontSize: 10, fill: "#64748b" }} width={150} />
-                <Tooltip contentStyle={TOOLTIP_STYLE}
-                  formatter={(v) => [`${Number(v).toFixed(2)} AZN`, t("fuelCost")]} />
-                <Bar dataKey="amount" fill="#22c55e" radius={[0, 4, 4, 0]} maxBarSize={18}
-                  label={{ position: "right", fontSize: 10, fill: "#64748b", formatter: (v: unknown) => `₼${Number(v).toFixed(0)}` }} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
 
         {/* Detail table */}
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
