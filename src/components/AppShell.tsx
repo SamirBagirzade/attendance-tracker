@@ -15,6 +15,7 @@ import {
   MapPin,
   MessageSquare,
   Palette,
+  Radar,
   ScrollText,
   Shield,
   TrendingUp,
@@ -73,6 +74,7 @@ const adminGroup: NavGroup = {
     { href: "/backup", labelKey: "backup", icon: DatabaseBackup },
     { href: "/audit", labelKey: "auditLog", icon: ScrollText },
     { href: "/azpetrol", labelKey: "azpetrol", icon: Fuel },
+    { href: "/mission-control", labelKey: "missionControl", icon: Radar },
   ],
 };
 

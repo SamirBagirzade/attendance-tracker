@@ -246,6 +246,7 @@ const dictionaries: Record<Language, Dictionary> = {
     attendanceTrend: "30 günlük davamiyyət",
     presentEmployees: "işdə olan",
     noFuelData: "Yanacaq məlumatı yoxdur",
+    missionControl: "Mission Control",
   },
   en: {
     language: "Language",
@@ -485,6 +486,7 @@ const dictionaries: Record<Language, Dictionary> = {
     attendanceTrend: "30-Day Attendance",
     presentEmployees: "present",
     noFuelData: "No fuel data",
+    missionControl: "Mission Control",
   },
   ru: {
     language: "Язык",
@@ -724,6 +726,7 @@ const dictionaries: Record<Language, Dictionary> = {
     attendanceTrend: "Посещаемость за 30 дней",
     presentEmployees: "присутствуют",
     noFuelData: "Нет данных о топливе",
+    missionControl: "Mission Control",
   },
 };
 
