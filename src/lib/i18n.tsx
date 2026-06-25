@@ -241,6 +241,11 @@ const dictionaries: Record<Language, Dictionary> = {
     cardHolder: "Kart sahibi",
     loadData: "Yüklə",
     fuelTransactions: "yanacaq əməliyyatı",
+    thisMonthFuel: "Bu ay yanacaq",
+    vsLastMonth: "keçən aya nisbətən",
+    attendanceTrend: "30 günlük davamiyyət",
+    presentEmployees: "işdə olan",
+    noFuelData: "Yanacaq məlumatı yoxdur",
   },
   en: {
     language: "Language",
@@ -475,6 +480,11 @@ const dictionaries: Record<Language, Dictionary> = {
     cardHolder: "Card Holder",
     loadData: "Load",
     fuelTransactions: "transactions",
+    thisMonthFuel: "This Month Fuel",
+    vsLastMonth: "vs last month",
+    attendanceTrend: "30-Day Attendance",
+    presentEmployees: "present",
+    noFuelData: "No fuel data",
   },
   ru: {
     language: "Язык",
@@ -709,6 +719,11 @@ const dictionaries: Record<Language, Dictionary> = {
     cardHolder: "Держатель карты",
     loadData: "Загрузить",
     fuelTransactions: "операций",
+    thisMonthFuel: "Топливо в этом месяце",
+    vsLastMonth: "к прошлому месяцу",
+    attendanceTrend: "Посещаемость за 30 дней",
+    presentEmployees: "присутствуют",
+    noFuelData: "Нет данных о топливе",
   },
 };
 

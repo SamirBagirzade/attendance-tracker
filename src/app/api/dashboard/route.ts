@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { addMonths, differenceInDays } from "date-fns";
+import { addMonths, differenceInDays, startOfMonth, endOfMonth, subMonths, subDays, format } from "date-fns";
 import { prisma } from "@/lib/prisma";
 
 type DateStatus = "ok" | "warning" | "overdue";
@@ -19,7 +19,13 @@ export async function GET() {
   const startOfToday = new Date(todayStr + "T00:00:00.000Z");
   const endOfToday = new Date(todayStr + "T23:59:59.999Z");
 
-  const [employees, todayRecords, cars] = await Promise.all([
+  const thisMonthStart = startOfMonth(today);
+  const thisMonthEnd = endOfMonth(today);
+  const lastMonthStart = startOfMonth(subMonths(today, 1));
+  const lastMonthEnd = endOfMonth(subMonths(today, 1));
+  const thirtyDaysAgo = subDays(startOfToday, 29);
+
+  const [employees, todayRecords, cars, fuelThis, fuelLast, last30Attendance] = await Promise.all([
     prisma.employee.findMany({ select: { id: true } }),
     prisma.attendanceRecord.findMany({
       where: { date: { gte: startOfToday, lte: endOfToday } },
@@ -39,6 +45,20 @@ export async function GET() {
         inspectionDate: true,
         inspectionIntervalMonths: true,
       },
+    }),
+    prisma.fuelTransaction.aggregate({
+      where: { transactionTime: { gte: thisMonthStart, lte: thisMonthEnd } },
+      _sum: { amount: true },
+      _count: { id: true },
+    }),
+    prisma.fuelTransaction.aggregate({
+      where: { transactionTime: { gte: lastMonthStart, lte: lastMonthEnd } },
+      _sum: { amount: true },
+      _count: { id: true },
+    }),
+    prisma.attendanceRecord.findMany({
+      where: { date: { gte: thirtyDaysAgo, lte: endOfToday } },
+      select: { date: true, status: true },
     }),
   ]);
 
@@ -76,10 +96,27 @@ export async function GET() {
     }
   }
 
+  // Build 30-day attendance sparkline
+  const byDate: Record<string, number> = {};
+  for (const r of last30Attendance) {
+    if (r.status === "ISDE" || r.status === "EZAMIYYET") {
+      const d = format(r.date, "yyyy-MM-dd");
+      byDate[d] = (byDate[d] ?? 0) + 1;
+    }
+  }
+  const attendanceTrend: { date: string; present: number }[] = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = format(subDays(startOfToday, i), "yyyy-MM-dd");
+    attendanceTrend.push({ date: d, present: byDate[d] ?? 0 });
+  }
+
   return NextResponse.json({
     totalEmployees: employees.length,
     employeesWithoutRecord,
     statusCounts,
     maintenanceAlerts,
+    fuelThisMonth: { total: fuelThis._sum.amount ?? 0, count: fuelThis._count.id },
+    fuelLastMonth: { total: fuelLast._sum.amount ?? 0, count: fuelLast._count.id },
+    attendanceTrend,
   });
 }
