@@ -36,6 +36,7 @@ export default function CarFuelPage() {
   const [error, setError] = useState("");
   const [carLabel, setCarLabel] = useState("");
   const [carFuelCardNumber, setCarFuelCardNumber] = useState<string | null>(null);
+  const [cardOwners, setCardOwners] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetch(`/api/cars/${carId}`)
@@ -59,6 +60,7 @@ export default function CarFuelPage() {
       setTransactions(json.transactions);
       setTotals(json.totals);
       setCarFuelCardNumber(json.fuelCardNumber ?? null);
+      setCardOwners(json.cardOwners ?? {});
     } catch (err) {
       setError(String(err));
     } finally {
@@ -182,6 +184,9 @@ export default function CarFuelPage() {
                     <td className="px-3 py-2 whitespace-nowrap">{tx.stationName ?? "—"}</td>
                     <td className={`px-3 py-2 whitespace-nowrap font-mono text-xs font-medium ${cardMatch === true ? "text-emerald-600" : cardMatch === false ? "text-red-500" : "text-slate-400"}`}>
                       {tx.cardNumber ?? "—"}
+                      {cardMatch === false && tx.cardNumber && cardOwners[tx.cardNumber] && (
+                        <span className="ml-1 text-red-400">({cardOwners[tx.cardNumber]})</span>
+                      )}
                     </td>
                   </tr>
                   );

@@ -33,6 +33,7 @@ export default function ExternalVehicleFuelPage() {
   const [totals, setTotals] = useState<Totals>({ amount: 0, quantity: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [cardOwners, setCardOwners] = useState<Record<string, string>>({});
 
   useEffect(() => { void loadFuel(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -45,6 +46,7 @@ export default function ExternalVehicleFuelPage() {
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
       setTransactions(json.transactions);
       setTotals(json.totals);
+      setCardOwners(json.cardOwners ?? {});
     } catch (err) {
       setError(String(err));
     } finally {
@@ -154,7 +156,18 @@ export default function ExternalVehicleFuelPage() {
                     </td>
                     <td className="px-3 py-2 text-right whitespace-nowrap font-medium">{tx.amount.toFixed(2)} AZN</td>
                     <td className="px-3 py-2 whitespace-nowrap">{tx.stationName ?? "—"}</td>
-                    <td className="px-3 py-2 whitespace-nowrap text-slate-400 font-mono text-xs">{tx.cardNumber ?? "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap font-mono text-xs">
+                      {tx.cardNumber ? (
+                        <>
+                          <span className={cardOwners[tx.cardNumber] ? "text-slate-700 font-medium" : "text-slate-400"}>
+                            {tx.cardNumber}
+                          </span>
+                          {cardOwners[tx.cardNumber] && (
+                            <span className="ml-1 text-slate-400">({cardOwners[tx.cardNumber]})</span>
+                          )}
+                        </>
+                      ) : "—"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
