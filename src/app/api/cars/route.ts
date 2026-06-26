@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { normalizeCarInput, formatCarDate } from "@/lib/cars";
 import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+import { normalizePlate } from "@/lib/azpetrol-sync";
 
 export async function GET() {
   const cars = await prisma.car.findMany({
@@ -24,6 +25,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const data = normalizeCarInput(body);
     const car = await prisma.car.create({ data });
+
+    // Re-link any historical fuel transactions for this plate
+    void prisma.fuelTransaction.updateMany({
+      where: { plate: normalizePlate(car.licensePlate), carId: null },
+      data: { carId: car.id },
+    });
 
     void logAudit(request, "CREATE", "Car", car.id, { makeModel: car.makeModel, licensePlate: car.licensePlate });
     return NextResponse.json(
