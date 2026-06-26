@@ -12,9 +12,13 @@ export async function GET(request: NextRequest) {
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
 
+  const knownCars = await prisma.car.findMany({ select: { licensePlate: true } });
+  const knownPlates = knownCars.map((c) => c.licensePlate);
+
   const transactions = await prisma.fuelTransaction.findMany({
     where: {
       carId: null,
+      plate: { notIn: knownPlates },
       ...(from || to
         ? {
             transactionTime: {
