@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { format, subMonths, startOfYear } from "date-fns";
+import { format, startOfMonth, startOfYear, subMonths } from "date-fns";
 import {
   Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -55,7 +55,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 export default function FuelReportPage() {
   const { t } = useLanguage();
 
-  const [from, setFrom] = useState(format(subMonths(new Date(), 3), "yyyy-MM-dd"));
+  const [from, setFrom] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [to, setTo] = useState(format(new Date(), "yyyy-MM-dd"));
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(false);
