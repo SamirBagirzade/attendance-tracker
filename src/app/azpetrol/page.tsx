@@ -100,7 +100,7 @@ function SyncTab() {
       {syncResult && (
         <div className={`border rounded-lg px-4 py-3 text-sm ${Number(syncResult.inserted) > 0 ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-amber-50 border-amber-200 text-amber-800"}`}>
           Sync complete — fetched <strong>{String(syncResult.fetched)}</strong>, inserted/updated <strong>{String(syncResult.inserted)}</strong>,
-          skipped <strong>{String(syncResult.skipped)}</strong> · range: {String(syncResult.fromDate)} → {String(syncResult.toDate)} ({String(syncResult.chunks)} chunk{Number(syncResult.chunks) !== 1 ? "s" : ""})
+          skipped <strong>{String(syncResult.skipped)}</strong>, re-linked <strong>{String(syncResult.relinked ?? 0)}</strong> · range: {String(syncResult.fromDate)} → {String(syncResult.toDate)} ({String(syncResult.chunks)} chunk{Number(syncResult.chunks) !== 1 ? "s" : ""})
           {syncResult.sampleKeys && (
             <div className="mt-2">
               <p className="font-medium">Fields in transaction object: <code className="font-mono">{(syncResult.sampleKeys as string[]).join(", ")}</code></p>

@@ -32,6 +32,7 @@ export type SyncResult = {
   fetched: number;
   inserted: number;
   skipped: number;
+  relinked: number;
   fromDate: string;
   toDate: string;
   chunks: number;
@@ -49,7 +50,7 @@ export async function syncFuelTransactions(): Promise<SyncResult> {
     : new Date("2026-01-01T00:00:00");
 
   if (fromDate > toDate) {
-    return { fetched: 0, inserted: 0, skipped: 0, fromDate: format(fromDate, "yyyy-MM-dd"), toDate: format(toDate, "yyyy-MM-dd"), chunks: 0 };
+    return { fetched: 0, inserted: 0, skipped: 0, relinked: 0, fromDate: format(fromDate, "yyyy-MM-dd"), toDate: format(toDate, "yyyy-MM-dd"), chunks: 0 };
   }
 
   // Build plate → carId map (normalized)
@@ -118,10 +119,25 @@ export async function syncFuelTransactions(): Promise<SyncResult> {
     inserted++;
   }
 
+  // Re-link any historical transactions that have carId=null but plate now matches a known car
+  const unlinked = await prisma.fuelTransaction.findMany({
+    where: { carId: null },
+    select: { id: true, plate: true },
+  });
+  let relinked = 0;
+  for (const tx of unlinked) {
+    const carId = plateToCarId.get(tx.plate) ?? null;
+    if (carId !== null) {
+      await prisma.fuelTransaction.update({ where: { id: tx.id }, data: { carId } });
+      relinked++;
+    }
+  }
+
   return {
     fetched: rawTransactions.length,
     inserted,
     skipped,
+    relinked,
     fromDate: format(fromDate, "yyyy-MM-dd"),
     toDate: format(toDate, "yyyy-MM-dd"),
     chunks: chunks.length,
