@@ -4,6 +4,7 @@ import { normalizeCarInput, formatCarDate } from "@/lib/cars";
 import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { handleCarError } from "../route";
+import { normalizePlate } from "@/lib/azpetrol-sync";
 
 type RouteContext = {
   params: Promise<{
@@ -31,6 +32,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
     const data = normalizeCarInput(await request.json());
     const car = await prisma.car.update({ where: { id }, data });
+
+    // Re-link any unlinked fuel transactions for this plate
+    void prisma.fuelTransaction.updateMany({
+      where: { plate: normalizePlate(car.licensePlate), carId: null },
+      data: { carId: car.id },
+    });
 
     void logAudit(request, "UPDATE", "Car", id, { makeModel: car.makeModel, licensePlate: car.licensePlate });
     return NextResponse.json({
