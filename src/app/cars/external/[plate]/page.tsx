@@ -16,7 +16,7 @@ type FuelTx = {
   productMeasure: string | null;
   amount: number;
   stationName: string | null;
-  cardHolderName: string | null;
+  cardNumber: string | null;
   plate: string;
 };
 
@@ -33,6 +33,7 @@ export default function ExternalVehicleFuelPage() {
   const [totals, setTotals] = useState<Totals>({ amount: 0, quantity: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [cardOwners, setCardOwners] = useState<Record<string, string>>({});
 
   useEffect(() => { void loadFuel(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -45,6 +46,7 @@ export default function ExternalVehicleFuelPage() {
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
       setTransactions(json.transactions);
       setTotals(json.totals);
+      setCardOwners(json.cardOwners ?? {});
     } catch (err) {
       setError(String(err));
     } finally {
@@ -139,7 +141,7 @@ export default function ExternalVehicleFuelPage() {
                   <th className="px-3 py-2 text-right whitespace-nowrap">{t("fuelQty")}</th>
                   <th className="px-3 py-2 text-right whitespace-nowrap">{t("fuelCost")}</th>
                   <th className="px-3 py-2 text-left whitespace-nowrap">{t("fuelStation")}</th>
-                  <th className="px-3 py-2 text-left whitespace-nowrap">{t("cardHolder")}</th>
+                  <th className="px-3 py-2 text-left whitespace-nowrap">{t("cardNumber")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -154,7 +156,18 @@ export default function ExternalVehicleFuelPage() {
                     </td>
                     <td className="px-3 py-2 text-right whitespace-nowrap font-medium">{tx.amount.toFixed(2)} AZN</td>
                     <td className="px-3 py-2 whitespace-nowrap">{tx.stationName ?? "—"}</td>
-                    <td className="px-3 py-2 whitespace-nowrap text-slate-500">{tx.cardHolderName ?? "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap font-mono text-xs">
+                      {tx.cardNumber ? (
+                        <>
+                          <span className={cardOwners[tx.cardNumber] ? "text-slate-700 font-medium" : "text-slate-400"}>
+                            {tx.cardNumber}
+                          </span>
+                          {cardOwners[tx.cardNumber] && (
+                            <span className="ml-1 text-slate-400">({cardOwners[tx.cardNumber]})</span>
+                          )}
+                        </>
+                      ) : "—"}
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -161,6 +161,9 @@ model Car {
   inspectionDate           DateTime? @db.Date
   inspectionIntervalMonths Int?
 
+  fuelCardNumber String?
+  fuelOnly       Boolean @default(false)
+
   records            AttendanceRecord[]
   maintenanceRecords CarMaintenanceRecord[]
   fuelTransactions   FuelTransaction[]

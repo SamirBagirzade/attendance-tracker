@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, CalendarCheck, CalendarDays, Car, ChevronRight, ClipboardList, MapPin, Palette, Users, Wrench } from "lucide-react";
+import { AlertTriangle, CalendarCheck, CalendarDays, Car, ChevronRight, ClipboardList, Flame, MapPin, Palette, TrendingDown, TrendingUp, Users, Wrench } from "lucide-react";
+import { AreaChart, Area, ResponsiveContainer, Tooltip } from "recharts";
 import { AppShell } from "@/components/AppShell";
 import { useLanguage } from "@/lib/i18n";
 
@@ -29,6 +30,9 @@ type DashboardData = {
   employeesWithoutRecord: number;
   statusCounts: Record<string, number>;
   maintenanceAlerts: { id: number; makeModel: string; licensePlate: string; type: string; severity: "warning" | "overdue" }[];
+  fuelThisMonth: { total: number; count: number };
+  fuelLastMonth: { total: number; count: number };
+  attendanceTrend: { date: string; present: number }[];
 };
 
 const NAV_CARDS = [
@@ -120,6 +124,91 @@ export default function Home() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* KPI row */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
+
+          {/* Fuel spend this month */}
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{t("thisMonthFuel")}</h2>
+              <Flame size={16} className="text-orange-400" />
+            </div>
+            {!data ? (
+              <div className="h-12 animate-pulse rounded bg-slate-100" />
+            ) : data.fuelThisMonth.count === 0 ? (
+              <p className="text-sm text-slate-400 mt-2">{t("noFuelData")}</p>
+            ) : (() => {
+              const curr = data.fuelThisMonth.total;
+              const prev = data.fuelLastMonth.total;
+              const pct = prev > 0 ? ((curr - prev) / prev) * 100 : null;
+              const up = pct !== null && pct > 0;
+              return (
+                <div>
+                  <p className="text-3xl font-bold text-slate-900 mt-1">{curr.toFixed(2)} <span className="text-base font-normal text-slate-400">AZN</span></p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    {pct !== null ? (
+                      <>
+                        {up ? <TrendingUp size={14} className="text-red-500" /> : <TrendingDown size={14} className="text-green-500" />}
+                        <span className={`text-xs font-medium ${up ? "text-red-500" : "text-green-600"}`}>
+                          {up ? "+" : ""}{pct.toFixed(1)}%
+                        </span>
+                        <span className="text-xs text-slate-400">{t("vsLastMonth")}</span>
+                      </>
+                    ) : (
+                      <span className="text-xs text-slate-400">{t("vsLastMonth")}: —</span>
+                    )}
+                    <span className="ml-auto text-xs text-slate-400">{data.fuelThisMonth.count} {t("fuelTransactions")}</span>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* 30-day attendance sparkline */}
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{t("attendanceTrend")}</h2>
+              <Users size={16} className="text-blue-400" />
+            </div>
+            {!data ? (
+              <div className="h-12 animate-pulse rounded bg-slate-100" />
+            ) : (() => {
+              const last = data.attendanceTrend[data.attendanceTrend.length - 1];
+              return (
+                <div>
+                  <p className="text-3xl font-bold text-slate-900 mt-1">
+                    {last?.present ?? 0}
+                    <span className="text-base font-normal text-slate-400 ml-1">{t("presentEmployees")}</span>
+                  </p>
+                  <div className="mt-3 h-14">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={data.attendanceTrend} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="attendGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <Tooltip
+                          content={({ active, payload }) =>
+                            active && payload?.[0] ? (
+                              <div className="rounded bg-slate-800 px-2 py-1 text-xs text-white">
+                                {payload[0].payload.date}: {payload[0].value} {t("presentEmployees")}
+                              </div>
+                            ) : null
+                          }
+                        />
+                        <Area type="monotone" dataKey="present" stroke="#3b82f6" strokeWidth={2} fill="url(#attendGrad)" dot={false} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
         </div>
 
         {/* Nav cards */}

@@ -15,6 +15,12 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
 
+  const allCars = await prisma.car.findMany({ where: { fuelCardNumber: { not: null } }, select: { fuelCardNumber: true, licensePlate: true } });
+  const cardOwners: Record<string, string> = {};
+  for (const c of allCars) {
+    if (c.fuelCardNumber) cardOwners[c.fuelCardNumber] = c.licensePlate;
+  }
+
   const transactions = await prisma.fuelTransaction.findMany({
     where: {
       carId: null,
@@ -34,5 +40,5 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     { amount: 0, quantity: 0 },
   );
 
-  return Response.json({ transactions, totals });
+  return Response.json({ transactions, totals, cardOwners });
 }

@@ -19,15 +19,14 @@ type MonthRow = { month: string; amount: number; quantity: number; fillUps: numb
 type ProductRow = { product: string; amount: number; quantity: number; fillUps: number };
 type CarRow = { plate: string; carName: string | null; isExternal: boolean; amount: number; quantity: number; fillUps: number };
 type StationRow = { station: string; amount: number; quantity: number; fillUps: number };
-type HolderRow = { holder: string; amount: number; fillUps: number };
-
+type CardNumberRow = { cardNumber: string; licensePlate: string | null; amount: number; quantity: number; fillUps: number };
 type ReportData = {
   summary: Summary;
   byMonth: MonthRow[];
   byProduct: ProductRow[];
   byCar: CarRow[];
   byStation: StationRow[];
-  byCardHolder: HolderRow[];
+  byCardNumber: CardNumberRow[];
 };
 
 const PRESETS = [
@@ -150,10 +149,10 @@ export default function FuelReportPage() {
       Product: r.product, "Cost (AZN)": r.amount, "Qty (L)": r.quantity, "Fill-ups": r.fillUps,
     }))), t("byProduct"));
 
-    // By card holder
-    xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(data.byCardHolder.map((r) => ({
-      "Card Holder": r.holder, "Cost (AZN)": r.amount, "Fill-ups": r.fillUps,
-    }))), t("byCardHolder"));
+    // By card number
+    xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(data.byCardNumber.map((r) => ({
+      "Card No.": r.cardNumber, "License Plate": r.licensePlate ?? "", "Cost (AZN)": r.amount, "Qty (L)": r.quantity, "Fill-ups": r.fillUps,
+    }))), t("byCardNumber"));
 
     xlsx.writeFile(wb, `fuel-report-${from}-${to}.xlsx`);
   }
@@ -294,21 +293,40 @@ export default function FuelReportPage() {
           </div>
         </div>
 
-        {/* Car holder bar */}
-        {data.byCardHolder.length > 0 && (
-          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm mb-4">
-            <SectionTitle>{t("byCardHolder")}</SectionTitle>
-            <ResponsiveContainer width="100%" height={Math.max(160, data.byCardHolder.length * 28)}>
-              <BarChart data={data.byCardHolder} layout="vertical" margin={{ top: 0, right: 70, bottom: 0, left: 0 }}>
-                <CartesianGrid stroke="#f1f5f9" strokeDasharray="3 3" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={(v) => `₼${v}`} />
-                <YAxis type="category" dataKey="holder" tick={{ fontSize: 10, fill: "#64748b" }} width={150} />
-                <Tooltip contentStyle={TOOLTIP_STYLE}
-                  formatter={(v) => [`${Number(v).toFixed(2)} AZN`, t("fuelCost")]} />
-                <Bar dataKey="amount" fill="#22c55e" radius={[0, 4, 4, 0]} maxBarSize={18}
-                  label={{ position: "right", fontSize: 10, fill: "#64748b", formatter: (v: unknown) => `₼${Number(v).toFixed(0)}` }} />
-              </BarChart>
-            </ResponsiveContainer>
+        {/* By card number table */}
+        {data && data.byCardNumber.length > 0 && (
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm mb-4">
+            <div className="px-5 py-3 border-b border-slate-100">
+              <span className="text-sm font-semibold text-slate-700">{t("byCardNumber")}</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="px-4 py-2 text-left">{t("cardNumber")}</th>
+                    <th className="px-4 py-2 text-left">{t("licensePlate")}</th>
+                    <th className="px-4 py-2 text-right">{t("fuelCost")}</th>
+                    <th className="px-4 py-2 text-right">{t("fuelQty")}</th>
+                    <th className="px-4 py-2 text-right">{t("fillUps")}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {data.byCardNumber.map((row) => (
+                    <tr key={row.cardNumber} className="hover:bg-slate-50">
+                      <td className="px-4 py-2 font-mono text-xs">{row.cardNumber}</td>
+                      <td className="px-4 py-2">
+                        {row.licensePlate
+                          ? <span className="inline-flex items-center rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs font-medium text-emerald-700">{row.licensePlate}</span>
+                          : <span className="text-slate-400 text-xs">—</span>}
+                      </td>
+                      <td className="px-4 py-2 text-right font-medium">{row.amount.toFixed(2)} AZN</td>
+                      <td className="px-4 py-2 text-right text-slate-600">{row.quantity.toFixed(1)} L</td>
+                      <td className="px-4 py-2 text-right text-slate-500">{row.fillUps}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 

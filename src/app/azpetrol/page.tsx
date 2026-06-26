@@ -111,10 +111,10 @@ function SyncTab() {
       )}
 
       <div className="bg-white border border-slate-200 rounded-lg p-4">
-        <p className="text-sm font-medium text-slate-700 mb-2">Daily Auto-Sync (Cron)</p>
-        <p className="text-xs text-slate-500 mb-3">Add this to your crontab to sync at 23:30 every day:</p>
+        <p className="text-sm font-medium text-slate-700 mb-2">Hourly Auto-Sync (Cron)</p>
+        <p className="text-xs text-slate-500 mb-3">Crontab entry (runs at top of every hour):</p>
         <pre className="text-xs bg-slate-50 border border-slate-200 rounded p-3 overflow-x-auto">
-{`30 23 * * * curl -s -X POST http://localhost:${process.env.PORT ?? 3000}/api/azpetrol/sync -H "x-cron-secret: YOUR_CRON_SECRET" >> /var/log/fuel-sync.log 2>&1`}
+{`0 * * * * /home/dietpi/attendance-tracker/scripts/sync-fuel.sh >> /home/dietpi/fuel-sync.log 2>&1`}
         </pre>
         <p className="text-xs text-slate-400 mt-2">Set <code>CRON_SECRET</code> in .env — the cron call bypasses session auth when this header matches.</p>
       </div>
@@ -239,6 +239,9 @@ export default function AzpetrolPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [rawResponse, setRawResponse] = useState<object | null>(null);
 
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 100;
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<object | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -261,6 +264,10 @@ export default function AzpetrolPage() {
     if (filters.transactionType && String(tx.transactionType ?? "") !== filters.transactionType) return false;
     return true;
   });
+
+  const totalPages = Math.ceil(filteredTransactions.length / PAGE_SIZE);
+  const clampedPage = Math.min(page, Math.max(0, totalPages - 1));
+  const pageSlice = filteredTransactions.slice(clampedPage * PAGE_SIZE, (clampedPage + 1) * PAGE_SIZE);
 
   const uniqueValues = (key: keyof Transaction) =>
     [...new Set(transactions.map((tx) => String(tx[key] ?? "")).filter(Boolean))].sort();
@@ -291,6 +298,7 @@ export default function AzpetrolPage() {
     setFetchInfo(`Fetching ${chunks.length} month${chunks.length !== 1 ? "s" : ""}…`);
     setError("");
     setTransactions([]);
+    setPage(0);
     setFilters({ cardNumber: "", productName: "", minAmount: "", maxAmount: "", stationName: "", plate: "", transactionType: "" });
     setRawResponse(null);
     setSelectedId(null);
@@ -433,20 +441,29 @@ export default function AzpetrolPage() {
       {/* Results table */}
       {transactions.length > 0 && (
         <div className="bg-white border border-slate-200 rounded-lg overflow-hidden mb-4">
-          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
             <span className="text-sm font-medium text-slate-700">
               {hasFilters
                 ? `${filteredTransactions.length} of ${transactions.length} transactions`
                 : `${transactions.length} transaction${transactions.length !== 1 ? "s" : ""}`}
+              {totalPages > 1 && (
+                <span className="ml-2 text-slate-400 text-xs">· page {clampedPage + 1}/{totalPages}</span>
+              )}
             </span>
             <div className="flex items-center gap-3">
               {hasFilters && (
                 <button
-                  onClick={() => setFilters({ cardNumber: "", productName: "", minAmount: "", maxAmount: "", stationName: "", plate: "", transactionType: "" })}
+                  onClick={() => { setFilters({ cardNumber: "", productName: "", minAmount: "", maxAmount: "", stationName: "", plate: "", transactionType: "" }); setPage(0); }}
                   className="text-xs text-slate-500 hover:text-red-500 transition"
                 >
                   Clear filters
                 </button>
+              )}
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={clampedPage === 0} className="rounded border border-slate-200 px-2 py-1 text-xs disabled:opacity-40 hover:bg-slate-50">Prev</button>
+                  <button onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={clampedPage >= totalPages - 1} className="rounded border border-slate-200 px-2 py-1 text-xs disabled:opacity-40 hover:bg-slate-50">Next</button>
+                </div>
               )}
               {txId(transactions[0]) && (
                 <span className="text-xs text-slate-400">Click row for detail</span>
@@ -506,7 +523,7 @@ export default function AzpetrolPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredTransactions.map((tx, i) => {
+                {pageSlice.map((tx, i) => {
                   const id = txId(tx);
                   const isSelected = id && selectedId === id;
                   return (

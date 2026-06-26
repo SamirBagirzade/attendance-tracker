@@ -38,6 +38,8 @@ export function normalizeCarInput(input: {
   insuranceIntervalMonths?: unknown;
   inspectionDate?: unknown;
   inspectionIntervalMonths?: unknown;
+  fuelCardNumber?: unknown;
+  fuelOnly?: unknown;
 }) {
   const makeModel = typeof input.makeModel === "string" ? input.makeModel.trim() : "";
   const licensePlate =
@@ -66,6 +68,8 @@ export function normalizeCarInput(input: {
     insuranceIntervalMonths: parseOptionalInt(input.insuranceIntervalMonths),
     inspectionDate: parseOptionalDate(input.inspectionDate),
     inspectionIntervalMonths: parseOptionalInt(input.inspectionIntervalMonths),
+    fuelCardNumber: parseOptionalString(input.fuelCardNumber),
+    fuelOnly: input.fuelOnly === true || input.fuelOnly === "true",
   };
 }
 

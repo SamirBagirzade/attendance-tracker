@@ -39,6 +39,8 @@ export type Car = {
   insuranceIntervalMonths: number | null;
   inspectionDate: string | null;
   inspectionIntervalMonths: number | null;
+  fuelCardNumber: string | null;
+  fuelOnly: boolean;
 };
 
 export type AttendanceRecord = {

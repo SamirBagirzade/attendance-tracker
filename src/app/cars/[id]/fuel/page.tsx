@@ -35,6 +35,10 @@ export default function CarFuelPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [carLabel, setCarLabel] = useState("");
+  const [carFuelCardNumber, setCarFuelCardNumber] = useState<string | null>(null);
+  const [cardOwners, setCardOwners] = useState<Record<string, string>>({});
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 100;
 
   useEffect(() => {
     fetch(`/api/cars/${carId}`)
@@ -57,6 +61,9 @@ export default function CarFuelPage() {
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
       setTransactions(json.transactions);
       setTotals(json.totals);
+      setCarFuelCardNumber(json.fuelCardNumber ?? null);
+      setCardOwners(json.cardOwners ?? {});
+      setPage(0);
     } catch (err) {
       setError(String(err));
     } finally {
@@ -145,8 +152,19 @@ export default function CarFuelPage() {
       {/* Transactions table */}
       {transactions.length > 0 ? (
         <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100">
-            <span className="text-sm font-medium text-slate-700">{transactions.length} {t("fuelTransactions")}</span>
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
+            <span className="text-sm font-medium text-slate-700">
+              {transactions.length} {t("fuelTransactions")}
+              {Math.ceil(transactions.length / PAGE_SIZE) > 1 && (
+                <span className="ml-2 text-slate-400 text-xs">· page {page + 1}/{Math.ceil(transactions.length / PAGE_SIZE)}</span>
+              )}
+            </span>
+            {Math.ceil(transactions.length / PAGE_SIZE) > 1 && (
+              <div className="flex items-center gap-1">
+                <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} className="rounded border border-slate-200 px-2 py-1 text-xs disabled:opacity-40 hover:bg-slate-50">Prev</button>
+                <button onClick={() => setPage((p) => Math.min(Math.ceil(transactions.length / PAGE_SIZE) - 1, p + 1))} disabled={page >= Math.ceil(transactions.length / PAGE_SIZE) - 1} className="rounded border border-slate-200 px-2 py-1 text-xs disabled:opacity-40 hover:bg-slate-50">Next</button>
+              </div>
+            )}
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -157,11 +175,15 @@ export default function CarFuelPage() {
                   <th className="px-3 py-2 text-right whitespace-nowrap">{t("fuelQty")}</th>
                   <th className="px-3 py-2 text-right whitespace-nowrap">{t("fuelCost")}</th>
                   <th className="px-3 py-2 text-left whitespace-nowrap">{t("fuelStation")}</th>
-                  <th className="px-3 py-2 text-left whitespace-nowrap">{t("cardHolder")}</th>
+                  <th className="px-3 py-2 text-left whitespace-nowrap">{t("cardNumber")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {transactions.map((tx) => (
+                {transactions.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((tx) => {
+                  const cardMatch = carFuelCardNumber && tx.cardNumber
+                    ? tx.cardNumber === carFuelCardNumber
+                    : null;
+                  return (
                   <tr key={tx.id} className="hover:bg-slate-50 transition">
                     <td className="px-3 py-2 whitespace-nowrap text-slate-700">
                       {format(new Date(tx.transactionTime), "dd.MM.yyyy HH:mm")}
@@ -174,9 +196,15 @@ export default function CarFuelPage() {
                       {tx.amount.toFixed(2)} AZN
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">{tx.stationName ?? "—"}</td>
-                    <td className="px-3 py-2 whitespace-nowrap text-slate-500">{tx.cardHolderName ?? "—"}</td>
+                    <td className={`px-3 py-2 whitespace-nowrap font-mono text-xs font-medium ${cardMatch === true ? "text-emerald-600" : cardMatch === false ? "text-red-500" : "text-slate-400"}`}>
+                      {tx.cardNumber ?? "—"}
+                      {cardMatch === false && tx.cardNumber && cardOwners[tx.cardNumber] && (
+                        <span className="ml-1 text-red-400">({cardOwners[tx.cardNumber]})</span>
+                      )}
+                    </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

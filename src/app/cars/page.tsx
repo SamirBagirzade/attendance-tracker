@@ -22,6 +22,8 @@ type MaintenanceDraft = {
   insuranceIntervalMonths: string;
   inspectionDate: string;
   inspectionIntervalMonths: string;
+  fuelCardNumber: string;
+  fuelOnly: boolean;
 };
 
 function carToMaintenanceDraft(car: Car): MaintenanceDraft {
@@ -38,6 +40,8 @@ function carToMaintenanceDraft(car: Car): MaintenanceDraft {
     insuranceIntervalMonths: car.insuranceIntervalMonths?.toString() ?? "12",
     inspectionDate: car.inspectionDate ?? "",
     inspectionIntervalMonths: car.inspectionIntervalMonths?.toString() ?? "12",
+    fuelCardNumber: car.fuelCardNumber ?? "",
+    fuelOnly: car.fuelOnly,
   };
 }
 
@@ -103,7 +107,7 @@ function computeNextDate(dateStr: string | null, months: number | null): string 
 export default function CarsPage() {
   const { t } = useLanguage();
   const [cars, setCars] = useState<Car[]>([]);
-  const [form, setForm] = useState({ makeModel: "", licensePlate: "" });
+  const [form, setForm] = useState({ makeModel: "", licensePlate: "", fuelOnly: false });
   const [error, setError] = useState("");
   const [savedCarId, setSavedCarId] = useState<number | null>(null);
   const [expandedCarId, setExpandedCarId] = useState<number | null>(null);
@@ -148,7 +152,7 @@ export default function CarsPage() {
       setError(body.error ?? "Could not add car.");
       return;
     }
-    setForm({ makeModel: "", licensePlate: "" });
+    setForm({ makeModel: "", licensePlate: "", fuelOnly: false });
     await loadCars();
   }
 
@@ -193,6 +197,8 @@ export default function CarsPage() {
       insuranceIntervalMonths: draft.insuranceIntervalMonths || null,
       inspectionDate: draft.inspectionDate || null,
       inspectionIntervalMonths: draft.inspectionIntervalMonths || null,
+      fuelCardNumber: draft.fuelCardNumber || null,
+      fuelOnly: draft.fuelOnly,
     };
 
     const response = await fetch(`/api/cars/${car.id}`, {
@@ -310,6 +316,15 @@ export default function CarsPage() {
               {t("add")}
             </button>
           </div>
+          <label className="col-span-full flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.fuelOnly}
+              onChange={(e) => setForm((c) => ({ ...c, fuelOnly: e.target.checked }))}
+              className="rounded border-slate-300"
+            />
+            {t("fuelOnlyMode")}
+          </label>
         </form>
 
         {error ? (
@@ -393,6 +408,11 @@ export default function CarsPage() {
                               }
                               value={car.makeModel}
                             />
+                            {car.fuelOnly && (
+                              <span className="mt-1 inline-block text-xs font-medium text-purple-600 bg-purple-50 border border-purple-200 rounded px-1.5 py-0.5">
+                                Fuel Only
+                              </span>
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             <input
@@ -629,6 +649,31 @@ export default function CarsPage() {
                                       </div>
                                     </div>
                                   )}
+                                </div>
+                              </div>
+
+                              {/* Fuel card number + fuelOnly */}
+                              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                                <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">{t("fuelCardNumber")}</h4>
+                                <div className="grid gap-3">
+                                  <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+                                    {t("cardNumber")}
+                                    <input
+                                      className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-mono outline-none focus:border-violet-500"
+                                      type="text" placeholder="e.g. 1234567890"
+                                      value={draft.fuelCardNumber}
+                                      onChange={(e) => updateDraft(car.id, "fuelCardNumber", e.target.value)}
+                                    />
+                                  </label>
+                                  <label className="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={draft.fuelOnly}
+                                      onChange={(e) => setMaintenanceDrafts((prev) => ({ ...prev, [car.id]: { ...prev[car.id], fuelOnly: e.target.checked } }))}
+                                      className="rounded border-slate-300"
+                                    />
+                                    {t("fuelOnlyMode")}
+                                  </label>
                                 </div>
                               </div>
 
