@@ -250,6 +250,7 @@ const dictionaries: Record<Language, Dictionary> = {
     cardNumber: "Kart nömrəsi",
     fuelCardNumber: "Yanacaq kartı nömrəsi",
     byCardNumber: "Kart nömrəsinə görə",
+    fuelOnlyMode: "Yalnız yanacaq izləməsi (davamiyyət siyahısında görünməz)",
   },
   en: {
     language: "Language",
@@ -493,6 +494,7 @@ const dictionaries: Record<Language, Dictionary> = {
     cardNumber: "Card No.",
     fuelCardNumber: "Fuel Card Number",
     byCardNumber: "By Card Number",
+    fuelOnlyMode: "Fuel monitoring only (won't appear in attendance dropdown)",
   },
   ru: {
     language: "Язык",
@@ -736,6 +738,7 @@ const dictionaries: Record<Language, Dictionary> = {
     cardNumber: "Номер карты",
     fuelCardNumber: "Номер топливной карты",
     byCardNumber: "По номеру карты",
+    fuelOnlyMode: "Только мониторинг топлива (не появится в списке посещаемости)",
   },
 };
 

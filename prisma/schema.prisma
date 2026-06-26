@@ -162,6 +162,7 @@ model Car {
   inspectionIntervalMonths Int?
 
   fuelCardNumber String?
+  fuelOnly       Boolean @default(false)
 
   records            AttendanceRecord[]
   maintenanceRecords CarMaintenanceRecord[]

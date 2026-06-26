@@ -889,7 +889,7 @@ function AttendanceModal({
                     value={carId}
                   >
                     <option value="">{t("selectCar")}</option>
-                    {cars.map((car) => (
+                    {cars.filter((car) => !car.fuelOnly).map((car) => (
                       <option key={car.id} value={car.id}>
                         {car.makeModel} - {car.licensePlate}
                       </option>
