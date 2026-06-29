@@ -87,15 +87,7 @@ export default function ReportsPage() {
   const [holiday, setHoliday] = useState("all");
   const [report, setReport] = useState<FilteredReport | null>(null);
   const [error, setError] = useState("");
-  const [prices, setPrices] = useState<Prices>(() => {
-    if (typeof window === "undefined") return DEFAULT_PRICES;
-    try {
-      const saved = localStorage.getItem("catering_prices");
-      return saved ? (JSON.parse(saved) as Prices) : DEFAULT_PRICES;
-    } catch {
-      return DEFAULT_PRICES;
-    }
-  });
+  const [prices, setPrices] = useState<Prices>(DEFAULT_PRICES);
 
   const [expandedCookEmployees, setExpandedCookEmployees] = useState<Set<number>>(new Set());
 
@@ -118,10 +110,14 @@ export default function ReportsPage() {
     if (!res.ok) updateRecord(recordId, { cookedPaid: currentPaid });
   }
 
-  function updatePrice(key: keyof Prices, value: number) {
+  async function updatePrice(key: keyof Prices, value: number) {
     const next = { ...prices, [key]: Math.max(0, value) };
     setPrices(next);
-    localStorage.setItem("catering_prices", JSON.stringify(next));
+    await fetch("/api/settings/cook-prices", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(next),
+    });
   }
 
   const departments = useMemo(
@@ -271,6 +267,12 @@ export default function ReportsPage() {
 
     setReport(await res.json());
   }, [carId, department, employeeId, from, holiday, location, status, to, weekend]);
+
+  useEffect(() => {
+    void fetch("/api/settings/cook-prices")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data) setPrices(data as Prices); });
+  }, []);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -666,7 +668,7 @@ export default function ReportsPage() {
                             <input
                               className="w-16 rounded border border-teal-300 bg-white px-2 py-1 text-right text-sm font-semibold text-teal-900 focus:outline-none focus:border-teal-500"
                               min={0}
-                              onChange={(e) => updatePrice(key, Number(e.target.value))}
+                              onChange={(e) => void updatePrice(key, Number(e.target.value))}
                               type="number"
                               value={prices[key]}
                             />
