@@ -215,6 +215,12 @@ model StatusColor {
   updatedAt DateTime @updatedAt
 }
 
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
 model AttendanceRecord {
   id              Int              @id @default(autoincrement())
   employeeId      Int

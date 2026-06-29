@@ -2,7 +2,7 @@ import { AttendanceStatus, Prisma } from "@prisma/client";
 import { addMonths, differenceInDays, isWeekend } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { dateRangeWhere, toApiDateKey } from "@/lib/dates";
-import { cateringCostForHeadcount, DEFAULT_PRICES } from "./catering";
+import { cateringCostForHeadcount, DEFAULT_PRICES, type Prices } from "./catering";
 
 type DateSeverity = "ok" | "warning" | "overdue";
 
@@ -288,20 +288,31 @@ async function getEmployeeAbsences(input: Record<string, unknown>) {
   return { year, absences: result };
 }
 
+async function getGlobalCookPrices(): Promise<Prices> {
+  try {
+    const row = await prisma.appSetting.findUnique({ where: { key: "cook_prices" } });
+    if (row) return JSON.parse(row.value) as Prices;
+  } catch { /* fall through */ }
+  return DEFAULT_PRICES;
+}
+
 async function getCookReport(input: Record<string, unknown>) {
   const from = String(input.from);
   const to = String(input.to);
   const employeeId = input.employeeId ? Number(input.employeeId) : undefined;
 
-  const records = await prisma.attendanceRecord.findMany({
-    where: {
-      date: dateRangeWhere(from, to),
-      cookedHeadcount: { gt: 0 },
-      ...(employeeId ? { employeeId } : {}),
-    },
-    include: { employee: true },
-    orderBy: [{ date: "asc" }, { employee: { name: "asc" } }],
-  });
+  const [records, prices] = await Promise.all([
+    prisma.attendanceRecord.findMany({
+      where: {
+        date: dateRangeWhere(from, to),
+        cookedHeadcount: { gt: 0 },
+        ...(employeeId ? { employeeId } : {}),
+      },
+      include: { employee: true },
+      orderBy: [{ date: "asc" }, { employee: { name: "asc" } }],
+    }),
+    getGlobalCookPrices(),
+  ]);
 
   const grouped = new Map<
     number,
@@ -317,7 +328,7 @@ async function getCookReport(input: Record<string, unknown>) {
 
   for (const r of records) {
     const headcount = r.cookedHeadcount ?? 0;
-    const cost = cateringCostForHeadcount(headcount, DEFAULT_PRICES);
+    const cost = cateringCostForHeadcount(headcount, prices);
     const existing = grouped.get(r.employeeId) ?? {
       employeeId: r.employeeId,
       employeeName: r.employee.name,
@@ -351,7 +362,7 @@ async function getCookReport(input: Record<string, unknown>) {
     grandTotal,
     grandPaid,
     grandUnpaid,
-    pricingTiers: DEFAULT_PRICES,
+    pricingTiers: prices,
   };
 }
 
