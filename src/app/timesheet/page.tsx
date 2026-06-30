@@ -70,6 +70,7 @@ export default function TimesheetPage() {
   const [activeCell, setActiveCell] = useState<ActiveCell | null>(null);
   const [employeeForm, setEmployeeForm] = useState({ name: "", department: "" });
   const [loading, setLoading] = useState(true);
+  const isInitialLoadRef = useRef(true);
   const [error, setError] = useState("");
   const [collapsedDepts, setCollapsedDepts] = useState<Set<string>>(new Set());
   const [confirmFillDate, setConfirmFillDate] = useState<string | null>(null);
@@ -132,7 +133,7 @@ export default function TimesheetPage() {
   }, [statusColors]);
 
   const loadData = useCallback(async () => {
-    setLoading(true);
+    if (isInitialLoadRef.current) setLoading(true);
     setError("");
 
     try {
@@ -172,12 +173,16 @@ export default function TimesheetPage() {
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Could not load timesheet data.");
     } finally {
-      setLoading(false);
+      if (isInitialLoadRef.current) {
+        isInitialLoadRef.current = false;
+        setLoading(false);
+      }
     }
   }, [from, to]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    isInitialLoadRef.current = true;
+    hasScrolledRef.current = false;
     void loadData();
   }, [loadData]);
 
