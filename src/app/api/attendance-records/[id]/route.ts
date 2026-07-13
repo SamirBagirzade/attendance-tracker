@@ -53,6 +53,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
 
     const body = await request.json();
+    // If body doesn't set carDriven but existing record has carDriven=true with a null carId
+    // (car was deleted via onDelete:SetNull), treat as carDriven=false to avoid validation error
+    const resolvedCarDriven =
+      body.carDriven !== undefined
+        ? body.carDriven
+        : existing.carDriven && existing.carId !== null;
     const input = normalizeAttendanceInput({
       employeeId: body.employeeId ?? existing.employeeId,
       date: body.date ?? existing.date,
@@ -62,7 +68,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       cookedPaid: body.cookedPaid ?? existing.cookedPaid,
       workLocationIds: body.workLocationIds,
       newWorkLocationNames: body.newWorkLocationNames,
-      carDriven: body.carDriven ?? existing.carDriven,
+      carDriven: resolvedCarDriven,
       carId: body.carId ?? existing.carId,
       note: body.note ?? existing.note,
     });
