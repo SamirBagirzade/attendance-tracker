@@ -1,4 +1,11 @@
-import { format, startOfDay } from "date-fns";
+import { format } from "date-fns";
+
+// Normalize to noon UTC so @db.Date truncation never shifts the calendar day,
+// regardless of server timezone (startOfDay in local TZ east of UTC moved
+// UTC-midnight dates back one day).
+function utcNoon(year: number, monthIndex: number, day: number) {
+  return new Date(Date.UTC(year, monthIndex, day, 12));
+}
 
 export function parseCalendarDate(value: string | Date, fieldName = "date") {
   if (value instanceof Date) {
@@ -6,14 +13,14 @@ export function parseCalendarDate(value: string | Date, fieldName = "date") {
       throw new Error(`${fieldName} must be a valid date.`);
     }
 
-    return startOfDay(value);
+    return utcNoon(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate());
   }
 
   const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
 
   if (dateOnlyMatch) {
     const [, year, month, day] = dateOnlyMatch;
-    return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), 12));
+    return utcNoon(Number(year), Number(month) - 1, Number(day));
   }
 
   const date = new Date(value);
@@ -22,7 +29,7 @@ export function parseCalendarDate(value: string | Date, fieldName = "date") {
     throw new Error(`${fieldName} must be a valid date.`);
   }
 
-  return startOfDay(date);
+  return utcNoon(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
 }
 
 export function parseDateParam(value: string, fieldName: string) {
