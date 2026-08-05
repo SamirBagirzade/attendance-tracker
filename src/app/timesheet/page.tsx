@@ -518,7 +518,7 @@ export default function TimesheetPage() {
                                 {record?.note ? (
                                   <>
                                     <span className="pointer-events-none absolute left-1 top-1 z-10 text-amber-500">
-                                      <AlertTriangle fill="currentColor" size={13} stroke="white" strokeWidth={1.5} />
+                                      <AlertTriangle fill="currentColor" size={18} stroke="white" strokeWidth={1.5} />
                                     </span>
                                     <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-1 hidden w-max max-w-xs -translate-x-1/2 rounded-md bg-slate-900 px-3 py-2 text-sm font-normal leading-snug text-white shadow-lg group-hover:block">
                                       {record.note}
