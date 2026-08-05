@@ -511,23 +511,25 @@ export default function TimesheetPage() {
 
                             return (
                               <td
-                                className={`relative border-r border-slate-100 p-1 ${base}`}
+                                className={`group relative border-r border-slate-100 p-1 ${base}`}
                                 key={dateKey}
                                 style={{ minWidth: cellWidth, width: cellWidth }}
                               >
                                 {record?.note ? (
-                                  <span
-                                    className="pointer-events-none absolute left-1 top-1 z-10 text-amber-500"
-                                    title={record.note}
-                                  >
-                                    <AlertTriangle className="pointer-events-auto" fill="currentColor" size={13} stroke="white" strokeWidth={1.5} />
-                                  </span>
+                                  <>
+                                    <span className="pointer-events-none absolute left-1 top-1 z-10 text-amber-500">
+                                      <AlertTriangle fill="currentColor" size={13} stroke="white" strokeWidth={1.5} />
+                                    </span>
+                                    <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-1 hidden w-max max-w-xs -translate-x-1/2 rounded-md bg-slate-900 px-3 py-2 text-sm font-normal leading-snug text-white shadow-lg group-hover:block">
+                                      {record.note}
+                                    </div>
+                                  </>
                                 ) : null}
                                 <button
                                   className="flex min-h-14 w-full flex-col items-center justify-center rounded-md border border-transparent px-1 py-1 text-center text-xs font-semibold text-slate-800 hover:border-slate-300 hover:bg-white"
                                   onClick={() => openCell(employee, dateKey)}
                                   style={statusColor ? { backgroundColor: statusColor } : undefined}
-                                  title={record?.note ? `${employee.name} ${dateKey}\n${t("note")}: ${record.note}` : `${employee.name} ${dateKey}`}
+                                  title={record?.note ? undefined : `${employee.name} ${dateKey}`}
                                   type="button"
                                 >
                                   <span className="max-w-full truncate">{statusText}</span>
