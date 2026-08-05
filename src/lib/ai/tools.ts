@@ -4,7 +4,7 @@ export const toolDefinitions: Anthropic.Tool[] = [
   {
     name: "get_attendance_summary",
     description:
-      "Query attendance records for a date range. Returns summary counts by status and individual records (capped at 100). Use for questions about who worked, absences, trip counts, car usage, weekend/holiday work, etc.",
+      "Query attendance records for a date range. Returns summary counts by status and individual records (capped at 100), including a free-text `note` field per record (remarks, injury details, explanations, etc. — may be null). Use for questions about who worked, absences, trip counts, car usage, weekend/holiday work, or notes/remarks left on a record.",
     input_schema: {
       type: "object",
       properties: {
