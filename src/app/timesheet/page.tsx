@@ -11,7 +11,7 @@ import {
 } from "date-fns";
 import type { Locale } from "date-fns";
 import { az, enUS, ru } from "date-fns/locale";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Flag, Plus, Printer, Trash2, Users, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Flag, Plus, Printer, Trash2, Users, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { statusKey, useLanguage } from "@/lib/i18n";
 import type {
@@ -511,15 +511,23 @@ export default function TimesheetPage() {
 
                             return (
                               <td
-                                className={`border-r border-slate-100 p-1 ${base}`}
+                                className={`relative border-r border-slate-100 p-1 ${base}`}
                                 key={dateKey}
                                 style={{ minWidth: cellWidth, width: cellWidth }}
                               >
+                                {record?.note ? (
+                                  <span
+                                    className="pointer-events-none absolute left-1 top-1 z-10 text-amber-500"
+                                    title={record.note}
+                                  >
+                                    <AlertTriangle className="pointer-events-auto" fill="currentColor" size={13} stroke="white" strokeWidth={1.5} />
+                                  </span>
+                                ) : null}
                                 <button
                                   className="flex min-h-14 w-full flex-col items-center justify-center rounded-md border border-transparent px-1 py-1 text-center text-xs font-semibold text-slate-800 hover:border-slate-300 hover:bg-white"
                                   onClick={() => openCell(employee, dateKey)}
                                   style={statusColor ? { backgroundColor: statusColor } : undefined}
-                                  title={`${employee.name} ${dateKey}`}
+                                  title={record?.note ? `${employee.name} ${dateKey}\n${t("note")}: ${record.note}` : `${employee.name} ${dateKey}`}
                                   type="button"
                                 >
                                   <span className="max-w-full truncate">{statusText}</span>
@@ -536,9 +544,6 @@ export default function TimesheetPage() {
                                   ) : null}
                                   {carText ? (
                                     <span className="max-w-full truncate text-[10px] font-medium text-slate-700">Car: {carText}</span>
-                                  ) : null}
-                                  {record?.note ? (
-                                    <span className="max-w-full truncate text-[10px] font-medium text-red-700">Note</span>
                                   ) : null}
                                 </button>
                               </td>
@@ -658,7 +663,7 @@ function AttendanceModal({
       newWorkLocationNames: status === "ISDE" ? newWorkLocationNames : [],
       carDriven: canSelectCar ? carDriven : false,
       carId: canSelectCar && carDriven ? Number(carId) : null,
-      note: status === "ISDE_XESARET" ? note : null,
+      note: note.trim() ? note.trim() : null,
       cookedHeadcount:
         status === "EZAMIYYET" && actedAsCook && cookedHeadcount
           ? Number(cookedHeadcount)
@@ -905,17 +910,15 @@ function AttendanceModal({
             </div>
           ) : null}
 
-          {status === "ISDE_XESARET" ? (
-            <label className="grid gap-1 text-sm font-medium text-slate-700">
-              {t("note")}
-              <textarea
-                className="min-h-24 rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
-                maxLength={1000}
-                onChange={(event) => setNote(event.target.value)}
-                value={note}
-              />
-            </label>
-          ) : null}
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
+            {t("note")}
+            <textarea
+              className="min-h-24 rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+              maxLength={1000}
+              onChange={(event) => setNote(event.target.value)}
+              value={note}
+            />
+          </label>
 
           {error ? (
             <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
