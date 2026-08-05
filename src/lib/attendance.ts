@@ -37,10 +37,7 @@ export function normalizeAttendanceInput(input: AttendanceRecordInput) {
       : [];
   const carDriven = carAllowedStatuses.has(input.status) && input.carDriven === true;
   const carId = carDriven ? Number(input.carId) : null;
-  const note =
-    input.status === "ISDE_XESARET" && typeof input.note === "string"
-      ? input.note.trim()
-      : null;
+  const note = typeof input.note === "string" ? input.note.trim() : null;
   const newWorkLocationNames =
     Array.isArray(input.newWorkLocationNames) && input.status === "ISDE"
       ? input.newWorkLocationNames
