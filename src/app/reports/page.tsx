@@ -17,7 +17,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import type { Alignment, Border, CellValue, Fill, Font, Row, Workbook, Worksheet } from "exceljs";
 import { AppShell } from "@/components/AppShell";
+import { parseCalendarDate } from "@/lib/dates";
 import { statusKey, useLanguage } from "@/lib/i18n";
 import type {
   AttendanceStatus,
@@ -430,109 +432,46 @@ export default function ReportsPage() {
   async function downloadExcel() {
     if (!report) return;
 
-    const XLSX = await import("xlsx");
-    const workbook = XLSX.utils.book_new();
+    const mod = await import("exceljs");
+    const ExcelJSLib = (mod as unknown as { default?: typeof mod }).default ?? mod;
+    const workbook = new ExcelJSLib.Workbook();
+    workbook.creator = "Attendance Tracker";
+    workbook.created = new Date();
 
-    XLSX.utils.book_append_sheet(
-      workbook,
-      XLSX.utils.aoa_to_sheet([
-        ["From", from],
-        ["To", to],
-        ["Employee", employeeLabel(employees, employeeId) || "All"],
-        ["Department", department || "All"],
-        ["Status", status ? t(statusKey(status)) : t("allStatuses")],
-        ["Location", location || t("allLocations")],
-        ["Car", carLabel(cars, carId) || t("allCars")],
-        ["Weekend", optionLabel(weekend)],
-        ["Holiday", optionLabel(holiday)],
-        ["Total Records", report.summary.totalRecords],
-        ["Unique Employees", report.summary.uniqueEmployees],
-        ["İşdə Days", report.summary.isdeDays],
-        ["Ezamiyyət Days", report.summary.ezamiyyetDays],
-        ["Cars Driven Days", report.summary.carsDrivenDays],
-        ["Weekend Worked", report.summary.weekendWorkedDays],
-        ["Holiday Worked", report.summary.holidayWorkedDays],
-        ["Total Catering Cost (₼)", totalCateringCost],
-        ["Catering Days", cateringDays.length],
-        ["Unique Locations", report.summary.uniqueLocations],
-      ]),
-      "Summary",
-    );
+    buildSummarySheet(workbook, {
+      from,
+      to,
+      filters: {
+        employee: employeeLabel(employees, employeeId) || t("allEmployees"),
+        department: department || t("allDepartments"),
+        status: status ? t(statusKey(status)) : t("allStatuses"),
+        location: location || t("allLocations"),
+        car: carLabel(cars, carId) || t("allCars"),
+        weekend: optionLabel(weekend),
+        holiday: optionLabel(holiday),
+      },
+      summary: report.summary,
+      catering: { total: totalCateringCost, paid: paidCateringCost, unpaid: unpaidCateringCost, days: cateringDays.length },
+      payments: { total: totalPaymentAmount, paid: totalPaymentPaid, unpaid: totalPaymentUnpaid },
+      debt: { given: totalAvansGiven, repaid: totalAvansRepaid, outstanding: totalAvansOutstanding },
+      t,
+    });
 
-    XLSX.utils.book_append_sheet(
-      workbook,
-      XLSX.utils.json_to_sheet(
-        cateringDays.map((d) => ({
-          Date: d.fullDate,
-          Headcount: d.cookedHeadcount,
-          "Cost (₼)": d.cost,
-        })),
-      ),
-      "Catering Cost",
-    );
+    buildByEmployeeSheet(workbook, byEmployee, employees, t);
+    buildCateringSheet(workbook, cateringDays, cateringByEmployee);
+    buildPaymentsSheet(workbook, paymentByEmployee, t);
+    buildDebtSheet(workbook, avansByEmployee);
+    buildByLocationSheet(workbook, byLocation, t);
+    buildRecordsSheet(workbook, exportRows(rows, t));
 
-    XLSX.utils.book_append_sheet(
-      workbook,
-      XLSX.utils.json_to_sheet(
-        byEmployee.map((item) => {
-          const emp = employees.find((e) => e.id === item.employeeId);
-          return {
-            Employee: item.employeeName,
-            Department: item.department,
-            Records: item.records,
-            "İşdə": item.isdeDays,
-            "Ezamiyyət": item.ezamiyyetDays,
-            ...statusCountsForExport(item.statusCounts, t),
-            "Weekend Worked": item.weekendWorkedDays,
-            "Holiday Worked": item.holidayWorkedDays,
-            "Cars Driven": item.carsDrivenDays,
-            [`Cooked 1 person (×₼${prices.tier1})`]: item.cookedTier1 || 0,
-            [`Cooked 2 people (×₼${prices.tier2})`]: item.cookedTier2 || 0,
-            [`Cooked 3 people (×₼${prices.tier3})`]: item.cookedTier3 || 0,
-            [`Cooked 4 people (×₼${prices.tier4})`]: item.cookedTier4 || 0,
-            [`Cooked 5+ people (×₼${prices.tier5plus})`]: item.cookedTier5plus || 0,
-            "Catering Cost (₼)": item.cateringCost,
-            "Bonus (₼)": item.paymentBonusTotal || 0,
-            "Ezam əlavə (₼)": item.paymentEzamElaveTotal || 0,
-            "Payments Total (₼)": item.paymentTotal || 0,
-            "Payments Paid (₼)": item.paymentPaidTotal || 0,
-            "Avans Given (₼)": item.avansGivenTotal || 0,
-            "Avans Repaid (₼)": item.avansRepaidTotal || 0,
-            "Avans Outstanding (₼)": item.avansOutstandingTotal || 0,
-            "Vacation Days (used)": item.statusCounts.MEZUNIYYET,
-            "Vacation Limit": emp?.vacationLimit ?? "",
-            "Sick Days (used)": item.statusCounts.XESTE,
-            "Sick Day Limit": emp?.sickLimit ?? "",
-          };
-        }),
-      ),
-      "By Employee",
-    );
-
-    XLSX.utils.book_append_sheet(
-      workbook,
-      XLSX.utils.json_to_sheet(
-        byLocation.map((item) => ({
-          Location: item.location,
-          Records: item.records,
-          "Unique Days": item.uniqueDays,
-          "Unique Employees": item.uniqueEmployees,
-          "İşdə": item.isdeDays,
-          "Ezamiyyət": item.ezamiyyetDays,
-          ...statusCountsForExport(item.statusCounts, t),
-          "Cars Driven": item.carsDrivenDays,
-        })),
-      ),
-      "By Location",
-    );
-
-    XLSX.utils.book_append_sheet(
-      workbook,
-      XLSX.utils.json_to_sheet(exportRows(rows, t)),
-      "Records",
-    );
-
-    XLSX.writeFile(workbook, `attendance_report_${from}_${to}.xlsx`);
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `attendance_report_${from}_${to}.xlsx`;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -1521,17 +1460,478 @@ function exportRows(rows: FilteredReportRow[], t: (key: string) => string) {
   }));
 }
 
-function emptyStatusCounts() {
-  return Object.fromEntries(statusOptions.map((s) => [s, 0])) as Record<AttendanceStatus, number>;
+// ---- Excel export: styling ----
+
+type SectionAccent = "general" | "catering" | "payments" | "debt";
+
+const ACCENT_FILL: Record<SectionAccent, Fill> = {
+  general: { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E293B" } }, // slate-800
+  catering: { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F766E" } }, // teal-700
+  payments: { type: "pattern", pattern: "solid", fgColor: { argb: "FF6D28D9" } }, // violet-700
+  debt: { type: "pattern", pattern: "solid", fgColor: { argb: "FFBE123C" } }, // rose-700
+};
+
+const BAND_FILL: Record<SectionAccent, Fill> = {
+  general: { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } }, // slate-100
+  catering: { type: "pattern", pattern: "solid", fgColor: { argb: "FFCCFBF1" } }, // teal-100
+  payments: { type: "pattern", pattern: "solid", fgColor: { argb: "FFEDE9FE" } }, // violet-100
+  debt: { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFE4E6" } }, // rose-100
+};
+
+const ZEBRA_FILL: Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } };
+const HEADER_FONT: Partial<Font> = { color: { argb: "FFFFFFFF" }, bold: true, size: 11 };
+const TITLE_FONT: Partial<Font> = { color: { argb: "FF0F172A" }, bold: true, size: 16 };
+const SUBTITLE_FONT: Partial<Font> = { color: { argb: "FF64748B" }, italic: true, size: 10 };
+const SECTION_FONT: Partial<Font> = { color: { argb: "FF0F172A" }, bold: true, size: 11 };
+const THIN: Partial<Border> = { style: "thin", color: { argb: "FFE2E8F0" } };
+const BORDER = { top: THIN, left: THIN, bottom: THIN, right: THIN };
+const CENTER: Partial<Alignment> = { vertical: "middle", horizontal: "center", wrapText: true };
+const MONEY_FMT = '"₼"#,##0.00';
+const DATE_FMT = "yyyy-mm-dd";
+
+function styleHeaderRow(row: Row, accent: SectionAccent = "general") {
+  row.eachCell((cell) => {
+    cell.fill = ACCENT_FILL[accent];
+    cell.font = HEADER_FONT;
+    cell.alignment = CENTER;
+    cell.border = BORDER;
+  });
+  row.height = 22;
 }
 
-function statusCountsForExport(
-  statusCounts: Record<AttendanceStatus, number>,
+function styleDataRow(row: Row, zebra: boolean) {
+  row.eachCell((cell) => {
+    cell.border = BORDER;
+    if (zebra) cell.fill = ZEBRA_FILL;
+  });
+}
+
+function autoWidth(ws: Worksheet, colCount: number, min = 10, max = 40) {
+  for (let i = 1; i <= colCount; i++) {
+    const col = ws.getColumn(i);
+    let w = min;
+    col.eachCell({ includeEmpty: false }, (cell) => {
+      const len = String(cell.value ?? "").length;
+      if (len > w) w = len;
+    });
+    col.width = Math.min(max, w + 2);
+  }
+}
+
+type ColumnDef = { header: string; key: string; type?: "money" | "date" };
+
+// Writes a header row + data rows starting at `startRow`. Returns the last row written.
+function addTable(
+  ws: Worksheet,
+  columns: ColumnDef[],
+  rows: Array<Record<string, unknown>>,
+  accent: SectionAccent,
+  startRow: number,
+  applyFilter = true,
+) {
+  const headerRow = ws.getRow(startRow);
+  columns.forEach((c, i) => {
+    headerRow.getCell(i + 1).value = c.header;
+  });
+  styleHeaderRow(headerRow, accent);
+
+  rows.forEach((r, i) => {
+    const row = ws.getRow(startRow + 1 + i);
+    columns.forEach((c, ci) => {
+      const cell = row.getCell(ci + 1);
+      const raw = r[c.key];
+      if (c.type === "date" && typeof raw === "string" && raw) {
+        // exceljs serializes Date via getTime() (UTC), so a local-midnight Date
+        // would shift a day in any non-UTC timezone. Noon UTC keeps the floor'd
+        // Excel serial date pinned to the intended calendar day everywhere.
+        cell.value = parseCalendarDate(raw);
+        cell.numFmt = DATE_FMT;
+      } else {
+        cell.value = raw as CellValue;
+        if (c.type === "money") cell.numFmt = MONEY_FMT;
+      }
+    });
+    styleDataRow(row, i % 2 === 1);
+  });
+
+  if (applyFilter) {
+    ws.autoFilter = { from: { row: startRow, column: 1 }, to: { row: startRow, column: columns.length } };
+  }
+
+  return startRow + rows.length;
+}
+
+// Title + subtitle banner used at the top of the Summary sheet.
+function addTitleBanner(ws: Worksheet, title: string, subtitle: string, spanCols: number) {
+  ws.mergeCells(1, 1, 1, spanCols);
+  const titleCell = ws.getCell(1, 1);
+  titleCell.value = title;
+  titleCell.font = TITLE_FONT;
+  titleCell.alignment = { vertical: "middle" };
+  ws.getRow(1).height = 28;
+
+  ws.mergeCells(2, 1, 2, spanCols);
+  const subtitleCell = ws.getCell(2, 1);
+  subtitleCell.value = subtitle;
+  subtitleCell.font = SUBTITLE_FONT;
+  ws.getRow(2).height = 18;
+
+  return 4; // next free row
+}
+
+// A labeled section of key/value pairs (two columns), with a colored band header.
+function addKeyValueSection(
+  ws: Worksheet,
+  title: string,
+  pairs: Array<[string, string | number]>,
+  accent: SectionAccent,
+  startRow: number,
+) {
+  ws.mergeCells(startRow, 1, startRow, 2);
+  const bandCell = ws.getCell(startRow, 1);
+  bandCell.value = title;
+  bandCell.font = SECTION_FONT;
+  bandCell.fill = BAND_FILL[accent];
+  bandCell.alignment = { vertical: "middle" };
+  ws.getRow(startRow).height = 20;
+  ws.getRow(startRow).eachCell((cell) => { cell.border = BORDER; });
+
+  pairs.forEach(([label, value], i) => {
+    const row = ws.getRow(startRow + 1 + i);
+    const labelCell = row.getCell(1);
+    labelCell.value = label;
+    labelCell.font = { bold: true, color: { argb: "FF334155" } };
+    const valueCell = row.getCell(2);
+    valueCell.value = value;
+    styleDataRow(row, i % 2 === 1);
+  });
+
+  return startRow + 1 + pairs.length + 1; // +1 blank row after section
+}
+
+function buildSummarySheet(
+  workbook: Workbook,
+  args: {
+    from: string;
+    to: string;
+    filters: Record<"employee" | "department" | "status" | "location" | "car" | "weekend" | "holiday", string>;
+    summary: FilteredReport["summary"];
+    catering: { total: number; paid: number; unpaid: number; days: number };
+    payments: { total: number; paid: number; unpaid: number };
+    debt: { given: number; repaid: number; outstanding: number };
+    t: (key: string) => string;
+  },
+) {
+  const ws = workbook.addWorksheet("Summary", { properties: { tabColor: { argb: "FF1E293B" } } });
+  ws.getColumn(1).width = 26;
+  ws.getColumn(2).width = 30;
+
+  let row = addTitleBanner(ws, "Attendance Report", `${args.from} – ${args.to}`, 2);
+
+  row = addKeyValueSection(
+    ws,
+    "Filters",
+    [
+      ["Employee", args.filters.employee],
+      ["Department", args.filters.department],
+      ["Status", args.filters.status],
+      ["Location", args.filters.location],
+      ["Car", args.filters.car],
+      ["Weekend", args.filters.weekend],
+      ["Holiday", args.filters.holiday],
+    ],
+    "general",
+    row,
+  );
+
+  row = addKeyValueSection(
+    ws,
+    "Attendance",
+    [
+      ["Total Records", args.summary.totalRecords],
+      ["Unique Employees", args.summary.uniqueEmployees],
+      ["İşdə Days", args.summary.isdeDays],
+      ["Ezamiyyət Days", args.summary.ezamiyyetDays],
+      ["Cars Driven Days", args.summary.carsDrivenDays],
+      ["Weekend Worked", args.summary.weekendWorkedDays],
+      ["Holiday Worked", args.summary.holidayWorkedDays],
+      ["Unique Locations", args.summary.uniqueLocations],
+    ],
+    "general",
+    row,
+  );
+
+  row = addKeyValueSection(
+    ws,
+    "Catering",
+    [
+      ["Total Cost (₼)", args.catering.total],
+      ["Paid (₼)", args.catering.paid],
+      ["Unpaid (₼)", args.catering.unpaid],
+      ["Catering Days", args.catering.days],
+    ],
+    "catering",
+    row,
+  );
+
+  row = addKeyValueSection(
+    ws,
+    "Payments (Bonus / Ezam əlavə)",
+    [
+      ["Total (₼)", args.payments.total],
+      ["Paid (₼)", args.payments.paid],
+      ["Unpaid (₼)", args.payments.unpaid],
+    ],
+    "payments",
+    row,
+  );
+
+  addKeyValueSection(
+    ws,
+    "Employee Debt (Avans)",
+    [
+      ["Given (₼)", args.debt.given],
+      ["Repaid (₼)", args.debt.repaid],
+      ["Outstanding (₼)", args.debt.outstanding],
+    ],
+    "debt",
+    row,
+  );
+}
+
+function buildByEmployeeSheet(
+  workbook: Workbook,
+  byEmployee: ReturnType<typeof groupByEmployee>,
+  employees: Employee[],
   t: (key: string) => string,
 ) {
-  return Object.fromEntries(
-    statusOptions.map((s) => [`Status – ${t(statusKey(s))}`, statusCounts[s]]),
+  const ws = workbook.addWorksheet("By Employee", {
+    views: [{ state: "frozen", xSplit: 2, ySplit: 1 }],
+    properties: { tabColor: { argb: "FF1E293B" } },
+  });
+
+  const statusCols: ColumnDef[] = statusOptions.map((s) => ({ header: t(statusKey(s)), key: `status_${s}` }));
+  const columns: ColumnDef[] = [
+    { header: "Employee", key: "employee" },
+    { header: "Department", key: "department" },
+    { header: "Records", key: "records" },
+    ...statusCols,
+    { header: "Weekend Worked", key: "weekendWorked" },
+    { header: "Holiday Worked", key: "holidayWorked" },
+    { header: "Cars Driven", key: "carsDriven" },
+    { header: "Vacation Used", key: "vacationUsed" },
+    { header: "Vacation Limit", key: "vacationLimit" },
+    { header: "Sick Used", key: "sickUsed" },
+    { header: "Sick Limit", key: "sickLimit" },
+  ];
+
+  const rows = byEmployee.map((item) => {
+    const emp = employees.find((e) => e.id === item.employeeId);
+    const statusValues = Object.fromEntries(
+      statusOptions.map((s) => [`status_${s}`, item.statusCounts[s]]),
+    );
+    return {
+      employee: item.employeeName,
+      department: item.department,
+      records: item.records,
+      ...statusValues,
+      weekendWorked: item.weekendWorkedDays,
+      holidayWorked: item.holidayWorkedDays,
+      carsDriven: item.carsDrivenDays,
+      vacationUsed: item.statusCounts.MEZUNIYYET,
+      vacationLimit: emp?.vacationLimit ?? "",
+      sickUsed: item.statusCounts.XESTE,
+      sickLimit: emp?.sickLimit ?? "",
+    };
+  });
+
+  addTable(ws, columns, rows, "general", 1);
+  autoWidth(ws, columns.length);
+  ws.getColumn(1).width = Math.max(ws.getColumn(1).width ?? 10, 20);
+}
+
+function buildCateringSheet(
+  workbook: Workbook,
+  cateringDays: Array<{ fullDate: string; cookedHeadcount: number; cost: number }>,
+  cateringByEmployee: CookGroup[],
+) {
+  const ws = workbook.addWorksheet("Catering", { properties: { tabColor: { argb: "FF0F766E" } } });
+
+  ws.getCell(1, 1).value = "Daily Cost";
+  ws.getCell(1, 1).font = SECTION_FONT;
+  ws.getRow(1).height = 20;
+
+  const dailyRows = cateringDays.map((d) => ({ date: d.fullDate, headcount: d.cookedHeadcount, cost: d.cost }));
+  let nextRow = addTable(
+    ws,
+    [
+      { header: "Date", key: "date", type: "date" },
+      { header: "Headcount", key: "headcount" },
+      { header: "Cost (₼)", key: "cost", type: "money" },
+    ],
+    dailyRows,
+    "catering",
+    2,
   );
+
+  nextRow += 2;
+  ws.getCell(nextRow, 1).value = "By Employee";
+  ws.getCell(nextRow, 1).font = SECTION_FONT;
+  ws.getRow(nextRow).height = 20;
+  nextRow += 1;
+
+  const empRows = cateringByEmployee.map((g) => ({
+    employee: g.employeeName,
+    sessions: g.sessions.length,
+    total: g.totalCost,
+    paid: g.paidCost,
+    unpaid: g.unpaidCost,
+  }));
+  addTable(
+    ws,
+    [
+      { header: "Employee", key: "employee" },
+      { header: "Sessions", key: "sessions" },
+      { header: "Total Cost (₼)", key: "total", type: "money" },
+      { header: "Paid (₼)", key: "paid", type: "money" },
+      { header: "Unpaid (₼)", key: "unpaid", type: "money" },
+    ],
+    empRows,
+    "catering",
+    nextRow,
+    false,
+  );
+
+  autoWidth(ws, 5);
+}
+
+function buildPaymentsSheet(workbook: Workbook, paymentByEmployee: PaymentGroup[], t: (key: string) => string) {
+  const ws = workbook.addWorksheet("Payments", { properties: { tabColor: { argb: "FF6D28D9" } } });
+
+  const rows = paymentByEmployee.map((g) => ({
+    employee: g.employeeName,
+    sessions: g.sessions.length,
+    bonus: g.byType.BONUS,
+    ezamElave: g.byType.EZAM_ELAVE,
+    total: g.totalAmount,
+    paid: g.totalPaid,
+    unpaid: Math.max(0, g.totalAmount - g.totalPaid),
+  }));
+
+  addTable(
+    ws,
+    [
+      { header: "Employee", key: "employee" },
+      { header: "Sessions", key: "sessions" },
+      { header: t(paymentTypeLabelKey.BONUS) + " (₼)", key: "bonus", type: "money" },
+      { header: t(paymentTypeLabelKey.EZAM_ELAVE) + " (₼)", key: "ezamElave", type: "money" },
+      { header: "Total (₼)", key: "total", type: "money" },
+      { header: "Paid (₼)", key: "paid", type: "money" },
+      { header: "Unpaid (₼)", key: "unpaid", type: "money" },
+    ],
+    rows,
+    "payments",
+    1,
+  );
+
+  autoWidth(ws, 7);
+}
+
+function buildDebtSheet(workbook: Workbook, avansByEmployee: AvansGroup[]) {
+  const ws = workbook.addWorksheet("Employee Debt", { properties: { tabColor: { argb: "FFBE123C" } } });
+
+  const rows = avansByEmployee.map((g) => ({
+    employee: g.employeeName,
+    sessions: g.sessions.length,
+    given: g.totalGiven,
+    repaid: g.totalRepaid,
+    outstanding: g.totalOutstanding,
+  }));
+
+  addTable(
+    ws,
+    [
+      { header: "Employee", key: "employee" },
+      { header: "Sessions", key: "sessions" },
+      { header: "Given (₼)", key: "given", type: "money" },
+      { header: "Repaid (₼)", key: "repaid", type: "money" },
+      { header: "Outstanding (₼)", key: "outstanding", type: "money" },
+    ],
+    rows,
+    "debt",
+    1,
+  );
+
+  autoWidth(ws, 5);
+}
+
+function buildByLocationSheet(
+  workbook: Workbook,
+  byLocation: ReturnType<typeof groupByLocation>,
+  t: (key: string) => string,
+) {
+  const ws = workbook.addWorksheet("By Location", {
+    views: [{ state: "frozen", xSplit: 1, ySplit: 1 }],
+    properties: { tabColor: { argb: "FF1E293B" } },
+  });
+
+  const statusCols: ColumnDef[] = statusOptions.map((s) => ({ header: t(statusKey(s)), key: `status_${s}` }));
+  const columns: ColumnDef[] = [
+    { header: "Location", key: "location" },
+    { header: "Records", key: "records" },
+    { header: "Unique Days", key: "uniqueDays" },
+    { header: "Unique Employees", key: "uniqueEmployees" },
+    ...statusCols,
+    { header: "Cars Driven", key: "carsDriven" },
+  ];
+
+  const rows = byLocation.map((item) => {
+    const statusValues = Object.fromEntries(
+      statusOptions.map((s) => [`status_${s}`, item.statusCounts[s]]),
+    );
+    return {
+      location: item.location,
+      records: item.records,
+      uniqueDays: item.uniqueDays,
+      uniqueEmployees: item.uniqueEmployees,
+      ...statusValues,
+      carsDriven: item.carsDrivenDays,
+    };
+  });
+
+  addTable(ws, columns, rows, "general", 1);
+  autoWidth(ws, columns.length);
+}
+
+function buildRecordsSheet(workbook: Workbook, rows: ReturnType<typeof exportRows>) {
+  const ws = workbook.addWorksheet("Records", {
+    views: [{ state: "frozen", xSplit: 2, ySplit: 1 }],
+    properties: { tabColor: { argb: "FF1E293B" } },
+  });
+
+  const columns: ColumnDef[] = [
+    { header: "Date", key: "Date", type: "date" },
+    { header: "Employee", key: "Employee" },
+    { header: "Department", key: "Department" },
+    { header: "Status", key: "Status" },
+    { header: "Location", key: "Location" },
+    { header: "Work Locations", key: "Work Locations" },
+    { header: "Car", key: "Car" },
+    { header: "Note", key: "Note" },
+    { header: "Payment", key: "Payment" },
+    { header: "Payment Amount (₼)", key: "Payment Amount (₼)", type: "money" },
+    { header: "Payment Paid (₼)", key: "Payment Paid (₼)", type: "money" },
+    { header: "Weekend", key: "Weekend" },
+    { header: "Holiday", key: "Holiday" },
+  ];
+
+  addTable(ws, columns, rows, "general", 1);
+  autoWidth(ws, columns.length);
+  ws.getColumn(2).width = Math.max(ws.getColumn(2).width ?? 10, 18);
+}
+
+function emptyStatusCounts() {
+  return Object.fromEntries(statusOptions.map((s) => [s, 0])) as Record<AttendanceStatus, number>;
 }
 
 function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
