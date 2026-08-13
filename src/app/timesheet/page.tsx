@@ -21,8 +21,17 @@ import type {
   Employee,
   Holiday,
   Location,
+  PaymentType,
   StatusColor,
 } from "@/types/domain";
+
+const paymentTypeValues: PaymentType[] = ["BONUS", "EZAM_ELAVE", "AVANS"];
+
+const paymentTypeLabelKey: Record<PaymentType, string> = {
+  BONUS: "paymentBonus",
+  EZAM_ELAVE: "paymentEzamElave",
+  AVANS: "paymentAvans",
+};
 
 const statusValues: AttendanceStatus[] = [
   "ISDE",
@@ -547,6 +556,11 @@ export default function TimesheetPage() {
                                   {carText ? (
                                     <span className="max-w-full truncate text-[10px] font-medium text-slate-700">Car: {carText}</span>
                                   ) : null}
+                                  {record?.paymentType ? (
+                                    <span className="max-w-full truncate text-[10px] font-medium text-purple-700">
+                                      {t(paymentTypeLabelKey[record.paymentType])}: ₼{record.paymentAmount}
+                                    </span>
+                                  ) : null}
                                 </button>
                               </td>
                             );
@@ -628,6 +642,12 @@ function AttendanceModal({
   const [carDriven, setCarDriven] = useState(Boolean(activeCell.record?.carDriven));
   const [carId, setCarId] = useState(activeCell.record?.carId?.toString() ?? "");
   const [note, setNote] = useState(activeCell.record?.note ?? "");
+  const [paymentType, setPaymentType] = useState<PaymentType | "">(
+    activeCell.record?.paymentType ?? "",
+  );
+  const [paymentAmount, setPaymentAmount] = useState(
+    activeCell.record?.paymentAmount?.toString() ?? "",
+  );
   const [error, setError] = useState("");
   const canSelectCar = carAllowedStatuses.has(status);
 
@@ -656,6 +676,12 @@ function AttendanceModal({
 
   async function saveAttendance() {
     setError("");
+
+    if (paymentType && !paymentAmount.trim()) {
+      setError(t("paymentAmountRequired"));
+      return;
+    }
+
     const payload = {
       employeeId: activeCell.employee.id,
       date: activeCell.dateKey,
@@ -666,6 +692,8 @@ function AttendanceModal({
       carDriven: canSelectCar ? carDriven : false,
       carId: canSelectCar && carDriven ? Number(carId) : null,
       note: note.trim() ? note.trim() : null,
+      paymentType: paymentType || null,
+      paymentAmount: paymentType && paymentAmount ? Number(paymentAmount) : null,
       cookedHeadcount:
         status === "EZAMIYYET" && actedAsCook && cookedHeadcount
           ? Number(cookedHeadcount)
@@ -723,7 +751,7 @@ function AttendanceModal({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, location, workLocationIds, newWorkLocationNames, actedAsCook, cookedHeadcount, cookedPaid, carDriven, carId, note]);
+  }, [status, location, workLocationIds, newWorkLocationNames, actedAsCook, cookedHeadcount, cookedPaid, carDriven, carId, note, paymentType, paymentAmount]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 px-4">
@@ -911,6 +939,36 @@ function AttendanceModal({
               ) : null}
             </div>
           ) : null}
+
+          <div className="grid grid-cols-2 gap-3">
+            <label className="grid gap-1 text-sm font-medium text-slate-700">
+              {t("payment")}
+              <select
+                className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-slate-500"
+                onChange={(event) => setPaymentType(event.target.value as PaymentType | "")}
+                value={paymentType}
+              >
+                <option value="">{t("paymentNone")}</option>
+                {paymentTypeValues.map((option) => (
+                  <option key={option} value={option}>
+                    {t(paymentTypeLabelKey[option])}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {paymentType ? (
+              <label className="grid gap-1 text-sm font-medium text-slate-700">
+                {t("paymentAmount")}
+                <input
+                  className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
+                  min={0}
+                  onChange={(event) => setPaymentAmount(event.target.value)}
+                  type="number"
+                  value={paymentAmount}
+                />
+              </label>
+            ) : null}
+          </div>
 
           <label className="grid gap-1 text-sm font-medium text-slate-700">
             {t("note")}

@@ -119,6 +119,8 @@ export async function GET(request: NextRequest) {
           carDriven: record.carDriven,
           car: record.car ? `${record.car.makeModel} - ${record.car.licensePlate}` : null,
           note: record.note,
+          paymentType: record.paymentType,
+          paymentAmount: record.paymentAmount,
           isWeekend: rowIsWeekend,
           isHoliday: rowIsHoliday,
           holidayDescription,

@@ -3,7 +3,7 @@
 import { Fragment, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { endOfMonth, format, startOfMonth } from "date-fns";
-import { Car, ChefHat, ChevronDown, ChevronRight, Download, Search, Users } from "lucide-react";
+import { Banknote, Car, ChefHat, ChevronDown, ChevronRight, Download, Search, Users } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -26,6 +26,7 @@ import type {
   FilteredReport,
   FilteredReportRow,
   Location,
+  PaymentType,
 } from "@/types/domain";
 
 const statusOptions: AttendanceStatus[] = [
@@ -63,6 +64,22 @@ type CookGroup = {
   unpaidCost: number;
 };
 
+const paymentTypeValues: PaymentType[] = ["BONUS", "EZAM_ELAVE", "AVANS"];
+
+const paymentTypeLabelKey: Record<PaymentType, string> = {
+  BONUS: "paymentBonus",
+  EZAM_ELAVE: "paymentEzamElave",
+  AVANS: "paymentAvans",
+};
+
+type PaymentGroup = {
+  employeeId: number;
+  employeeName: string;
+  sessions: Array<{ id: number; date: string; type: PaymentType; amount: number }>;
+  totalAmount: number;
+  byType: Record<PaymentType, number>;
+};
+
 const TIER_KEYS: Array<{ key: keyof Prices; label: string }> = [
   { key: "tier1", label: "1" },
   { key: "tier2", label: "2" },
@@ -90,6 +107,7 @@ export default function ReportsPage() {
   const [prices, setPrices] = useState<Prices>(DEFAULT_PRICES);
 
   const [expandedCookEmployees, setExpandedCookEmployees] = useState<Set<number>>(new Set());
+  const [expandedPaymentEmployees, setExpandedPaymentEmployees] = useState<Set<number>>(new Set());
 
   function updateRecord(id: number, updates: Partial<FilteredReportRow>) {
     setReport((prev) =>
@@ -215,6 +233,44 @@ export default function ReportsPage() {
     }
     return Array.from(grouped.values()).sort((a, b) => a.employeeName.localeCompare(b.employeeName));
   }, [cateringRecords]);
+
+  // Individual payment records for the breakdown table
+  const paymentRecords = useMemo(
+    () =>
+      rows
+        .filter((r) => r.paymentType != null && r.paymentAmount != null)
+        .map((r) => ({ ...r, type: r.paymentType as PaymentType, amount: r.paymentAmount as number })),
+    [rows],
+  );
+
+  const totalPaymentAmount = useMemo(
+    () => paymentRecords.reduce((s, r) => s + r.amount, 0),
+    [paymentRecords],
+  );
+
+  const paymentTotalsByType = useMemo(() => {
+    const totals: Record<PaymentType, number> = { BONUS: 0, EZAM_ELAVE: 0, AVANS: 0 };
+    for (const r of paymentRecords) totals[r.type] += r.amount;
+    return totals;
+  }, [paymentRecords]);
+
+  const paymentByEmployee = useMemo<PaymentGroup[]>(() => {
+    const grouped = new Map<number, PaymentGroup>();
+    for (const r of paymentRecords) {
+      const group = grouped.get(r.employeeId) ?? {
+        employeeId: r.employeeId,
+        employeeName: r.employeeName,
+        sessions: [],
+        totalAmount: 0,
+        byType: { BONUS: 0, EZAM_ELAVE: 0, AVANS: 0 },
+      };
+      group.sessions.push({ id: r.id, date: r.date, type: r.type, amount: r.amount });
+      group.totalAmount += r.amount;
+      group.byType[r.type] += r.amount;
+      grouped.set(r.employeeId, group);
+    }
+    return Array.from(grouped.values()).sort((a, b) => a.employeeName.localeCompare(b.employeeName));
+  }, [paymentRecords]);
 
   const statusChartData = useMemo(() => {
     if (!report) return [];
@@ -354,6 +410,10 @@ export default function ReportsPage() {
             [`Cooked 4 people (×₼${prices.tier4})`]: item.cookedTier4 || 0,
             [`Cooked 5+ people (×₼${prices.tier5plus})`]: item.cookedTier5plus || 0,
             "Catering Cost (₼)": item.cateringCost,
+            "Bonus (₼)": item.paymentBonusTotal || 0,
+            "Ezam əlavə (₼)": item.paymentEzamElaveTotal || 0,
+            "Avans (₼)": item.paymentAvansTotal || 0,
+            "Payments Total (₼)": item.paymentTotal || 0,
             "Vacation Days (used)": item.statusCounts.MEZUNIYYET,
             "Vacation Limit": emp?.vacationLimit ?? "",
             "Sick Days (used)": item.statusCounts.XESTE,
@@ -815,6 +875,98 @@ export default function ReportsPage() {
               </section>
             )}
 
+            {/* Payments section */}
+            {paymentRecords.length > 0 && (
+              <section className="grid gap-4 xl:grid-cols-3">
+                {/* Summary + by-type totals */}
+                <div className="flex flex-col gap-4 rounded-xl border border-purple-200 bg-purple-50 p-5 shadow-sm">
+                  <div className="flex items-center gap-2 text-purple-700">
+                    <Banknote size={20} />
+                    <h2 className="font-semibold">{t("payments")}</h2>
+                  </div>
+                  <div>
+                    <div className="text-4xl font-bold text-purple-900">₼{totalPaymentAmount}</div>
+                    <div className="mt-1 text-sm text-purple-600">
+                      {paymentRecords.length} {t("records")}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-purple-200 bg-white/60 p-3">
+                    <div className="space-y-2">
+                      {paymentTypeValues.map((type) => (
+                        <div key={type} className="flex items-center justify-between gap-2">
+                          <span className="text-sm text-purple-800">{t(paymentTypeLabelKey[type])}</span>
+                          <span className="text-sm font-semibold text-purple-900">₼{paymentTotalsByType[type]}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Per-employee payments table */}
+                <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
+                  <h2 className="font-semibold text-slate-950">{t("byEmployee")}</h2>
+                  <div className="overflow-x-auto rounded-lg border border-slate-100">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-slate-50">
+                        <tr>
+                          <th className="px-4 py-2.5 text-left font-medium text-slate-600">{t("employee")}</th>
+                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("records")}</th>
+                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("paymentsTotal")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paymentByEmployee.map((group) => {
+                          const isExpanded = expandedPaymentEmployees.has(group.employeeId);
+                          const toggle = () =>
+                            setExpandedPaymentEmployees((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(group.employeeId)) next.delete(group.employeeId);
+                              else next.add(group.employeeId);
+                              return next;
+                            });
+                          return (
+                            <Fragment key={group.employeeId}>
+                              <tr
+                                className="cursor-pointer border-t border-slate-100 hover:bg-slate-50"
+                                key={`group-${group.employeeId}`}
+                                onClick={toggle}
+                              >
+                                <td className="px-4 py-2.5 font-medium text-slate-800">
+                                  <span className="inline-flex items-center gap-1.5">
+                                    {group.sessions.length > 1 ? (
+                                      isExpanded ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />
+                                    ) : (
+                                      <span className="w-[14px]" />
+                                    )}
+                                    {group.employeeName}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2.5 text-right text-slate-700">{group.sessions.length}</td>
+                                <td className="px-4 py-2.5 text-right font-semibold text-purple-700">₼{group.totalAmount}</td>
+                              </tr>
+                              {isExpanded && group.sessions.map((s) => (
+                                <tr className="border-t border-slate-50 bg-slate-50/60" key={`session-${s.id}`}>
+                                  <td className="py-2 pl-10 pr-4 text-slate-500">{s.date}</td>
+                                  <td className="px-4 py-2 text-right text-slate-500">{t(paymentTypeLabelKey[s.type])}</td>
+                                  <td className="px-4 py-2 text-right text-purple-600">₼{s.amount}</td>
+                                </tr>
+                              ))}
+                            </Fragment>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot className="border-t-2 border-slate-200 bg-slate-50">
+                        <tr>
+                          <td className="px-4 py-2.5 font-semibold text-slate-900" colSpan={2}>{t("total")}</td>
+                          <td className="px-4 py-2.5 text-right font-bold text-purple-900">₼{totalPaymentAmount}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              </section>
+            )}
+
             {/* By Employee & By Location tables */}
             <section className="grid gap-4 xl:grid-cols-2">
               <BreakdownTable
@@ -837,6 +989,10 @@ export default function ReportsPage() {
                   t("cateringCost"),
                   t("cateringPaid"),
                   t("cateringUnpaid"),
+                  t(paymentTypeLabelKey.BONUS),
+                  t(paymentTypeLabelKey.EZAM_ELAVE),
+                  t(paymentTypeLabelKey.AVANS),
+                  t("paymentsTotal"),
                   t("statusMEZUNIYYET"),
                   t("statusXESTE"),
                 ]}
@@ -865,6 +1021,10 @@ export default function ReportsPage() {
                     item.cateringCost > 0 ? `₼${item.cateringCost}` : "-",
                     item.cookedPaidDays > 0 ? `${item.cookedPaidDays} day(s)` : "-",
                     item.cookedUnpaidDays > 0 ? `${item.cookedUnpaidDays} day(s)` : "-",
+                    item.paymentBonusTotal > 0 ? `₼${item.paymentBonusTotal}` : "-",
+                    item.paymentEzamElaveTotal > 0 ? `₼${item.paymentEzamElaveTotal}` : "-",
+                    item.paymentAvansTotal > 0 ? `₼${item.paymentAvansTotal}` : "-",
+                    item.paymentTotal > 0 ? `₼${item.paymentTotal}` : "-",
                     vacStr,
                     sickStr,
                   ];
@@ -1100,6 +1260,8 @@ function exportRows(rows: FilteredReportRow[], t: (key: string) => string) {
     "Work Locations": row.workLocations.join(", "),
     Car: row.carDriven ? (row.car ?? "Yes") : "",
     Note: row.note ?? "",
+    Payment: row.paymentType ? t(paymentTypeLabelKey[row.paymentType]) : "",
+    "Payment Amount (₼)": row.paymentAmount ?? "",
     Weekend: row.isWeekend ? "Yes" : "No",
     Holiday: row.holidayDescription ?? (row.isHoliday ? "Yes" : "No"),
   }));
@@ -1139,6 +1301,9 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
       cookedTier5plus: number;
       cookedPaidDays: number;
       cookedUnpaidDays: number;
+      paymentBonusTotal: number;
+      paymentEzamElaveTotal: number;
+      paymentAvansTotal: number;
     }
   >();
 
@@ -1161,6 +1326,9 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
       cookedTier5plus: 0,
       cookedPaidDays: 0,
       cookedUnpaidDays: 0,
+      paymentBonusTotal: 0,
+      paymentEzamElaveTotal: 0,
+      paymentAvansTotal: 0,
     };
 
     item.records += 1;
@@ -1179,6 +1347,11 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
       if (row.cookedPaid) item.cookedPaidDays += 1;
       else item.cookedUnpaidDays += 1;
     }
+    if (row.paymentType != null && row.paymentAmount != null) {
+      if (row.paymentType === "BONUS") item.paymentBonusTotal += row.paymentAmount;
+      else if (row.paymentType === "EZAM_ELAVE") item.paymentEzamElaveTotal += row.paymentAmount;
+      else if (row.paymentType === "AVANS") item.paymentAvansTotal += row.paymentAmount;
+    }
     grouped.set(row.employeeId, item);
   }
 
@@ -1190,7 +1363,8 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
       tierCost(3, item.cookedTier3) +
       tierCost(4, item.cookedTier4) +
       tierCost(5, item.cookedTier5plus);
-    return { ...item, cateringCost: totalCost };
+    const paymentTotal = item.paymentBonusTotal + item.paymentEzamElaveTotal + item.paymentAvansTotal;
+    return { ...item, cateringCost: totalCost, paymentTotal };
   });
 }
 
