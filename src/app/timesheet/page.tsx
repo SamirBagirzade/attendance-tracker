@@ -785,9 +785,9 @@ function AttendanceModal({
   }, [status, location, workLocationIds, newWorkLocationNames, actedAsCook, cookedHeadcount, cookedPaid, carDriven, carId, note, paymentType, paymentAmount, paymentPaid]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 px-4">
-      <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white shadow-xl">
-        <div className="flex items-start justify-between border-b border-slate-200 px-4 py-3">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 px-4 py-6">
+      <div className="flex max-h-full w-full max-w-md flex-col rounded-lg border border-slate-200 bg-white shadow-xl">
+        <div className="flex shrink-0 items-start justify-between border-b border-slate-200 px-4 py-3">
           <div>
             <h2 className="font-semibold text-slate-950">{activeCell.employee.name}</h2>
             <p className="text-sm text-slate-500">
@@ -803,7 +803,7 @@ function AttendanceModal({
             <X size={18} />
           </button>
         </div>
-        <div className="grid gap-4 px-4 py-4">
+        <div className="grid gap-4 overflow-y-auto px-4 py-4">
           <label className="grid gap-1 text-sm font-medium text-slate-700">
             {t("status")}
             <select
@@ -1029,7 +1029,7 @@ function AttendanceModal({
             </div>
           ) : null}
         </div>
-        <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3">
+        <div className="flex shrink-0 items-center justify-between border-t border-slate-200 px-4 py-3">
           <button
             className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
             onClick={deleteAttendance}
