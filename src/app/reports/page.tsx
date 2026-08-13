@@ -952,6 +952,9 @@ export default function ReportsPage() {
                         <tr>
                           <th className="px-4 py-2.5 text-left font-medium text-slate-600">{t("employee")}</th>
                           <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("records")}</th>
+                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t(paymentTypeLabelKey.BONUS)}</th>
+                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t(paymentTypeLabelKey.EZAM_ELAVE)}</th>
+                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t(paymentTypeLabelKey.AVANS)}</th>
                           <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("paymentsTotal")}</th>
                           <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("paymentsPaidTotal")}</th>
                         </tr>
@@ -984,13 +987,16 @@ export default function ReportsPage() {
                                   </span>
                                 </td>
                                 <td className="px-4 py-2.5 text-right text-slate-700">{group.sessions.length}</td>
+                                <td className="px-4 py-2.5 text-right text-slate-700">{group.byType.BONUS > 0 ? `₼${group.byType.BONUS}` : "–"}</td>
+                                <td className="px-4 py-2.5 text-right text-slate-700">{group.byType.EZAM_ELAVE > 0 ? `₼${group.byType.EZAM_ELAVE}` : "–"}</td>
+                                <td className="px-4 py-2.5 text-right text-slate-700">{group.byType.AVANS > 0 ? `₼${group.byType.AVANS}` : "–"}</td>
                                 <td className="px-4 py-2.5 text-right font-semibold text-purple-700">₼{group.totalAmount}</td>
                                 <td className="px-4 py-2.5 text-right font-semibold text-emerald-700">₼{group.totalPaid}</td>
                               </tr>
                               {isExpanded && group.sessions.map((s) => (
                                 <tr className="border-t border-slate-50 bg-slate-50/60" key={`session-${s.id}`}>
-                                  <td className="py-2 pl-10 pr-4 text-slate-500">{s.date}</td>
-                                  <td className="px-4 py-2 text-right text-slate-500">{t(paymentTypeLabelKey[s.type])}</td>
+                                  <td className="py-2 pl-10 pr-4 text-slate-500" colSpan={2}>{s.date}</td>
+                                  <td className="px-4 py-2 text-right text-slate-500" colSpan={3}>{t(paymentTypeLabelKey[s.type])}</td>
                                   <td className="px-4 py-2 text-right text-purple-600">₼{s.amount}</td>
                                   <td className="px-4 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                                     <div className="flex items-center justify-end gap-1">
@@ -1021,6 +1027,9 @@ export default function ReportsPage() {
                       <tfoot className="border-t-2 border-slate-200 bg-slate-50">
                         <tr>
                           <td className="px-4 py-2.5 font-semibold text-slate-900" colSpan={2}>{t("total")}</td>
+                          <td className="px-4 py-2.5 text-right font-bold text-purple-900">₼{paymentTotalsByType.BONUS}</td>
+                          <td className="px-4 py-2.5 text-right font-bold text-purple-900">₼{paymentTotalsByType.EZAM_ELAVE}</td>
+                          <td className="px-4 py-2.5 text-right font-bold text-purple-900">₼{paymentTotalsByType.AVANS}</td>
                           <td className="px-4 py-2.5 text-right font-bold text-purple-900">₼{totalPaymentAmount}</td>
                           <td className="px-4 py-2.5 text-right font-bold text-emerald-900">₼{totalPaymentPaid}</td>
                         </tr>
