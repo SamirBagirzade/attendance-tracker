@@ -141,8 +141,8 @@ export default function ReportsPage() {
     if (!res.ok) updateRecord(recordId, { cookedPaid: currentPaid });
   }
 
-  async function updatePaymentPaid(recordId: number, currentPaid: number, calculated: number, nextValue: number) {
-    const clamped = Math.max(0, Math.min(calculated, nextValue));
+  async function updatePaymentPaid(recordId: number, currentPaid: number, nextValue: number) {
+    const clamped = Math.max(0, nextValue);
     updateRecord(recordId, { paymentPaid: clamped });
     const res = await fetch(`/api/attendance-records/${recordId}`, {
       method: "PATCH",
@@ -1063,9 +1063,8 @@ export default function ReportsPage() {
                                         }`}
                                         defaultValue={s.paid}
                                         key={`${s.id}-${s.paid}`}
-                                        max={s.amount}
                                         min={0}
-                                        onBlur={(e) => void updatePaymentPaid(s.id, s.paid, s.amount, Number(e.target.value))}
+                                        onBlur={(e) => void updatePaymentPaid(s.id, s.paid, Number(e.target.value))}
                                         type="number"
                                       />
                                     </div>
@@ -1183,9 +1182,8 @@ export default function ReportsPage() {
                                         }`}
                                         defaultValue={s.repaid}
                                         key={`${s.id}-${s.repaid}`}
-                                        max={s.given}
                                         min={0}
-                                        onBlur={(e) => void updatePaymentPaid(s.id, s.repaid, s.given, Number(e.target.value))}
+                                        onBlur={(e) => void updatePaymentPaid(s.id, s.repaid, Number(e.target.value))}
                                         type="number"
                                       />
                                     </div>
