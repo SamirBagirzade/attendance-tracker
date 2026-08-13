@@ -283,7 +283,7 @@ export default function ReportsPage() {
   );
 
   const totalPaymentUnpaid = useMemo(
-    () => totalPaymentAmount - totalPaymentPaid,
+    () => Math.max(0, totalPaymentAmount - totalPaymentPaid),
     [totalPaymentAmount, totalPaymentPaid],
   );
 
@@ -321,7 +321,7 @@ export default function ReportsPage() {
         .map((r) => {
           const given = r.paymentAmount as number;
           const repaid = r.paymentPaid ?? 0;
-          return { ...r, given, repaid, outstanding: given - repaid };
+          return { ...r, given, repaid, outstanding: Math.max(0, given - repaid) };
         }),
     [rows],
   );
@@ -329,7 +329,7 @@ export default function ReportsPage() {
   const totalAvansGiven = useMemo(() => avansRecords.reduce((s, r) => s + r.given, 0), [avansRecords]);
   const totalAvansRepaid = useMemo(() => avansRecords.reduce((s, r) => s + r.repaid, 0), [avansRecords]);
   const totalAvansOutstanding = useMemo(
-    () => totalAvansGiven - totalAvansRepaid,
+    () => Math.max(0, totalAvansGiven - totalAvansRepaid),
     [totalAvansGiven, totalAvansRepaid],
   );
 
@@ -347,10 +347,11 @@ export default function ReportsPage() {
       group.sessions.push({ id: r.id, date: r.date, given: r.given, repaid: r.repaid, outstanding: r.outstanding });
       group.totalGiven += r.given;
       group.totalRepaid += r.repaid;
-      group.totalOutstanding += r.outstanding;
       grouped.set(r.employeeId, group);
     }
-    return Array.from(grouped.values()).sort((a, b) => a.employeeName.localeCompare(b.employeeName));
+    return Array.from(grouped.values())
+      .map((group) => ({ ...group, totalOutstanding: Math.max(0, group.totalGiven - group.totalRepaid) }))
+      .sort((a, b) => a.employeeName.localeCompare(b.employeeName));
   }, [avansRecords]);
 
   const statusChartData = useMemo(() => {
@@ -1626,7 +1627,7 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
       tierCost(4, item.cookedTier4) +
       tierCost(5, item.cookedTier5plus);
     const paymentTotal = item.paymentBonusTotal + item.paymentEzamElaveTotal;
-    const avansOutstandingTotal = item.avansGivenTotal - item.avansRepaidTotal;
+    const avansOutstandingTotal = Math.max(0, item.avansGivenTotal - item.avansRepaidTotal);
     return { ...item, cateringCost: totalCost, paymentTotal, avansOutstandingTotal };
   });
 }
