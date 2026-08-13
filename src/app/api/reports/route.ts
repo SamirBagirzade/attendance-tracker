@@ -121,6 +121,7 @@ export async function GET(request: NextRequest) {
           note: record.note,
           paymentType: record.paymentType,
           paymentAmount: record.paymentAmount,
+          paymentPaid: record.paymentPaid,
           isWeekend: rowIsWeekend,
           isHoliday: rowIsHoliday,
           holidayDescription,

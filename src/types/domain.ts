@@ -60,6 +60,7 @@ export type AttendanceRecord = {
   note: string | null;
   paymentType: PaymentType | null;
   paymentAmount: number | null;
+  paymentPaid: number | null;
 };
 
 export type Location = {
@@ -139,6 +140,7 @@ export type FilteredReportRow = {
   note: string | null;
   paymentType: PaymentType | null;
   paymentAmount: number | null;
+  paymentPaid: number | null;
   isWeekend: boolean;
   isHoliday: boolean;
   holidayDescription: string | null;

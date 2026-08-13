@@ -243,6 +243,7 @@ model AttendanceRecord {
   note            String?
   paymentType     PaymentType?
   paymentAmount   Float?
+  paymentPaid     Float?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

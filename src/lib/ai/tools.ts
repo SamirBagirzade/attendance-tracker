@@ -4,7 +4,7 @@ export const toolDefinitions: Anthropic.Tool[] = [
   {
     name: "get_attendance_summary",
     description:
-      "Query attendance records for a date range. Returns summary counts by status and individual records (capped at 100), including a free-text `note` field per record (remarks, injury details, explanations, etc. — may be null) and payment fields `paymentType` (BONUS, EZAM_ELAVE, or AVANS — null if none) and `paymentAmount` (₼ value, null if none). Use for questions about who worked, absences, trip counts, car usage, weekend/holiday work, notes/remarks, or bonus/travel-allowance/advance payments.",
+      "Query attendance records for a date range. Returns summary counts by status and individual records (capped at 100), including a free-text `note` field per record (remarks, injury details, explanations, etc. — may be null) and payment fields `paymentType` (BONUS, EZAM_ELAVE, or AVANS — null if none), `paymentAmount` (calculated ₼ value, null if none), and `paymentPaid` (₼ actually paid so far — may be less than paymentAmount for a partial payment, null if no payment type). Use for questions about who worked, absences, trip counts, car usage, weekend/holiday work, notes/remarks, or bonus/travel-allowance/advance payments and whether they're paid.",
     input_schema: {
       type: "object",
       properties: {

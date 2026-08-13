@@ -91,6 +91,7 @@ async function getAttendanceSummary(input: Record<string, unknown>) {
       note: r.note,
       paymentType: r.paymentType,
       paymentAmount: r.paymentAmount,
+      paymentPaid: r.paymentPaid,
       isWeekend: isWeekend(r.date),
       isHoliday: Boolean(holidayDesc),
       holidayDescription: holidayDesc,

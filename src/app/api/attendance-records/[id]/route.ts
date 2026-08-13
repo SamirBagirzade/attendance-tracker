@@ -73,6 +73,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       note: body.note ?? existing.note,
       paymentType: body.paymentType !== undefined ? body.paymentType : existing.paymentType,
       paymentAmount: body.paymentAmount !== undefined ? body.paymentAmount : existing.paymentAmount,
+      paymentPaid: body.paymentPaid !== undefined ? body.paymentPaid : existing.paymentPaid,
     });
 
     const record = await prisma.$transaction(async (tx) => {
@@ -101,6 +102,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           note: input.note,
           paymentType: input.paymentType,
           paymentAmount: input.paymentAmount,
+          paymentPaid: input.paymentPaid,
         },
       });
 
