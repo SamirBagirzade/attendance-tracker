@@ -47,8 +47,10 @@ export function normalizeAttendanceInput(input: AttendanceRecordInput) {
       ? (input.paymentType as PaymentType)
       : null;
   const paymentAmount =
-    paymentType != null && input.paymentAmount != null && input.paymentAmount !== ""
-      ? Number(input.paymentAmount)
+    paymentType != null
+      ? input.paymentAmount != null && input.paymentAmount !== ""
+        ? Number(input.paymentAmount)
+        : 0
       : null;
   const paymentPaid =
     paymentType != null
@@ -91,18 +93,19 @@ export function normalizeAttendanceInput(input: AttendanceRecordInput) {
     throw new Error("note must be 1000 characters or fewer.");
   }
 
-  if (paymentType != null && (paymentAmount == null || !Number.isFinite(paymentAmount) || paymentAmount <= 0)) {
-    throw new Error("paymentAmount must be a positive number when paymentType is set.");
+  if (paymentType != null && (paymentAmount == null || !Number.isFinite(paymentAmount) || paymentAmount < 0)) {
+    throw new Error("paymentAmount must be zero or a positive number when paymentType is set.");
   }
 
-  if (
-    paymentType != null &&
-    (paymentPaid == null ||
-      !Number.isFinite(paymentPaid) ||
-      paymentPaid < 0 ||
-      (paymentAmount != null && paymentPaid > paymentAmount))
-  ) {
-    throw new Error("paymentPaid must be between 0 and paymentAmount.");
+  // paymentPaid is not capped by this record's paymentAmount — payments accumulate
+  // across an interval (e.g. calculate 40/day for 5 days, then one entry of
+  // calculated=0, paid=200 to settle the running total).
+  if (paymentType != null && (paymentPaid == null || !Number.isFinite(paymentPaid) || paymentPaid < 0)) {
+    throw new Error("paymentPaid must be zero or a positive number.");
+  }
+
+  if (paymentType != null && paymentAmount === 0 && paymentPaid === 0) {
+    throw new Error("Enter a calculated amount or a paid amount.");
   }
 
   return {

@@ -33,18 +33,29 @@ const paymentTypeLabelKey: Record<PaymentType, string> = {
   AVANS: "paymentAvans",
 };
 
-function paymentBadgeColor(amount: number | null, paid: number | null) {
-  if (amount == null) return "text-slate-700";
+// Calculated amounts accumulate across an interval (e.g. 40/day for 5 days),
+// then a later record can settle the running total with calculated=0, paid=200.
+// So a record with no calculated amount but a paid amount is a pure payment entry.
+function paymentBadgeAmount(amount: number | null, paid: number | null) {
+  const calc = amount ?? 0;
   const paidAmount = paid ?? 0;
-  if (paidAmount >= amount) return "text-emerald-700";
+  return calc > 0 ? calc : paidAmount;
+}
+
+function paymentBadgeColor(amount: number | null, paid: number | null) {
+  const calc = amount ?? 0;
+  const paidAmount = paid ?? 0;
+  if (calc <= 0) return paidAmount > 0 ? "text-emerald-700" : "text-slate-700";
+  if (paidAmount >= calc) return "text-emerald-700";
   if (paidAmount > 0) return "text-amber-600";
   return "text-red-600";
 }
 
 function paymentBadgeIcon(amount: number | null, paid: number | null) {
-  if (amount == null) return "";
+  const calc = amount ?? 0;
   const paidAmount = paid ?? 0;
-  if (paidAmount >= amount) return "✓";
+  if (calc <= 0) return paidAmount > 0 ? "✓" : "●";
+  if (paidAmount >= calc) return "✓";
   if (paidAmount > 0) return "◐";
   return "●";
 }
@@ -574,7 +585,7 @@ export default function TimesheetPage() {
                                   ) : null}
                                   {record?.paymentType ? (
                                     <span className={`max-w-full truncate text-[10px] font-medium ${paymentBadgeColor(record.paymentAmount, record.paymentPaid)}`}>
-                                      {t(paymentTypeLabelKey[record.paymentType])}: ₼{record.paymentAmount} {paymentBadgeIcon(record.paymentAmount, record.paymentPaid)}
+                                      {t(paymentTypeLabelKey[record.paymentType])}: ₼{paymentBadgeAmount(record.paymentAmount, record.paymentPaid)} {paymentBadgeIcon(record.paymentAmount, record.paymentPaid)}
                                     </span>
                                   ) : null}
                                 </button>
@@ -662,7 +673,7 @@ function AttendanceModal({
     activeCell.record?.paymentType ?? "",
   );
   const [paymentAmount, setPaymentAmount] = useState(
-    activeCell.record?.paymentAmount?.toString() ?? "",
+    activeCell.record?.paymentAmount?.toString() ?? "0",
   );
   const [paymentPaid, setPaymentPaid] = useState(
     activeCell.record?.paymentPaid?.toString() ?? "0",
@@ -696,13 +707,8 @@ function AttendanceModal({
   async function saveAttendance() {
     setError("");
 
-    if (paymentType && !paymentAmount.trim()) {
-      setError(t("paymentAmountRequired"));
-      return;
-    }
-
-    if (paymentType && paymentAmount && Number(paymentPaid || "0") > Number(paymentAmount)) {
-      setError(t("paymentPaidTooHigh"));
+    if (paymentType && Number(paymentAmount || "0") <= 0 && Number(paymentPaid || "0") <= 0) {
+      setError(t("paymentValueRequired"));
       return;
     }
 
@@ -717,7 +723,7 @@ function AttendanceModal({
       carId: canSelectCar && carDriven ? Number(carId) : null,
       note: note.trim() ? note.trim() : null,
       paymentType: paymentType || null,
-      paymentAmount: paymentType && paymentAmount ? Number(paymentAmount) : null,
+      paymentAmount: paymentType ? Number(paymentAmount || "0") : null,
       paymentPaid: paymentType ? Number(paymentPaid || "0") : null,
       cookedHeadcount:
         status === "EZAMIYYET" && actedAsCook && cookedHeadcount
@@ -998,7 +1004,6 @@ function AttendanceModal({
                 {paymentType === "AVANS" ? t("paymentRepaidLabel") : t("paymentPaidLabel")}
                 <input
                   className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
-                  max={paymentAmount || undefined}
                   min={0}
                   onChange={(event) => setPaymentPaid(event.target.value)}
                   type="number"
