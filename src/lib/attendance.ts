@@ -1,4 +1,4 @@
-import { AttendanceStatus } from "@prisma/client";
+import { AttendanceStatus, PaymentType } from "@prisma/client";
 import { parseCalendarDate } from "@/lib/dates";
 
 export type AttendanceRecordInput = {
@@ -13,6 +13,8 @@ export type AttendanceRecordInput = {
   carDriven?: unknown;
   carId?: unknown;
   note?: unknown;
+  paymentType?: unknown;
+  paymentAmount?: unknown;
 };
 
 const carAllowedStatuses = new Set<AttendanceStatus>([
@@ -38,6 +40,15 @@ export function normalizeAttendanceInput(input: AttendanceRecordInput) {
   const carDriven = carAllowedStatuses.has(input.status) && input.carDriven === true;
   const carId = carDriven ? Number(input.carId) : null;
   const note = typeof input.note === "string" ? input.note.trim() : null;
+  const paymentType =
+    typeof input.paymentType === "string" &&
+    Object.values(PaymentType).includes(input.paymentType as PaymentType)
+      ? (input.paymentType as PaymentType)
+      : null;
+  const paymentAmount =
+    paymentType != null && input.paymentAmount != null && input.paymentAmount !== ""
+      ? Number(input.paymentAmount)
+      : null;
   const newWorkLocationNames =
     Array.isArray(input.newWorkLocationNames) && input.status === "ISDE"
       ? input.newWorkLocationNames
@@ -73,6 +84,10 @@ export function normalizeAttendanceInput(input: AttendanceRecordInput) {
     throw new Error("note must be 1000 characters or fewer.");
   }
 
+  if (paymentType != null && (paymentAmount == null || !Number.isFinite(paymentAmount) || paymentAmount <= 0)) {
+    throw new Error("paymentAmount must be a positive number when paymentType is set.");
+  }
+
   return {
     employeeId: input.employeeId,
     date,
@@ -85,5 +100,7 @@ export function normalizeAttendanceInput(input: AttendanceRecordInput) {
     carDriven,
     carId,
     note,
+    paymentType,
+    paymentAmount,
   };
 }

@@ -24,6 +24,12 @@ enum UserRole {
   VIEWER
 }
 
+enum PaymentType {
+  BONUS
+  EZAM_ELAVE
+  AVANS
+}
+
 model AuditLog {
   id       Int      @id @default(autoincrement())
   username String
@@ -235,6 +241,8 @@ model AttendanceRecord {
   carId           Int?
   car             Car?             @relation(fields: [carId], references: [id], onDelete: SetNull)
   note            String?
+  paymentType     PaymentType?
+  paymentAmount   Float?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

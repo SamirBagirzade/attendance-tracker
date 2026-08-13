@@ -71,6 +71,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       carDriven: resolvedCarDriven,
       carId: body.carId ?? existing.carId,
       note: body.note ?? existing.note,
+      paymentType: body.paymentType !== undefined ? body.paymentType : existing.paymentType,
+      paymentAmount: body.paymentAmount !== undefined ? body.paymentAmount : existing.paymentAmount,
     });
 
     const record = await prisma.$transaction(async (tx) => {
@@ -97,6 +99,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           carDriven: input.carDriven,
           carId: input.carId,
           note: input.note,
+          paymentType: input.paymentType,
+          paymentAmount: input.paymentAmount,
         },
       });
 

@@ -23,6 +23,8 @@ export type AttendanceStatus =
   | "ISDE_DEYIL"
   | "ISDE_XESARET";
 
+export type PaymentType = "BONUS" | "EZAM_ELAVE" | "AVANS";
+
 export type Car = {
   id: number;
   makeModel: string;
@@ -56,6 +58,8 @@ export type AttendanceRecord = {
   carId: number | null;
   car: Car | null;
   note: string | null;
+  paymentType: PaymentType | null;
+  paymentAmount: number | null;
 };
 
 export type Location = {
@@ -133,6 +137,8 @@ export type FilteredReportRow = {
   carDriven: boolean;
   car: string | null;
   note: string | null;
+  paymentType: PaymentType | null;
+  paymentAmount: number | null;
   isWeekend: boolean;
   isHoliday: boolean;
   holidayDescription: string | null;

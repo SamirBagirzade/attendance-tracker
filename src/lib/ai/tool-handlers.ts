@@ -89,6 +89,8 @@ async function getAttendanceSummary(input: Record<string, unknown>) {
       carDriven: r.carDriven,
       car: r.car ? `${r.car.makeModel} - ${r.car.licensePlate}` : null,
       note: r.note,
+      paymentType: r.paymentType,
+      paymentAmount: r.paymentAmount,
       isWeekend: isWeekend(r.date),
       isHoliday: Boolean(holidayDesc),
       holidayDescription: holidayDesc,
