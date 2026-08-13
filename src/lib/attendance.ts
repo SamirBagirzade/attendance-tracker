@@ -15,6 +15,7 @@ export type AttendanceRecordInput = {
   note?: unknown;
   paymentType?: unknown;
   paymentAmount?: unknown;
+  paymentPaid?: unknown;
 };
 
 const carAllowedStatuses = new Set<AttendanceStatus>([
@@ -48,6 +49,12 @@ export function normalizeAttendanceInput(input: AttendanceRecordInput) {
   const paymentAmount =
     paymentType != null && input.paymentAmount != null && input.paymentAmount !== ""
       ? Number(input.paymentAmount)
+      : null;
+  const paymentPaid =
+    paymentType != null
+      ? input.paymentPaid != null && input.paymentPaid !== ""
+        ? Number(input.paymentPaid)
+        : 0
       : null;
   const newWorkLocationNames =
     Array.isArray(input.newWorkLocationNames) && input.status === "ISDE"
@@ -88,6 +95,16 @@ export function normalizeAttendanceInput(input: AttendanceRecordInput) {
     throw new Error("paymentAmount must be a positive number when paymentType is set.");
   }
 
+  if (
+    paymentType != null &&
+    (paymentPaid == null ||
+      !Number.isFinite(paymentPaid) ||
+      paymentPaid < 0 ||
+      (paymentAmount != null && paymentPaid > paymentAmount))
+  ) {
+    throw new Error("paymentPaid must be between 0 and paymentAmount.");
+  }
+
   return {
     employeeId: input.employeeId,
     date,
@@ -102,5 +119,6 @@ export function normalizeAttendanceInput(input: AttendanceRecordInput) {
     note,
     paymentType,
     paymentAmount,
+    paymentPaid,
   };
 }

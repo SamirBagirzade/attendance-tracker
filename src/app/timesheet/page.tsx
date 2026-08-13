@@ -33,6 +33,22 @@ const paymentTypeLabelKey: Record<PaymentType, string> = {
   AVANS: "paymentAvans",
 };
 
+function paymentBadgeColor(amount: number | null, paid: number | null) {
+  if (amount == null) return "text-slate-700";
+  const paidAmount = paid ?? 0;
+  if (paidAmount >= amount) return "text-emerald-700";
+  if (paidAmount > 0) return "text-amber-600";
+  return "text-red-600";
+}
+
+function paymentBadgeIcon(amount: number | null, paid: number | null) {
+  if (amount == null) return "";
+  const paidAmount = paid ?? 0;
+  if (paidAmount >= amount) return "✓";
+  if (paidAmount > 0) return "◐";
+  return "●";
+}
+
 const statusValues: AttendanceStatus[] = [
   "ISDE",
   "EZAMIYYET",
@@ -557,8 +573,8 @@ export default function TimesheetPage() {
                                     <span className="max-w-full truncate text-[10px] font-medium text-slate-700">Car: {carText}</span>
                                   ) : null}
                                   {record?.paymentType ? (
-                                    <span className="max-w-full truncate text-[10px] font-medium text-purple-700">
-                                      {t(paymentTypeLabelKey[record.paymentType])}: ₼{record.paymentAmount}
+                                    <span className={`max-w-full truncate text-[10px] font-medium ${paymentBadgeColor(record.paymentAmount, record.paymentPaid)}`}>
+                                      {t(paymentTypeLabelKey[record.paymentType])}: ₼{record.paymentAmount} {paymentBadgeIcon(record.paymentAmount, record.paymentPaid)}
                                     </span>
                                   ) : null}
                                 </button>
@@ -648,6 +664,9 @@ function AttendanceModal({
   const [paymentAmount, setPaymentAmount] = useState(
     activeCell.record?.paymentAmount?.toString() ?? "",
   );
+  const [paymentPaid, setPaymentPaid] = useState(
+    activeCell.record?.paymentPaid?.toString() ?? "0",
+  );
   const [error, setError] = useState("");
   const canSelectCar = carAllowedStatuses.has(status);
 
@@ -682,6 +701,11 @@ function AttendanceModal({
       return;
     }
 
+    if (paymentType && paymentAmount && Number(paymentPaid || "0") > Number(paymentAmount)) {
+      setError(t("paymentPaidTooHigh"));
+      return;
+    }
+
     const payload = {
       employeeId: activeCell.employee.id,
       date: activeCell.dateKey,
@@ -694,6 +718,7 @@ function AttendanceModal({
       note: note.trim() ? note.trim() : null,
       paymentType: paymentType || null,
       paymentAmount: paymentType && paymentAmount ? Number(paymentAmount) : null,
+      paymentPaid: paymentType ? Number(paymentPaid || "0") : null,
       cookedHeadcount:
         status === "EZAMIYYET" && actedAsCook && cookedHeadcount
           ? Number(cookedHeadcount)
@@ -751,7 +776,7 @@ function AttendanceModal({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, location, workLocationIds, newWorkLocationNames, actedAsCook, cookedHeadcount, cookedPaid, carDriven, carId, note, paymentType, paymentAmount]);
+  }, [status, location, workLocationIds, newWorkLocationNames, actedAsCook, cookedHeadcount, cookedPaid, carDriven, carId, note, paymentType, paymentAmount, paymentPaid]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 px-4">
@@ -940,7 +965,7 @@ function AttendanceModal({
             </div>
           ) : null}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className={`grid gap-3 ${paymentType ? "grid-cols-3" : "grid-cols-2"}`}>
             <label className="grid gap-1 text-sm font-medium text-slate-700">
               {t("payment")}
               <select
@@ -965,6 +990,19 @@ function AttendanceModal({
                   onChange={(event) => setPaymentAmount(event.target.value)}
                   type="number"
                   value={paymentAmount}
+                />
+              </label>
+            ) : null}
+            {paymentType ? (
+              <label className="grid gap-1 text-sm font-medium text-slate-700">
+                {t("paymentPaidLabel")}
+                <input
+                  className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
+                  max={paymentAmount || undefined}
+                  min={0}
+                  onChange={(event) => setPaymentPaid(event.target.value)}
+                  type="number"
+                  value={paymentPaid}
                 />
               </label>
             ) : null}
