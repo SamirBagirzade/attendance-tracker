@@ -972,10 +972,10 @@ function AttendanceModal({
           ) : null}
 
           <div className={`grid gap-3 ${paymentType ? "grid-cols-3" : "grid-cols-2"}`}>
-            <label className="grid gap-1 text-sm font-medium text-slate-700">
+            <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700">
               {t("payment")}
               <select
-                className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-slate-500"
+                className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-slate-500"
                 onChange={(event) => setPaymentType(event.target.value as PaymentType | "")}
                 value={paymentType}
               >
@@ -988,10 +988,10 @@ function AttendanceModal({
               </select>
             </label>
             {paymentType ? (
-              <label className="grid gap-1 text-sm font-medium text-slate-700">
+              <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700">
                 {t("paymentAmount")}
                 <input
-                  className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
+                  className="h-10 w-full min-w-0 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
                   min={0}
                   onChange={(event) => setPaymentAmount(event.target.value)}
                   type="number"
@@ -1000,10 +1000,10 @@ function AttendanceModal({
               </label>
             ) : null}
             {paymentType ? (
-              <label className="grid gap-1 text-sm font-medium text-slate-700">
+              <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700">
                 {paymentType === "AVANS" ? t("paymentRepaidLabel") : t("paymentPaidLabel")}
                 <input
-                  className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
+                  className="h-10 w-full min-w-0 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
                   min={0}
                   onChange={(event) => setPaymentPaid(event.target.value)}
                   type="number"
