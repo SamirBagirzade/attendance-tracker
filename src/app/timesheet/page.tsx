@@ -995,7 +995,7 @@ function AttendanceModal({
             ) : null}
             {paymentType ? (
               <label className="grid gap-1 text-sm font-medium text-slate-700">
-                {t("paymentPaidLabel")}
+                {paymentType === "AVANS" ? t("paymentRepaidLabel") : t("paymentPaidLabel")}
                 <input
                   className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
                   max={paymentAmount || undefined}

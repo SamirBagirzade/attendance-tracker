@@ -64,7 +64,9 @@ type CookGroup = {
   unpaidCost: number;
 };
 
-const paymentTypeValues: PaymentType[] = ["BONUS", "EZAM_ELAVE", "AVANS"];
+// Bonus/Ezam əlavə are money the company owes the employee (Payments section).
+// Avans is a debt the employee owes the company — tracked separately (Employee Debt section).
+const nonDebtPaymentTypes: Array<"BONUS" | "EZAM_ELAVE"> = ["BONUS", "EZAM_ELAVE"];
 
 const paymentTypeLabelKey: Record<PaymentType, string> = {
   BONUS: "paymentBonus",
@@ -75,10 +77,19 @@ const paymentTypeLabelKey: Record<PaymentType, string> = {
 type PaymentGroup = {
   employeeId: number;
   employeeName: string;
-  sessions: Array<{ id: number; date: string; type: PaymentType; amount: number; paid: number }>;
+  sessions: Array<{ id: number; date: string; type: "BONUS" | "EZAM_ELAVE"; amount: number; paid: number }>;
   totalAmount: number;
   totalPaid: number;
-  byType: Record<PaymentType, number>;
+  byType: Record<"BONUS" | "EZAM_ELAVE", number>;
+};
+
+type AvansGroup = {
+  employeeId: number;
+  employeeName: string;
+  sessions: Array<{ id: number; date: string; given: number; repaid: number; outstanding: number }>;
+  totalGiven: number;
+  totalRepaid: number;
+  totalOutstanding: number;
 };
 
 const TIER_KEYS: Array<{ key: keyof Prices; label: string }> = [
@@ -109,6 +120,7 @@ export default function ReportsPage() {
 
   const [expandedCookEmployees, setExpandedCookEmployees] = useState<Set<number>>(new Set());
   const [expandedPaymentEmployees, setExpandedPaymentEmployees] = useState<Set<number>>(new Set());
+  const [expandedAvansEmployees, setExpandedAvansEmployees] = useState<Set<number>>(new Set());
 
   function updateRecord(id: number, updates: Partial<FilteredReportRow>) {
     setReport((prev) =>
@@ -246,14 +258,14 @@ export default function ReportsPage() {
     return Array.from(grouped.values()).sort((a, b) => a.employeeName.localeCompare(b.employeeName));
   }, [cateringRecords]);
 
-  // Individual payment records for the breakdown table
+  // Individual payment records for the breakdown table (Bonus / Ezam əlavə only — company owes employee)
   const paymentRecords = useMemo(
     () =>
       rows
-        .filter((r) => r.paymentType != null && r.paymentAmount != null)
+        .filter((r) => (r.paymentType === "BONUS" || r.paymentType === "EZAM_ELAVE") && r.paymentAmount != null)
         .map((r) => ({
           ...r,
-          type: r.paymentType as PaymentType,
+          type: r.paymentType as "BONUS" | "EZAM_ELAVE",
           amount: r.paymentAmount as number,
           paid: r.paymentPaid ?? 0,
         })),
@@ -276,7 +288,7 @@ export default function ReportsPage() {
   );
 
   const paymentTotalsByType = useMemo(() => {
-    const totals: Record<PaymentType, number> = { BONUS: 0, EZAM_ELAVE: 0, AVANS: 0 };
+    const totals: Record<"BONUS" | "EZAM_ELAVE", number> = { BONUS: 0, EZAM_ELAVE: 0 };
     for (const r of paymentRecords) totals[r.type] += r.amount;
     return totals;
   }, [paymentRecords]);
@@ -290,7 +302,7 @@ export default function ReportsPage() {
         sessions: [],
         totalAmount: 0,
         totalPaid: 0,
-        byType: { BONUS: 0, EZAM_ELAVE: 0, AVANS: 0 },
+        byType: { BONUS: 0, EZAM_ELAVE: 0 },
       };
       group.sessions.push({ id: r.id, date: r.date, type: r.type, amount: r.amount, paid: r.paid });
       group.totalAmount += r.amount;
@@ -300,6 +312,46 @@ export default function ReportsPage() {
     }
     return Array.from(grouped.values()).sort((a, b) => a.employeeName.localeCompare(b.employeeName));
   }, [paymentRecords]);
+
+  // Avans (advance) records — a debt the employee owes the company, tracked separately
+  const avansRecords = useMemo(
+    () =>
+      rows
+        .filter((r) => r.paymentType === "AVANS" && r.paymentAmount != null)
+        .map((r) => {
+          const given = r.paymentAmount as number;
+          const repaid = r.paymentPaid ?? 0;
+          return { ...r, given, repaid, outstanding: given - repaid };
+        }),
+    [rows],
+  );
+
+  const totalAvansGiven = useMemo(() => avansRecords.reduce((s, r) => s + r.given, 0), [avansRecords]);
+  const totalAvansRepaid = useMemo(() => avansRecords.reduce((s, r) => s + r.repaid, 0), [avansRecords]);
+  const totalAvansOutstanding = useMemo(
+    () => totalAvansGiven - totalAvansRepaid,
+    [totalAvansGiven, totalAvansRepaid],
+  );
+
+  const avansByEmployee = useMemo<AvansGroup[]>(() => {
+    const grouped = new Map<number, AvansGroup>();
+    for (const r of avansRecords) {
+      const group = grouped.get(r.employeeId) ?? {
+        employeeId: r.employeeId,
+        employeeName: r.employeeName,
+        sessions: [],
+        totalGiven: 0,
+        totalRepaid: 0,
+        totalOutstanding: 0,
+      };
+      group.sessions.push({ id: r.id, date: r.date, given: r.given, repaid: r.repaid, outstanding: r.outstanding });
+      group.totalGiven += r.given;
+      group.totalRepaid += r.repaid;
+      group.totalOutstanding += r.outstanding;
+      grouped.set(r.employeeId, group);
+    }
+    return Array.from(grouped.values()).sort((a, b) => a.employeeName.localeCompare(b.employeeName));
+  }, [avansRecords]);
 
   const statusChartData = useMemo(() => {
     if (!report) return [];
@@ -441,9 +493,11 @@ export default function ReportsPage() {
             "Catering Cost (₼)": item.cateringCost,
             "Bonus (₼)": item.paymentBonusTotal || 0,
             "Ezam əlavə (₼)": item.paymentEzamElaveTotal || 0,
-            "Avans (₼)": item.paymentAvansTotal || 0,
             "Payments Total (₼)": item.paymentTotal || 0,
             "Payments Paid (₼)": item.paymentPaidTotal || 0,
+            "Avans Given (₼)": item.avansGivenTotal || 0,
+            "Avans Repaid (₼)": item.avansRepaidTotal || 0,
+            "Avans Outstanding (₼)": item.avansOutstandingTotal || 0,
             "Vacation Days (used)": item.statusCounts.MEZUNIYYET,
             "Vacation Limit": emp?.vacationLimit ?? "",
             "Sick Days (used)": item.statusCounts.XESTE,
@@ -933,7 +987,7 @@ export default function ReportsPage() {
                   </div>
                   <div className="rounded-lg border border-purple-200 bg-white/60 p-3">
                     <div className="space-y-2">
-                      {paymentTypeValues.map((type) => (
+                      {nonDebtPaymentTypes.map((type) => (
                         <div key={type} className="flex items-center justify-between gap-2">
                           <span className="text-sm text-purple-800">{t(paymentTypeLabelKey[type])}</span>
                           <span className="text-sm font-semibold text-purple-900">₼{paymentTotalsByType[type]}</span>
@@ -954,7 +1008,6 @@ export default function ReportsPage() {
                           <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("records")}</th>
                           <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t(paymentTypeLabelKey.BONUS)}</th>
                           <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t(paymentTypeLabelKey.EZAM_ELAVE)}</th>
-                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t(paymentTypeLabelKey.AVANS)}</th>
                           <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("paymentsTotal")}</th>
                           <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("paymentsPaidTotal")}</th>
                         </tr>
@@ -989,14 +1042,13 @@ export default function ReportsPage() {
                                 <td className="px-4 py-2.5 text-right text-slate-700">{group.sessions.length}</td>
                                 <td className="px-4 py-2.5 text-right text-slate-700">{group.byType.BONUS > 0 ? `₼${group.byType.BONUS}` : "–"}</td>
                                 <td className="px-4 py-2.5 text-right text-slate-700">{group.byType.EZAM_ELAVE > 0 ? `₼${group.byType.EZAM_ELAVE}` : "–"}</td>
-                                <td className="px-4 py-2.5 text-right text-slate-700">{group.byType.AVANS > 0 ? `₼${group.byType.AVANS}` : "–"}</td>
                                 <td className="px-4 py-2.5 text-right font-semibold text-purple-700">₼{group.totalAmount}</td>
                                 <td className="px-4 py-2.5 text-right font-semibold text-emerald-700">₼{group.totalPaid}</td>
                               </tr>
                               {isExpanded && group.sessions.map((s) => (
                                 <tr className="border-t border-slate-50 bg-slate-50/60" key={`session-${s.id}`}>
                                   <td className="py-2 pl-10 pr-4 text-slate-500" colSpan={2}>{s.date}</td>
-                                  <td className="px-4 py-2 text-right text-slate-500" colSpan={3}>{t(paymentTypeLabelKey[s.type])}</td>
+                                  <td className="px-4 py-2 text-right text-slate-500" colSpan={2}>{t(paymentTypeLabelKey[s.type])}</td>
                                   <td className="px-4 py-2 text-right text-purple-600">₼{s.amount}</td>
                                   <td className="px-4 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                                     <div className="flex items-center justify-end gap-1">
@@ -1029,9 +1081,132 @@ export default function ReportsPage() {
                           <td className="px-4 py-2.5 font-semibold text-slate-900" colSpan={2}>{t("total")}</td>
                           <td className="px-4 py-2.5 text-right font-bold text-purple-900">₼{paymentTotalsByType.BONUS}</td>
                           <td className="px-4 py-2.5 text-right font-bold text-purple-900">₼{paymentTotalsByType.EZAM_ELAVE}</td>
-                          <td className="px-4 py-2.5 text-right font-bold text-purple-900">₼{paymentTotalsByType.AVANS}</td>
                           <td className="px-4 py-2.5 text-right font-bold text-purple-900">₼{totalPaymentAmount}</td>
                           <td className="px-4 py-2.5 text-right font-bold text-emerald-900">₼{totalPaymentPaid}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* Employee Debt (Avans) section */}
+            {avansRecords.length > 0 && (
+              <section className="grid gap-4 xl:grid-cols-3">
+                {/* Summary + given/repaid split */}
+                <div className="flex flex-col gap-4 rounded-xl border border-rose-200 bg-rose-50 p-5 shadow-sm">
+                  <div className="flex items-center gap-2 text-rose-700">
+                    <Banknote size={20} />
+                    <h2 className="font-semibold">{t("employeeDebt")}</h2>
+                  </div>
+                  <div>
+                    <div className="text-4xl font-bold text-rose-900">₼{totalAvansOutstanding}</div>
+                    <div className="mt-1 text-sm text-rose-600">
+                      {t("avansOutstanding")} · {avansRecords.length} {t("records")}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-lg border border-slate-200 bg-white/60 p-3 text-center">
+                      <div className="text-xs font-semibold text-slate-500">{t("avansGiven")}</div>
+                      <div className="mt-1 text-xl font-bold text-slate-800">₼{totalAvansGiven}</div>
+                    </div>
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-center">
+                      <div className="text-xs font-semibold text-emerald-600">{t("avansRepaid")}</div>
+                      <div className="mt-1 text-xl font-bold text-emerald-800">₼{totalAvansRepaid}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Per-employee debt table */}
+                <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
+                  <h2 className="font-semibold text-slate-950">{t("byEmployee")}</h2>
+                  <div className="overflow-x-auto rounded-lg border border-slate-100">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-slate-50">
+                        <tr>
+                          <th className="px-4 py-2.5 text-left font-medium text-slate-600">{t("employee")}</th>
+                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("records")}</th>
+                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("avansGiven")}</th>
+                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("avansRepaid")}</th>
+                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("avansOutstanding")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {avansByEmployee.map((group) => {
+                          const isExpanded = expandedAvansEmployees.has(group.employeeId);
+                          const toggle = () =>
+                            setExpandedAvansEmployees((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(group.employeeId)) next.delete(group.employeeId);
+                              else next.add(group.employeeId);
+                              return next;
+                            });
+                          return (
+                            <Fragment key={group.employeeId}>
+                              <tr
+                                className="cursor-pointer border-t border-slate-100 hover:bg-slate-50"
+                                key={`group-${group.employeeId}`}
+                                onClick={toggle}
+                              >
+                                <td className="px-4 py-2.5 font-medium text-slate-800">
+                                  <span className="inline-flex items-center gap-1.5">
+                                    {group.sessions.length > 1 ? (
+                                      isExpanded ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />
+                                    ) : (
+                                      <span className="w-[14px]" />
+                                    )}
+                                    {group.employeeName}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2.5 text-right text-slate-700">{group.sessions.length}</td>
+                                <td className="px-4 py-2.5 text-right text-slate-700">₼{group.totalGiven}</td>
+                                <td className="px-4 py-2.5 text-right font-semibold text-emerald-700">₼{group.totalRepaid}</td>
+                                <td className={`px-4 py-2.5 text-right font-semibold ${group.totalOutstanding > 0 ? "text-rose-700" : "text-emerald-700"}`}>
+                                  ₼{group.totalOutstanding}
+                                </td>
+                              </tr>
+                              {isExpanded && group.sessions.map((s) => (
+                                <tr className="border-t border-slate-50 bg-slate-50/60" key={`session-${s.id}`}>
+                                  <td className="py-2 pl-10 pr-4 text-slate-500" colSpan={2}>{s.date}</td>
+                                  <td className="px-4 py-2 text-right text-slate-600">₼{s.given}</td>
+                                  <td className="px-4 py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex items-center justify-end gap-1">
+                                      <span className="text-emerald-500">₼</span>
+                                      <input
+                                        className={`w-16 rounded border px-1.5 py-0.5 text-right text-xs font-semibold focus:outline-none ${
+                                          s.repaid >= s.given
+                                            ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                                            : s.repaid > 0
+                                              ? "border-amber-300 bg-amber-50 text-amber-800"
+                                              : "border-rose-300 bg-rose-50 text-rose-800"
+                                        }`}
+                                        defaultValue={s.repaid}
+                                        key={`${s.id}-${s.repaid}`}
+                                        max={s.given}
+                                        min={0}
+                                        onBlur={(e) => void updatePaymentPaid(s.id, s.repaid, s.given, Number(e.target.value))}
+                                        type="number"
+                                      />
+                                    </div>
+                                  </td>
+                                  <td className={`px-4 py-2 text-right font-semibold ${s.outstanding > 0 ? "text-rose-600" : "text-emerald-600"}`}>
+                                    ₼{s.outstanding}
+                                  </td>
+                                </tr>
+                              ))}
+                            </Fragment>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot className="border-t-2 border-slate-200 bg-slate-50">
+                        <tr>
+                          <td className="px-4 py-2.5 font-semibold text-slate-900" colSpan={2}>{t("total")}</td>
+                          <td className="px-4 py-2.5 text-right font-bold text-slate-900">₼{totalAvansGiven}</td>
+                          <td className="px-4 py-2.5 text-right font-bold text-emerald-900">₼{totalAvansRepaid}</td>
+                          <td className={`px-4 py-2.5 text-right font-bold ${totalAvansOutstanding > 0 ? "text-rose-900" : "text-emerald-900"}`}>
+                            ₼{totalAvansOutstanding}
+                          </td>
                         </tr>
                       </tfoot>
                     </table>
@@ -1064,9 +1239,11 @@ export default function ReportsPage() {
                   t("cateringUnpaid"),
                   t(paymentTypeLabelKey.BONUS),
                   t(paymentTypeLabelKey.EZAM_ELAVE),
-                  t(paymentTypeLabelKey.AVANS),
                   t("paymentsTotal"),
                   t("paymentsPaidTotal"),
+                  t("avansGiven"),
+                  t("avansRepaid"),
+                  t("avansOutstanding"),
                   t("statusMEZUNIYYET"),
                   t("statusXESTE"),
                 ]}
@@ -1097,9 +1274,11 @@ export default function ReportsPage() {
                     item.cookedUnpaidDays > 0 ? `${item.cookedUnpaidDays} day(s)` : "-",
                     item.paymentBonusTotal > 0 ? `₼${item.paymentBonusTotal}` : "-",
                     item.paymentEzamElaveTotal > 0 ? `₼${item.paymentEzamElaveTotal}` : "-",
-                    item.paymentAvansTotal > 0 ? `₼${item.paymentAvansTotal}` : "-",
                     item.paymentTotal > 0 ? `₼${item.paymentTotal}` : "-",
                     item.paymentPaidTotal > 0 ? `₼${item.paymentPaidTotal}` : "-",
+                    item.avansGivenTotal > 0 ? `₼${item.avansGivenTotal}` : "-",
+                    item.avansRepaidTotal > 0 ? `₼${item.avansRepaidTotal}` : "-",
+                    item.avansOutstandingTotal > 0 ? `₼${item.avansOutstandingTotal}` : "-",
                     vacStr,
                     sickStr,
                   ];
@@ -1379,8 +1558,9 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
       cookedUnpaidDays: number;
       paymentBonusTotal: number;
       paymentEzamElaveTotal: number;
-      paymentAvansTotal: number;
       paymentPaidTotal: number;
+      avansGivenTotal: number;
+      avansRepaidTotal: number;
     }
   >();
 
@@ -1405,8 +1585,9 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
       cookedUnpaidDays: 0,
       paymentBonusTotal: 0,
       paymentEzamElaveTotal: 0,
-      paymentAvansTotal: 0,
       paymentPaidTotal: 0,
+      avansGivenTotal: 0,
+      avansRepaidTotal: 0,
     };
 
     item.records += 1;
@@ -1425,11 +1606,15 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
       if (row.cookedPaid) item.cookedPaidDays += 1;
       else item.cookedUnpaidDays += 1;
     }
-    if (row.paymentType != null && row.paymentAmount != null) {
-      if (row.paymentType === "BONUS") item.paymentBonusTotal += row.paymentAmount;
-      else if (row.paymentType === "EZAM_ELAVE") item.paymentEzamElaveTotal += row.paymentAmount;
-      else if (row.paymentType === "AVANS") item.paymentAvansTotal += row.paymentAmount;
+    if (row.paymentType === "BONUS" && row.paymentAmount != null) {
+      item.paymentBonusTotal += row.paymentAmount;
       item.paymentPaidTotal += row.paymentPaid ?? 0;
+    } else if (row.paymentType === "EZAM_ELAVE" && row.paymentAmount != null) {
+      item.paymentEzamElaveTotal += row.paymentAmount;
+      item.paymentPaidTotal += row.paymentPaid ?? 0;
+    } else if (row.paymentType === "AVANS" && row.paymentAmount != null) {
+      item.avansGivenTotal += row.paymentAmount;
+      item.avansRepaidTotal += row.paymentPaid ?? 0;
     }
     grouped.set(row.employeeId, item);
   }
@@ -1442,8 +1627,9 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
       tierCost(3, item.cookedTier3) +
       tierCost(4, item.cookedTier4) +
       tierCost(5, item.cookedTier5plus);
-    const paymentTotal = item.paymentBonusTotal + item.paymentEzamElaveTotal + item.paymentAvansTotal;
-    return { ...item, cateringCost: totalCost, paymentTotal };
+    const paymentTotal = item.paymentBonusTotal + item.paymentEzamElaveTotal;
+    const avansOutstandingTotal = item.avansGivenTotal - item.avansRepaidTotal;
+    return { ...item, cateringCost: totalCost, paymentTotal, avansOutstandingTotal };
   });
 }
 
