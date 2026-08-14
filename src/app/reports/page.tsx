@@ -3,7 +3,7 @@
 import { Fragment, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { endOfMonth, format, startOfMonth } from "date-fns";
-import { Banknote, Car, ChefHat, ChevronDown, ChevronRight, Download, Search, Users } from "lucide-react";
+import { Banknote, Car, ChefHat, ChevronDown, ChevronRight, Download, FileSpreadsheet, Search, Users, X } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -123,6 +123,13 @@ export default function ReportsPage() {
   const [expandedCookEmployees, setExpandedCookEmployees] = useState<Set<number>>(new Set());
   const [expandedPaymentEmployees, setExpandedPaymentEmployees] = useState<Set<number>>(new Set());
   const [expandedAvansEmployees, setExpandedAvansEmployees] = useState<Set<number>>(new Set());
+
+  const [empReportOpen, setEmpReportOpen] = useState(false);
+  const [empReportEmployeeId, setEmpReportEmployeeId] = useState("");
+  const [empReportFrom, setEmpReportFrom] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
+  const [empReportTo, setEmpReportTo] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [empReportLoading, setEmpReportLoading] = useState(false);
+  const [empReportError, setEmpReportError] = useState("");
 
   function updateRecord(id: number, updates: Partial<FilteredReportRow>) {
     setReport((prev) =>
@@ -474,6 +481,63 @@ export default function ReportsPage() {
     URL.revokeObjectURL(url);
   }
 
+  async function downloadEmployeeExcel() {
+    if (!empReportEmployeeId) {
+      setEmpReportError(t("selectEmployeeRequired"));
+      return;
+    }
+    if (empReportFrom > empReportTo) {
+      setEmpReportError(t("dateRangeInvalid"));
+      return;
+    }
+
+    setEmpReportError("");
+    setEmpReportLoading(true);
+
+    try {
+      const params = new URLSearchParams({ employeeId: empReportEmployeeId, from: empReportFrom, to: empReportTo });
+      const res = await fetch(`/api/reports?${params.toString()}`);
+
+      if (!res.ok) {
+        const body = await res.json();
+        throw new Error(body.error ?? "Could not load employee report.");
+      }
+
+      const data = (await res.json()) as FilteredReport;
+      const emp = employees.find((e) => e.id.toString() === empReportEmployeeId);
+
+      const mod = await import("exceljs");
+      const ExcelJSLib = (mod as unknown as { default?: typeof mod }).default ?? mod;
+      const workbook = new ExcelJSLib.Workbook();
+      workbook.creator = "Attendance Tracker";
+      workbook.created = new Date();
+
+      buildEmployeeReport(workbook, {
+        employee: emp ?? null,
+        from: empReportFrom,
+        to: empReportTo,
+        rows: data.records,
+        summary: data.summary,
+        prices,
+        t,
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `employee_report_${sanitizeFilename(emp?.name ?? "employee")}_${empReportFrom}_${empReportTo}.xlsx`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setEmpReportOpen(false);
+    } catch (err) {
+      setEmpReportError(err instanceof Error ? err.message : "Could not generate employee report.");
+    } finally {
+      setEmpReportLoading(false);
+    }
+  }
+
   return (
     <AppShell eyebrow={`${from} – ${to}`} title={t("reports")}>
       <div className="grid gap-6">
@@ -551,8 +615,33 @@ export default function ReportsPage() {
               <Download size={16} />
               {t("excel")}
             </button>
+            <button
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              onClick={() => { setEmpReportError(""); setEmpReportOpen(true); }}
+              type="button"
+            >
+              <FileSpreadsheet size={16} />
+              {t("employeeReport")}
+            </button>
           </div>
         </form>
+
+        {empReportOpen ? (
+          <EmployeeReportModal
+            employeeId={empReportEmployeeId}
+            employees={employees}
+            error={empReportError}
+            from={empReportFrom}
+            loading={empReportLoading}
+            onClose={() => setEmpReportOpen(false)}
+            onEmployeeIdChange={setEmpReportEmployeeId}
+            onFromChange={setEmpReportFrom}
+            onGenerate={() => void downloadEmployeeExcel()}
+            onToChange={setEmpReportTo}
+            t={t}
+            to={empReportTo}
+          />
+        ) : null}
 
         {error ? (
           <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -1366,6 +1455,87 @@ function DateField({
   );
 }
 
+function EmployeeReportModal({
+  employeeId,
+  employees,
+  error,
+  from,
+  loading,
+  onClose,
+  onEmployeeIdChange,
+  onFromChange,
+  onGenerate,
+  onToChange,
+  t,
+  to,
+}: {
+  employeeId: string;
+  employees: Employee[];
+  error: string;
+  from: string;
+  loading: boolean;
+  onClose: () => void;
+  onEmployeeIdChange: (value: string) => void;
+  onFromChange: (value: string) => void;
+  onGenerate: () => void;
+  onToChange: (value: string) => void;
+  t: (key: string) => string;
+  to: string;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 px-4 py-6">
+      <div className="flex max-h-full w-full max-w-sm flex-col rounded-lg border border-slate-200 bg-white shadow-xl">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3">
+          <h2 className="font-semibold text-slate-950">{t("employeeReport")}</h2>
+          <button
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"
+            onClick={onClose}
+            title={t("close")}
+            type="button"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div className="grid gap-4 overflow-y-auto px-4 py-4">
+          <SelectField label={t("employee")} onChange={onEmployeeIdChange} value={employeeId}>
+            <option value="">{t("allEmployees")}</option>
+            {employees.map((emp) => (
+              <option key={emp.id} value={emp.id}>
+                {emp.name} – {emp.department}
+              </option>
+            ))}
+          </SelectField>
+          <DateField label={t("from")} onChange={onFromChange} value={from} />
+          <DateField label={t("to")} onChange={onToChange} value={to} />
+          {error ? (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {error}
+            </div>
+          ) : null}
+        </div>
+        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 px-4 py-3">
+          <button
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            onClick={onClose}
+            type="button"
+          >
+            {t("cancel")}
+          </button>
+          <button
+            className="inline-flex h-10 items-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={loading}
+            onClick={onGenerate}
+            type="button"
+          >
+            <FileSpreadsheet size={16} />
+            {loading ? "…" : t("generateReport")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BreakdownTable({
   emptyText,
   headers,
@@ -1928,6 +2098,197 @@ function buildRecordsSheet(workbook: Workbook, rows: ReturnType<typeof exportRow
   addTable(ws, columns, rows, "general", 1);
   autoWidth(ws, columns.length);
   ws.getColumn(2).width = Math.max(ws.getColumn(2).width ?? 10, 18);
+}
+
+function sanitizeFilename(name: string) {
+  return name.replace(/[\\/:*?"<>|]+/g, "_").trim() || "employee";
+}
+
+function buildEmployeeReport(
+  workbook: Workbook,
+  args: {
+    employee: Employee | null;
+    from: string;
+    to: string;
+    rows: FilteredReportRow[];
+    summary: FilteredReport["summary"];
+    prices: Prices;
+    t: (key: string) => string;
+  },
+) {
+  const { employee, from, to, rows, summary, prices, t } = args;
+  const employeeName = employee?.name ?? "—";
+
+  const cateringRows = rows
+    .filter((r) => r.cookedHeadcount != null && r.cookedHeadcount > 0)
+    .map((r) => ({ ...r, cost: cateringCostForHeadcount(r.cookedHeadcount!, prices) }));
+  const cateringTotal = cateringRows.reduce((s, r) => s + r.cost, 0);
+  const cateringPaid = cateringRows.filter((r) => r.cookedPaid).reduce((s, r) => s + r.cost, 0);
+  const cateringUnpaid = cateringTotal - cateringPaid;
+
+  const paymentRows = rows
+    .filter((r) => (r.paymentType === "BONUS" || r.paymentType === "EZAM_ELAVE") && r.paymentAmount != null)
+    .map((r) => ({ ...r, amount: r.paymentAmount as number, paid: r.paymentPaid ?? 0 }));
+  const paymentTotal = paymentRows.reduce((s, r) => s + r.amount, 0);
+  const paymentPaidTotal = paymentRows.reduce((s, r) => s + r.paid, 0);
+  const paymentUnpaid = Math.max(0, paymentTotal - paymentPaidTotal);
+
+  const avansRows = rows
+    .filter((r) => r.paymentType === "AVANS" && r.paymentAmount != null)
+    .map((r) => ({ ...r, given: r.paymentAmount as number, repaid: r.paymentPaid ?? 0 }));
+  const avansGivenTotal = avansRows.reduce((s, r) => s + r.given, 0);
+  const avansRepaidTotal = avansRows.reduce((s, r) => s + r.repaid, 0);
+  const avansOutstandingTotal = Math.max(0, avansGivenTotal - avansRepaidTotal);
+
+  // ---- Profile sheet ----
+  const profile = workbook.addWorksheet("Profile", { properties: { tabColor: { argb: "FF1E293B" } } });
+  profile.getColumn(1).width = 26;
+  profile.getColumn(2).width = 30;
+
+  let row = addTitleBanner(profile, employeeName, `${from} – ${to}`, 2);
+
+  row = addKeyValueSection(
+    profile,
+    "Employee",
+    [
+      ["Name", employeeName],
+      ["Department", employee?.department ?? "—"],
+      ["Vacation Limit", employee?.vacationLimit ?? "—"],
+      ["Sick Limit", employee?.sickLimit ?? "—"],
+    ],
+    "general",
+    row,
+  );
+
+  row = addKeyValueSection(
+    profile,
+    "Attendance",
+    [
+      ["Total Records", summary.totalRecords],
+      ["İşdə Days", summary.isdeDays],
+      ["Ezamiyyət Days", summary.ezamiyyetDays],
+      ["Cars Driven Days", summary.carsDrivenDays],
+      ["Weekend Worked", summary.weekendWorkedDays],
+      ["Holiday Worked", summary.holidayWorkedDays],
+    ],
+    "general",
+    row,
+  );
+
+  row = addKeyValueSection(
+    profile,
+    "Catering",
+    [
+      ["Total Cost (₼)", cateringTotal],
+      ["Paid (₼)", cateringPaid],
+      ["Unpaid (₼)", cateringUnpaid],
+      ["Sessions", cateringRows.length],
+    ],
+    "catering",
+    row,
+  );
+
+  row = addKeyValueSection(
+    profile,
+    "Payments (Bonus / Ezam əlavə)",
+    [
+      ["Total (₼)", paymentTotal],
+      ["Paid (₼)", paymentPaidTotal],
+      ["Unpaid (₼)", paymentUnpaid],
+    ],
+    "payments",
+    row,
+  );
+
+  addKeyValueSection(
+    profile,
+    "Employee Debt (Avans)",
+    [
+      ["Given (₼)", avansGivenTotal],
+      ["Repaid (₼)", avansRepaidTotal],
+      ["Outstanding (₼)", avansOutstandingTotal],
+    ],
+    "debt",
+    row,
+  );
+
+  // ---- Records sheet (full daily detail) ----
+  buildRecordsSheet(workbook, exportRows(rows, t));
+
+  // ---- Catering sheet ----
+  if (cateringRows.length > 0) {
+    const ws = workbook.addWorksheet("Catering", { properties: { tabColor: { argb: "FF0F766E" } } });
+    const dataRows = cateringRows.map((r) => ({
+      date: r.date,
+      headcount: r.cookedHeadcount,
+      cost: r.cost,
+      paid: r.cookedPaid ? r.cost : 0,
+      unpaid: r.cookedPaid ? 0 : r.cost,
+    }));
+    addTable(
+      ws,
+      [
+        { header: "Date", key: "date", type: "date" },
+        { header: "Headcount", key: "headcount" },
+        { header: "Cost (₼)", key: "cost", type: "money" },
+        { header: "Paid (₼)", key: "paid", type: "money" },
+        { header: "Unpaid (₼)", key: "unpaid", type: "money" },
+      ],
+      dataRows,
+      "catering",
+      1,
+    );
+    autoWidth(ws, 5);
+  }
+
+  // ---- Payments sheet ----
+  if (paymentRows.length > 0) {
+    const ws = workbook.addWorksheet("Payments", { properties: { tabColor: { argb: "FF6D28D9" } } });
+    const dataRows = paymentRows.map((r) => ({
+      date: r.date,
+      type: t(paymentTypeLabelKey[r.paymentType as "BONUS" | "EZAM_ELAVE"]),
+      amount: r.amount,
+      paid: r.paid,
+      unpaid: Math.max(0, r.amount - r.paid),
+    }));
+    addTable(
+      ws,
+      [
+        { header: "Date", key: "date", type: "date" },
+        { header: "Type", key: "type" },
+        { header: "Amount (₼)", key: "amount", type: "money" },
+        { header: "Paid (₼)", key: "paid", type: "money" },
+        { header: "Unpaid (₼)", key: "unpaid", type: "money" },
+      ],
+      dataRows,
+      "payments",
+      1,
+    );
+    autoWidth(ws, 5);
+  }
+
+  // ---- Employee Debt sheet (chronological running balance) ----
+  if (avansRows.length > 0) {
+    const ws = workbook.addWorksheet("Employee Debt", { properties: { tabColor: { argb: "FFBE123C" } } });
+    let running = 0;
+    const dataRows = avansRows.map((r) => {
+      running = Math.max(0, running + r.given - r.repaid);
+      return { date: r.date, given: r.given, repaid: r.repaid, outstanding: running };
+    });
+    addTable(
+      ws,
+      [
+        { header: "Date", key: "date", type: "date" },
+        { header: "Given (₼)", key: "given", type: "money" },
+        { header: "Repaid (₼)", key: "repaid", type: "money" },
+        { header: "Running Outstanding (₼)", key: "outstanding", type: "money" },
+      ],
+      dataRows,
+      "debt",
+      1,
+    );
+    autoWidth(ws, 4);
+  }
 }
 
 function emptyStatusCounts() {
