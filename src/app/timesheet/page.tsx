@@ -989,7 +989,7 @@ function AttendanceModal({
             </label>
             {paymentType ? (
               <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700">
-                {t("paymentAmount")}
+                {paymentType === "AVANS" ? t("paymentGivenLabel") : t("paymentAmount")}
                 <input
                   className="h-10 w-full min-w-0 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
                   min={0}
