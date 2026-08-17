@@ -51,7 +51,8 @@ function isAdminOnlyPath(pathname: string) {
     pathname === "/audit" ||
     pathname === "/form-submissions" ||
     pathname.startsWith("/api/users") ||
-    pathname.startsWith("/api/audit")
+    pathname.startsWith("/api/audit") ||
+    pathname.startsWith("/api/forms/daily-log/")
   );
 }
 
