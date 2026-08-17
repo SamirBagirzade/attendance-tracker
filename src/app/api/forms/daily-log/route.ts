@@ -59,11 +59,47 @@ export async function GET(request: NextRequest) {
   const denied = await requireAdmin(request);
   if (denied) return denied;
 
-  const responses = await prisma.formResponse.findMany({
-    orderBy: { submittedAt: "desc" },
-    take: 200,
-    include: { employee: { select: { name: true, department: true } } },
-  });
+  const { searchParams } = request.nextUrl;
+  const employeeId = searchParams.get("employeeId");
+  const from = searchParams.get("from");
+  const to = searchParams.get("to");
+  const q = searchParams.get("q")?.trim();
 
-  return NextResponse.json(responses);
+  const where: {
+    employeeId?: number;
+    date?: { gte?: Date; lte?: Date };
+    OR?: Array<{ activityText?: { contains: string; mode: "insensitive" }; absenceReason?: { contains: string; mode: "insensitive" }; employeeName?: { contains: string; mode: "insensitive" } }>;
+  } = {};
+
+  if (employeeId) where.employeeId = Number(employeeId);
+
+  if (from || to) {
+    where.date = {};
+    if (from) where.date.gte = parseCalendarDate(from);
+    if (to) where.date.lte = parseCalendarDate(to);
+  }
+
+  if (q) {
+    where.OR = [
+      { employeeName: { contains: q, mode: "insensitive" } },
+      { activityText: { contains: q, mode: "insensitive" } },
+      { absenceReason: { contains: q, mode: "insensitive" } },
+    ];
+  }
+
+  const page = Math.max(0, Number(searchParams.get("page") ?? 0));
+  const pageSize = 100;
+
+  const [total, responses] = await Promise.all([
+    prisma.formResponse.count({ where }),
+    prisma.formResponse.findMany({
+      where,
+      orderBy: { submittedAt: "desc" },
+      skip: page * pageSize,
+      take: pageSize,
+      include: { employee: { select: { name: true, department: true } } },
+    }),
+  ]);
+
+  return NextResponse.json({ total, page, pageSize, responses });
 }
