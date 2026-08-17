@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pencil, Search, Trash2, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { useLanguage } from "@/lib/i18n";
 import type { Employee } from "@/types/domain";
+
+type SubmissionType = "activity" | "absence";
 
 type FormResponseRow = {
   id: number;
@@ -31,6 +33,8 @@ export default function FormSubmissionsPage() {
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [editingRow, setEditingRow] = useState<FormResponseRow | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   useEffect(() => {
     void fetch("/api/employees")
@@ -67,6 +71,22 @@ export default function FormSubmissionsPage() {
   useEffect(() => {
     void runQuery(0);
   }, [runQuery]);
+
+  async function deleteSubmission(id: number) {
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/forms/daily-log/${id}`, { method: "DELETE" });
+      if (!res.ok && res.status !== 204) {
+        const body = await res.json();
+        throw new Error(body.error ?? "Could not delete submission.");
+      }
+      await runQuery(page);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete submission.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -180,16 +200,17 @@ export default function FormSubmissionsPage() {
                   <th className="px-4 py-2.5 text-left font-medium text-slate-600">Submitted</th>
                   <th className="px-4 py-2.5 text-left font-medium text-slate-600">{t("formSubmission")}</th>
                   <th className="px-4 py-2.5 text-left font-medium text-slate-600">{t("absenceReason")}</th>
+                  <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("actions")}</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td className="px-4 py-8 text-center text-slate-500" colSpan={6}>{t("loading")}</td>
+                    <td className="px-4 py-8 text-center text-slate-500" colSpan={7}>{t("loading")}</td>
                   </tr>
                 ) : rows.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-8 text-center text-slate-500" colSpan={6}>—</td>
+                    <td className="px-4 py-8 text-center text-slate-500" colSpan={7}>—</td>
                   </tr>
                 ) : (
                   rows.map((row) => (
@@ -206,6 +227,27 @@ export default function FormSubmissionsPage() {
                       <td className="max-w-xs whitespace-pre-line px-4 py-2.5 text-slate-700">
                         {row.absenceReason || "—"}
                       </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"
+                            onClick={() => setEditingRow(row)}
+                            title={t("edit")}
+                            type="button"
+                          >
+                            <Pencil size={15} />
+                          </button>
+                          <button
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-red-500 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={deletingId === row.id}
+                            onClick={() => void deleteSubmission(row.id)}
+                            title={t("delete")}
+                            type="button"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -214,6 +256,126 @@ export default function FormSubmissionsPage() {
           </div>
         </div>
       </div>
+
+      {editingRow ? (
+        <EditSubmissionModal
+          onClose={() => setEditingRow(null)}
+          onSaved={() => { setEditingRow(null); void runQuery(page); }}
+          row={editingRow}
+          t={t}
+        />
+      ) : null}
     </AppShell>
+  );
+}
+
+function EditSubmissionModal({
+  onClose,
+  onSaved,
+  row,
+  t,
+}: {
+  onClose: () => void;
+  onSaved: () => void;
+  row: FormResponseRow;
+  t: (key: string) => string;
+}) {
+  const [type, setType] = useState<SubmissionType>(row.absenceReason ? "absence" : "activity");
+  const [content, setContent] = useState(row.absenceReason ? row.absenceReason : (row.activityText ?? ""));
+  const [date, setDate] = useState(row.date.slice(0, 10));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function save() {
+    setSaving(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/forms/daily-log/${row.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, content, date }),
+      });
+      if (!res.ok) {
+        const body = await res.json();
+        throw new Error(body.error ?? "Could not update submission.");
+      }
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update submission.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 px-4 py-6">
+      <div className="flex max-h-full w-full max-w-md flex-col rounded-lg border border-slate-200 bg-white shadow-xl">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3">
+          <h2 className="font-semibold text-slate-950">
+            {row.employee?.name ?? row.employeeName}
+          </h2>
+          <button
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"
+            onClick={onClose}
+            title={t("close")}
+            type="button"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div className="grid gap-4 overflow-y-auto px-4 py-4">
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
+            {t("date")}
+            <input
+              className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
+              onChange={(e) => setDate(e.target.value)}
+              type="date"
+              value={date}
+            />
+          </label>
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
+            {t("submissionType")}
+            <select
+              className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-slate-500"
+              onChange={(e) => setType(e.target.value as SubmissionType)}
+              value={type}
+            >
+              <option value="activity">{t("formSubmission")}</option>
+              <option value="absence">{t("absenceReason")}</option>
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
+            {t("content")}
+            <textarea
+              className="min-h-32 rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+              onChange={(e) => setContent(e.target.value)}
+              value={content}
+            />
+          </label>
+          {error ? (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {error}
+            </div>
+          ) : null}
+        </div>
+        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 px-4 py-3">
+          <button
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            onClick={onClose}
+            type="button"
+          >
+            {t("cancel")}
+          </button>
+          <button
+            className="inline-flex h-10 items-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={saving}
+            onClick={() => void save()}
+            type="button"
+          >
+            {saving ? "…" : t("save")}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
