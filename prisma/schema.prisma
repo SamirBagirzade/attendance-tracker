@@ -97,6 +97,7 @@ model Employee {
   attendanceRecords AttendanceRecord[]
   documents         Document[]
   customFields      CustomField[]
+  formResponses     FormResponse[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -228,15 +229,18 @@ model AppSetting {
 }
 
 model FormResponse {
-  id             Int      @id @default(autoincrement())
+  id             Int       @id @default(autoincrement())
+  employeeId     Int
+  employee       Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   employeeName   String
   activityText   String?
   absenceReason  String?
   submittedAt    DateTime
+  date           DateTime  @db.Date
   raw            Json
-  createdAt      DateTime @default(now())
+  createdAt      DateTime  @default(now())
 
-  @@index([employeeName])
+  @@index([employeeId, date])
   @@index([submittedAt])
 }
 

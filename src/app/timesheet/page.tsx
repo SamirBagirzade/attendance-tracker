@@ -11,7 +11,7 @@ import {
 } from "date-fns";
 import type { Locale } from "date-fns";
 import { az, enUS, ru } from "date-fns/locale";
-import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Flag, Plus, Printer, Trash2, Users, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleCheck, Flag, Plus, Printer, Trash2, Users, X } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { statusKey, useLanguage } from "@/lib/i18n";
 import type {
@@ -103,6 +103,7 @@ export default function TimesheetPage() {
   const [cars, setCars] = useState<Car[]>([]);
   const [statusColors, setStatusColors] = useState<StatusColor[]>([]);
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  const [formNotes, setFormNotes] = useState<Array<{ employeeId: number; date: string; text: string }>>([]);
   const [activeCell, setActiveCell] = useState<ActiveCell | null>(null);
   const [employeeForm, setEmployeeForm] = useState({ name: "", department: "" });
   const [loading, setLoading] = useState(true);
@@ -151,6 +152,10 @@ export default function TimesheetPage() {
       ),
     [records],
   );
+  const formNoteByCell = useMemo(
+    () => new Map(formNotes.map((item) => [`${item.employeeId}:${item.date}`, item.text])),
+    [formNotes],
+  );
   const colorByStatus = useMemo(
     () => new Map(statusColors.map((item) => [item.status, item.color])),
     [statusColors],
@@ -180,6 +185,7 @@ export default function TimesheetPage() {
         locationResponse,
         carResponse,
         statusColorResponse,
+        formNotesResponse,
       ] = await Promise.all([
         fetch("/api/employees"),
         fetch(`/api/holidays?from=${from}&to=${to}`),
@@ -187,6 +193,7 @@ export default function TimesheetPage() {
         fetch("/api/locations"),
         fetch("/api/cars"),
         fetch("/api/status-colors"),
+        fetch(`/api/forms/daily-log/summary?from=${from}&to=${to}`),
       ]);
 
       if (
@@ -195,7 +202,8 @@ export default function TimesheetPage() {
         !recordResponse.ok ||
         !locationResponse.ok ||
         !carResponse.ok ||
-        !statusColorResponse.ok
+        !statusColorResponse.ok ||
+        !formNotesResponse.ok
       ) {
         throw new Error("Could not load timesheet data.");
       }
@@ -206,6 +214,7 @@ export default function TimesheetPage() {
       setLocations(await locationResponse.json());
       setCars(await carResponse.json());
       setStatusColors(await statusColorResponse.json());
+      setFormNotes(await formNotesResponse.json());
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Could not load timesheet data.");
     } finally {
@@ -544,6 +553,8 @@ export default function TimesheetPage() {
                             const ezamiyyetLocation = record?.status === "EZAMIYYET" ? record.location : null;
                             const workLocationText = record?.status === "ISDE" ? record.workLocations.map((item) => item.name).join(", ") : "";
                             const carText = record?.carDriven && record.car ? record.car.licensePlate : "";
+                            const formNoteText = formNoteByCell.get(`${employee.id}:${dateKey}`);
+                            const hasTooltip = Boolean(record?.note) || Boolean(formNoteText);
 
                             return (
                               <td
@@ -552,20 +563,30 @@ export default function TimesheetPage() {
                                 style={{ minWidth: cellWidth, width: cellWidth }}
                               >
                                 {record?.note ? (
-                                  <>
-                                    <span className="pointer-events-none absolute left-1 top-1 z-10 text-amber-500">
-                                      <AlertTriangle fill="currentColor" size={18} stroke="white" strokeWidth={1.5} />
-                                    </span>
-                                    <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-1 hidden w-max max-w-xs -translate-x-1/2 rounded-md bg-slate-900 px-3 py-2 text-sm font-normal leading-snug text-white shadow-lg group-hover:block">
-                                      {record.note}
-                                    </div>
-                                  </>
+                                  <span className="pointer-events-none absolute left-1 top-1 z-10 text-amber-500">
+                                    <AlertTriangle fill="currentColor" size={18} stroke="white" strokeWidth={1.5} />
+                                  </span>
+                                ) : null}
+                                {formNoteText ? (
+                                  <span className="pointer-events-none absolute right-1 top-1 z-10 text-emerald-500">
+                                    <CircleCheck fill="currentColor" size={18} stroke="white" strokeWidth={1.5} />
+                                  </span>
+                                ) : null}
+                                {hasTooltip ? (
+                                  <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-1 hidden w-max max-w-xs -translate-x-1/2 space-y-2 rounded-md bg-slate-900 px-3 py-2 text-sm font-normal leading-snug text-white shadow-lg group-hover:block">
+                                    {record?.note ? <div>{record.note}</div> : null}
+                                    {formNoteText ? (
+                                      <div className="whitespace-pre-line border-t border-slate-700 pt-2 text-emerald-200 first:border-0 first:pt-0">
+                                        {formNoteText}
+                                      </div>
+                                    ) : null}
+                                  </div>
                                 ) : null}
                                 <button
                                   className="flex min-h-14 w-full flex-col items-center justify-center rounded-md border border-transparent px-1 py-1 text-center text-xs font-semibold text-slate-800 hover:border-slate-300 hover:bg-white"
                                   onClick={() => openCell(employee, dateKey)}
                                   style={statusColor ? { backgroundColor: statusColor } : undefined}
-                                  title={record?.note ? undefined : `${employee.name} ${dateKey}`}
+                                  title={hasTooltip ? undefined : `${employee.name} ${dateKey}`}
                                   type="button"
                                 >
                                   <span className="max-w-full truncate">{statusText}</span>
@@ -632,6 +653,7 @@ export default function TimesheetPage() {
           activeCell={activeCell}
           cars={cars}
           dateLocale={dateLocale}
+          formNote={formNoteByCell.get(`${activeCell.employee.id}:${activeCell.dateKey}`)}
           locations={locations}
           onClose={closeModal}
         />
@@ -644,12 +666,14 @@ function AttendanceModal({
   activeCell,
   cars,
   dateLocale,
+  formNote,
   locations,
   onClose,
 }: {
   activeCell: ActiveCell;
   cars: Car[];
   dateLocale: Locale;
+  formNote?: string;
   locations: Location[];
   onClose: (refresh?: boolean) => Promise<void>;
 }) {
@@ -1022,6 +1046,17 @@ function AttendanceModal({
               value={note}
             />
           </label>
+
+          {formNote ? (
+            <label className="grid gap-1 text-sm font-medium text-slate-700">
+              {t("formSubmission")}
+              <textarea
+                className="min-h-24 cursor-not-allowed resize-none rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-slate-700 outline-none"
+                readOnly
+                value={formNote}
+              />
+            </label>
+          ) : null}
 
           {error ? (
             <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">

@@ -36,6 +36,13 @@ export function parseDateParam(value: string, fieldName: string) {
   return parseCalendarDate(value, fieldName);
 }
 
+// Calendar day (YYYY-MM-DD) of a real timestamp in Baku local time, independent
+// of the server process's TZ env — for turning a submission moment (e.g. a
+// Google Form response) into "which attendance day does this belong to".
+export function bakuDateKey(date: Date): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Baku" }).format(date);
+}
+
 export function toDateKey(date: Date | string) {
   return format(new Date(date), "yyyy-MM-dd");
 }
