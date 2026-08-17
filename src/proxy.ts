@@ -52,7 +52,7 @@ function isAdminOnlyPath(pathname: string) {
     pathname === "/form-submissions" ||
     pathname.startsWith("/api/users") ||
     pathname.startsWith("/api/audit") ||
-    pathname.startsWith("/api/forms/daily-log/")
+    (pathname.startsWith("/api/forms/daily-log/") && pathname !== "/api/forms/daily-log/summary")
   );
 }
 
