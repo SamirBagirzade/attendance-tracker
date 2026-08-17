@@ -227,6 +227,19 @@ model AppSetting {
   updatedAt DateTime @updatedAt
 }
 
+model FormResponse {
+  id             Int      @id @default(autoincrement())
+  employeeName   String
+  activityText   String?
+  absenceReason  String?
+  submittedAt    DateTime
+  raw            Json
+  createdAt      DateTime @default(now())
+
+  @@index([employeeName])
+  @@index([submittedAt])
+}
+
 model AttendanceRecord {
   id              Int              @id @default(autoincrement())
   employeeId      Int

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authCookieName, verifySessionToken } from "@/lib/auth";
 
-const publicPaths = ["/login", "/api/auth/login", "/api/azpetrol/sync"];
+const publicPaths = ["/login", "/api/auth/login", "/api/azpetrol/sync", "/api/forms/daily-log"];
 
 function isPublicPath(pathname: string) {
   return (
