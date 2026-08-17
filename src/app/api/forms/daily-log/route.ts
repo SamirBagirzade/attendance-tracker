@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { bakuDateKey, parseCalendarDate } from "@/lib/dates";
 
 export const runtime = "nodejs";
 
@@ -18,6 +19,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "employeeName is required." }, { status: 400 });
   }
 
+  const employee = await prisma.employee.findFirst({
+    where: { name: { equals: employeeName, mode: "insensitive" } },
+  });
+
+  // No matching employee — discard silently (still 2xx so Apps Script doesn't retry forever).
+  if (!employee) {
+    return NextResponse.json({ ok: true, discarded: true, reason: "No matching employee." });
+  }
+
   const activityText = typeof body.activityText === "string" ? body.activityText.trim() || null : null;
   const absenceReason = typeof body.absenceReason === "string" ? body.absenceReason.trim() || null : null;
 
@@ -27,12 +37,16 @@ export async function POST(request: NextRequest) {
     if (!Number.isNaN(parsed.getTime())) submittedAt = parsed;
   }
 
+  const date = parseCalendarDate(bakuDateKey(submittedAt));
+
   const saved = await prisma.formResponse.create({
     data: {
+      employeeId: employee.id,
       employeeName,
       activityText,
       absenceReason,
       submittedAt,
+      date,
       raw: body,
     },
   });
@@ -48,6 +62,7 @@ export async function GET(request: NextRequest) {
   const responses = await prisma.formResponse.findMany({
     orderBy: { submittedAt: "desc" },
     take: 200,
+    include: { employee: { select: { name: true, department: true } } },
   });
 
   return NextResponse.json(responses);
