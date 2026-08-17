@@ -119,6 +119,7 @@ export default function ReportsPage() {
   const [report, setReport] = useState<FilteredReport | null>(null);
   const [error, setError] = useState("");
   const [prices, setPrices] = useState<Prices>(DEFAULT_PRICES);
+  const [formNotes, setFormNotes] = useState<Array<{ employeeId: number; date: string; text: string }>>([]);
 
   const [expandedCookEmployees, setExpandedCookEmployees] = useState<Set<number>>(new Set());
   const [expandedPaymentEmployees, setExpandedPaymentEmployees] = useState<Set<number>>(new Set());
@@ -179,6 +180,10 @@ export default function ReportsPage() {
   const canDownload = rows.length > 0;
   const byEmployee = useMemo(() => groupByEmployee(rows, prices), [rows, prices]);
   const byLocation = useMemo(() => groupByLocation(rows), [rows]);
+  const formNoteByCell = useMemo(
+    () => new Map(formNotes.map((item) => [`${item.employeeId}:${item.date}`, item.text])),
+    [formNotes],
+  );
 
   // --- Chart data ---
 
@@ -431,6 +436,12 @@ export default function ReportsPage() {
     void loadReport();
   }, [loadReport]);
 
+  useEffect(() => {
+    void fetch(`/api/forms/daily-log/summary?from=${from}&to=${to}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => setFormNotes(data));
+  }, [from, to]);
+
   function submitReport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void loadReport();
@@ -469,7 +480,7 @@ export default function ReportsPage() {
     buildPaymentsSheet(workbook, paymentByEmployee, t);
     buildDebtSheet(workbook, avansByEmployee);
     buildByLocationSheet(workbook, byLocation, t);
-    buildRecordsSheet(workbook, exportRows(rows, t));
+    buildRecordsSheet(workbook, exportRows(rows, t, formNoteByCell));
 
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
@@ -496,7 +507,10 @@ export default function ReportsPage() {
 
     try {
       const params = new URLSearchParams({ employeeId: empReportEmployeeId, from: empReportFrom, to: empReportTo });
-      const res = await fetch(`/api/reports?${params.toString()}`);
+      const [res, formNotesRes] = await Promise.all([
+        fetch(`/api/reports?${params.toString()}`),
+        fetch(`/api/forms/daily-log/summary?from=${empReportFrom}&to=${empReportTo}`),
+      ]);
 
       if (!res.ok) {
         const body = await res.json();
@@ -504,6 +518,10 @@ export default function ReportsPage() {
       }
 
       const data = (await res.json()) as FilteredReport;
+      const empFormNotes = formNotesRes.ok
+        ? ((await formNotesRes.json()) as Array<{ employeeId: number; date: string; text: string }>)
+        : [];
+      const empFormNoteByCell = new Map(empFormNotes.map((item) => [`${item.employeeId}:${item.date}`, item.text]));
       const emp = employees.find((e) => e.id.toString() === empReportEmployeeId);
 
       const mod = await import("exceljs");
@@ -519,6 +537,7 @@ export default function ReportsPage() {
         rows: data.records,
         summary: data.summary,
         prices,
+        formNoteByCell: empFormNoteByCell,
         t,
       });
 
@@ -1348,6 +1367,7 @@ export default function ReportsPage() {
                 t("workLocations"),
                 t("cars"),
                 t("note"),
+                t("formSubmission"),
                 t("weekend"),
                 t("holiday"),
               ]}
@@ -1360,6 +1380,7 @@ export default function ReportsPage() {
                 row.workLocations.join(", ") || "-",
                 row.carDriven ? (row.car ?? "Yes") : "-",
                 row.note ?? "-",
+                formNoteByCell.get(`${row.employeeId}:${row.date}`) ?? "-",
                 row.isWeekend ? "Yes" : "No",
                 row.holidayDescription ?? (row.isHoliday ? "Yes" : "No"),
               ])}
@@ -1578,7 +1599,7 @@ function BreakdownTable({
                 <tr className="border-b border-slate-100 hover:bg-slate-50" key={`${title}-${ri}`}>
                   {row.map((cell, ci) => (
                     <td
-                      className="px-4 py-3 text-slate-700"
+                      className="whitespace-pre-line px-4 py-3 text-slate-700"
                       key={`${title}-${ri}-${ci}`}
                     >
                       {cell}
@@ -1612,7 +1633,11 @@ function optionLabel(value: string) {
   return "All";
 }
 
-function exportRows(rows: FilteredReportRow[], t: (key: string) => string) {
+function exportRows(
+  rows: FilteredReportRow[],
+  t: (key: string) => string,
+  formNoteByCell: Map<string, string> = new Map(),
+) {
   return rows.map((row) => ({
     Date: row.date,
     Employee: row.employeeName,
@@ -1622,6 +1647,7 @@ function exportRows(rows: FilteredReportRow[], t: (key: string) => string) {
     "Work Locations": row.workLocations.join(", "),
     Car: row.carDriven ? (row.car ?? "Yes") : "",
     Note: row.note ?? "",
+    "Form Submission": formNoteByCell.get(`${row.employeeId}:${row.date}`) ?? "",
     Payment: row.paymentType ? t(paymentTypeLabelKey[row.paymentType]) : "",
     "Payment Amount (₼)": row.paymentAmount ?? "",
     "Payment Paid (₼)": row.paymentPaid ?? "",
@@ -2088,6 +2114,7 @@ function buildRecordsSheet(workbook: Workbook, rows: ReturnType<typeof exportRow
     { header: "Work Locations", key: "Work Locations" },
     { header: "Car", key: "Car" },
     { header: "Note", key: "Note" },
+    { header: "Form Submission", key: "Form Submission" },
     { header: "Payment", key: "Payment" },
     { header: "Payment Amount (₼)", key: "Payment Amount (₼)", type: "money" },
     { header: "Payment Paid (₼)", key: "Payment Paid (₼)", type: "money" },
@@ -2113,10 +2140,11 @@ function buildEmployeeReport(
     rows: FilteredReportRow[];
     summary: FilteredReport["summary"];
     prices: Prices;
+    formNoteByCell: Map<string, string>;
     t: (key: string) => string;
   },
 ) {
-  const { employee, from, to, rows, summary, prices, t } = args;
+  const { employee, from, to, rows, summary, prices, formNoteByCell, t } = args;
   const employeeName = employee?.name ?? "—";
 
   const cateringRows = rows
@@ -2213,7 +2241,7 @@ function buildEmployeeReport(
   );
 
   // ---- Records sheet (full daily detail) ----
-  buildRecordsSheet(workbook, exportRows(rows, t));
+  buildRecordsSheet(workbook, exportRows(rows, t, formNoteByCell));
 
   // ---- Catering sheet ----
   if (cateringRows.length > 0) {
