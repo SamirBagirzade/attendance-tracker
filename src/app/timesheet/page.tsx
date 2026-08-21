@@ -413,7 +413,7 @@ export default function TimesheetPage() {
             <table className="min-w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="sticky left-0 z-10 min-w-56 border-r border-slate-200 bg-slate-50 px-3 py-3 text-left font-semibold text-slate-700">
+                  <th className="sticky left-0 z-20 min-w-56 border-r border-slate-200 bg-slate-50 px-3 py-3 text-left font-semibold text-slate-700">
                     <div className="flex items-center gap-2">
                       {bulkMode && (
                         <input type="checkbox"
@@ -500,7 +500,7 @@ export default function TimesheetPage() {
                       // Department header row
                       <tr key={`dept-${dept}`} className="border-b border-slate-200 bg-slate-100">
                         <th
-                          className="sticky left-0 z-10 border-r border-slate-200 bg-slate-100 px-3 py-1.5 text-left"
+                          className="sticky left-0 z-20 border-r border-slate-200 bg-slate-100 px-3 py-1.5 text-left"
                           colSpan={1}
                         >
                           <button
@@ -524,7 +524,7 @@ export default function TimesheetPage() {
                       // Employee rows (hidden when collapsed)
                       ...(!isCollapsed ? deptEmployees.map((employee) => (
                         <tr className="border-b border-slate-100" key={employee.id}>
-                          <th className="sticky left-0 z-10 min-w-56 border-r border-slate-200 bg-white px-3 py-2 text-left">
+                          <th className="sticky left-0 z-20 min-w-56 border-r border-slate-200 bg-white px-3 py-2 text-left">
                             <div className="flex items-center gap-2">
                               {bulkMode && (
                                 <input type="checkbox"
@@ -573,7 +573,7 @@ export default function TimesheetPage() {
                                   </span>
                                 ) : null}
                                 {hasTooltip ? (
-                                  <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-1 hidden w-max max-w-xs -translate-x-1/2 space-y-2 rounded-md bg-slate-900 px-3 py-2 text-sm font-normal leading-snug text-white shadow-lg group-hover:block">
+                                  <div className="pointer-events-none absolute left-1/2 top-full z-30 mt-1 hidden w-max max-w-xs -translate-x-1/2 space-y-2 rounded-md bg-slate-900 px-3 py-2 text-sm font-normal leading-snug text-white shadow-lg group-hover:block">
                                     {record?.note ? <div>{record.note}</div> : null}
                                     {formNoteText ? (
                                       <div className="whitespace-pre-line border-t border-slate-700 pt-2 text-emerald-200 first:border-0 first:pt-0">
