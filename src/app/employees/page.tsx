@@ -10,7 +10,7 @@ import type { Employee } from "@/types/domain";
 export default function EmployeesPage() {
   const { t } = useLanguage();
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [form, setForm] = useState({ name: "", department: "", vacationLimit: "", sickLimit: "" });
+  const [form, setForm] = useState({ name: "", department: "", vacationLimit: "", sickLimit: "", isTemporary: false });
   const [editingId, setEditingId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
@@ -67,7 +67,7 @@ export default function EmployeesPage() {
       return;
     }
 
-    setForm({ name: "", department: "", vacationLimit: "", sickLimit: "" });
+    setForm({ name: "", department: "", vacationLimit: "", sickLimit: "", isTemporary: false });
     setEditingId(null);
     await loadEmployees();
   }
@@ -92,6 +92,7 @@ export default function EmployeesPage() {
       department: employee.department,
       vacationLimit: employee.vacationLimit?.toString() ?? "",
       sickLimit: employee.sickLimit?.toString() ?? "",
+      isTemporary: employee.isTemporary,
     });
   }
 
@@ -144,6 +145,15 @@ export default function EmployeesPage() {
               />
             </label>
           </div>
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <input
+              checked={form.isTemporary}
+              className="h-4 w-4 rounded border-slate-300"
+              onChange={(event) => setForm((current) => ({ ...current, isTemporary: event.target.checked }))}
+              type="checkbox"
+            />
+            {t("isTemporary")}
+          </label>
           <div className="flex gap-2">
             <button
               className="inline-flex h-10 items-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800"
@@ -157,7 +167,7 @@ export default function EmployeesPage() {
                 className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 onClick={() => {
                   setEditingId(null);
-                  setForm({ name: "", department: "", vacationLimit: "", sickLimit: "" });
+                  setForm({ name: "", department: "", vacationLimit: "", sickLimit: "", isTemporary: false });
                 }}
                 type="button"
               >
@@ -217,7 +227,14 @@ export default function EmployeesPage() {
                     return (
                       <tr className="border-b border-slate-100" key={employee.id}>
                         {isAdmin && <td className="px-4 py-3 text-slate-400">{employee.id}</td>}
-                        <td className="px-4 py-3 font-medium text-slate-950">{employee.name}</td>
+                        <td className="px-4 py-3 font-medium text-slate-950">
+                          {employee.name}
+                          {employee.isTemporary && (
+                            <span className="ml-2 inline-block rounded border border-purple-200 bg-purple-50 px-1.5 py-0.5 text-xs font-medium text-purple-600">
+                              {t("isTemporary")}
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-slate-700">{employee.department}</td>
                         <td className="px-4 py-3 hidden sm:table-cell">
                           <div className="flex flex-col gap-1">

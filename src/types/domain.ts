@@ -4,6 +4,7 @@ export type Employee = {
   department: string;
   vacationLimit: number | null;
   sickLimit: number | null;
+  isTemporary: boolean;
 };
 
 export type Holiday = {
@@ -58,6 +59,7 @@ export type AttendanceRecord = {
   carId: number | null;
   car: Car | null;
   note: string | null;
+  workerName: string | null;
   paymentType: PaymentType | null;
   paymentAmount: number | null;
   paymentPaid: number | null;
