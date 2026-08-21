@@ -13,6 +13,7 @@ export type AttendanceRecordInput = {
   carDriven?: unknown;
   carId?: unknown;
   note?: unknown;
+  workerName?: unknown;
   paymentType?: unknown;
   paymentAmount?: unknown;
   paymentPaid?: unknown;
@@ -41,6 +42,7 @@ export function normalizeAttendanceInput(input: AttendanceRecordInput) {
   const carDriven = carAllowedStatuses.has(input.status) && input.carDriven === true;
   const carId = carDriven ? Number(input.carId) : null;
   const note = typeof input.note === "string" ? input.note.trim() : null;
+  const workerName = typeof input.workerName === "string" ? input.workerName.trim() || null : null;
   const paymentType =
     typeof input.paymentType === "string" &&
     Object.values(PaymentType).includes(input.paymentType as PaymentType)
@@ -93,6 +95,10 @@ export function normalizeAttendanceInput(input: AttendanceRecordInput) {
     throw new Error("note must be 1000 characters or fewer.");
   }
 
+  if (workerName && workerName.length > 200) {
+    throw new Error("workerName must be 200 characters or fewer.");
+  }
+
   if (paymentType != null && (paymentAmount == null || !Number.isFinite(paymentAmount) || paymentAmount < 0)) {
     throw new Error("paymentAmount must be zero or a positive number when paymentType is set.");
   }
@@ -120,6 +126,7 @@ export function normalizeAttendanceInput(input: AttendanceRecordInput) {
     carDriven,
     carId,
     note,
+    workerName,
     paymentType,
     paymentAmount,
     paymentPaid,

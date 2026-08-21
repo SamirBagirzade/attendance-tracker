@@ -156,6 +156,14 @@ export default function TimesheetPage() {
     () => new Map(formNotes.map((item) => [`${item.employeeId}:${item.date}`, item.text])),
     [formNotes],
   );
+  const employeesWithNote = useMemo(
+    () => new Set(records.filter((r) => r.note).map((r) => r.employeeId)),
+    [records],
+  );
+  const employeesWithFormNote = useMemo(
+    () => new Set(formNotes.map((item) => item.employeeId)),
+    [formNotes],
+  );
   const colorByStatus = useMemo(
     () => new Map(statusColors.map((item) => [item.status, item.color])),
     [statusColors],
@@ -537,7 +545,19 @@ export default function TimesheetPage() {
                                   })}
                                 />
                               )}
-                              <div className="font-semibold text-slate-950">{employee.name}</div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-semibold text-slate-950">{employee.name}</span>
+                                {employeesWithNote.has(employee.id) ? (
+                                  <span className="shrink-0 text-amber-500" title={t("note")}>
+                                    <AlertTriangle fill="currentColor" size={14} stroke="white" strokeWidth={1.5} />
+                                  </span>
+                                ) : null}
+                                {employeesWithFormNote.has(employee.id) ? (
+                                  <span className="shrink-0 text-emerald-500" title={t("formSubmission")}>
+                                    <CircleCheck fill="currentColor" size={14} stroke="white" strokeWidth={1.5} />
+                                  </span>
+                                ) : null}
+                              </div>
                             </div>
                           </th>
                           {days.map((day) => {
@@ -590,6 +610,9 @@ export default function TimesheetPage() {
                                   type="button"
                                 >
                                   <span className="max-w-full truncate">{statusText}</span>
+                                  {record?.workerName ? (
+                                    <span className="max-w-full truncate text-[10px] font-semibold text-purple-700">{record.workerName}</span>
+                                  ) : null}
                                   {ezamiyyetLocation ? (
                                     <span className="max-w-full truncate text-[10px] font-medium text-slate-700">{ezamiyyetLocation}</span>
                                   ) : null}
@@ -693,6 +716,7 @@ function AttendanceModal({
   const [carDriven, setCarDriven] = useState(Boolean(activeCell.record?.carDriven));
   const [carId, setCarId] = useState(activeCell.record?.carId?.toString() ?? "");
   const [note, setNote] = useState(activeCell.record?.note ?? "");
+  const [workerName, setWorkerName] = useState(activeCell.record?.workerName ?? "");
   const [paymentType, setPaymentType] = useState<PaymentType | "">(
     activeCell.record?.paymentType ?? "",
   );
@@ -746,6 +770,7 @@ function AttendanceModal({
       carDriven: canSelectCar ? carDriven : false,
       carId: canSelectCar && carDriven ? Number(carId) : null,
       note: note.trim() ? note.trim() : null,
+      workerName: activeCell.employee.isTemporary && workerName.trim() ? workerName.trim() : null,
       paymentType: paymentType || null,
       paymentAmount: paymentType ? Number(paymentAmount || "0") : null,
       paymentPaid: paymentType ? Number(paymentPaid || "0") : null,
@@ -806,7 +831,7 @@ function AttendanceModal({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, location, workLocationIds, newWorkLocationNames, actedAsCook, cookedHeadcount, cookedPaid, carDriven, carId, note, paymentType, paymentAmount, paymentPaid]);
+  }, [status, location, workLocationIds, newWorkLocationNames, actedAsCook, cookedHeadcount, cookedPaid, carDriven, carId, note, workerName, paymentType, paymentAmount, paymentPaid]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 px-4 py-6">
@@ -842,6 +867,17 @@ function AttendanceModal({
               ))}
             </select>
           </label>
+
+          {activeCell.employee.isTemporary ? (
+            <label className="grid gap-1 text-sm font-medium text-slate-700">
+              {t("workerName")}
+              <input
+                className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
+                onChange={(event) => setWorkerName(event.target.value)}
+                value={workerName}
+              />
+            </label>
+          ) : null}
 
           {status === "EZAMIYYET" ? (
             <>

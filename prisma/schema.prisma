@@ -94,6 +94,7 @@ model Employee {
   department        String
   vacationLimit     Int?
   sickLimit         Int?
+  isTemporary       Boolean            @default(false)
   attendanceRecords AttendanceRecord[]
   documents         Document[]
   customFields      CustomField[]
@@ -258,6 +259,7 @@ model AttendanceRecord {
   carId           Int?
   car             Car?             @relation(fields: [carId], references: [id], onDelete: SetNull)
   note            String?
+  workerName      String?
   paymentType     PaymentType?
   paymentAmount   Float?
   paymentPaid     Float?

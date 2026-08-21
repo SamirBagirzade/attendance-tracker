@@ -3,6 +3,7 @@ export type EmployeeInput = {
   department?: unknown;
   vacationLimit?: unknown;
   sickLimit?: unknown;
+  isTemporary?: unknown;
 };
 
 export function normalizeEmployeeInput(input: EmployeeInput) {
@@ -34,10 +35,13 @@ export function normalizeEmployeeInput(input: EmployeeInput) {
     throw new Error("sickLimit must be a non-negative integer.");
   }
 
+  const isTemporary = input.isTemporary === true || input.isTemporary === "true";
+
   return {
     name,
     department,
     vacationLimit,
     sickLimit,
+    isTemporary,
   };
 }
