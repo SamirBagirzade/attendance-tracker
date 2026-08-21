@@ -156,14 +156,6 @@ export default function TimesheetPage() {
     () => new Map(formNotes.map((item) => [`${item.employeeId}:${item.date}`, item.text])),
     [formNotes],
   );
-  const employeesWithNote = useMemo(
-    () => new Set(records.filter((r) => r.note).map((r) => r.employeeId)),
-    [records],
-  );
-  const employeesWithFormNote = useMemo(
-    () => new Set(formNotes.map((item) => item.employeeId)),
-    [formNotes],
-  );
   const colorByStatus = useMemo(
     () => new Map(statusColors.map((item) => [item.status, item.color])),
     [statusColors],
@@ -545,19 +537,7 @@ export default function TimesheetPage() {
                                   })}
                                 />
                               )}
-                              <div className="flex items-center gap-1.5">
-                                <span className="font-semibold text-slate-950">{employee.name}</span>
-                                {employeesWithNote.has(employee.id) ? (
-                                  <span className="shrink-0 text-amber-500" title={t("note")}>
-                                    <AlertTriangle fill="currentColor" size={14} stroke="white" strokeWidth={1.5} />
-                                  </span>
-                                ) : null}
-                                {employeesWithFormNote.has(employee.id) ? (
-                                  <span className="shrink-0 text-emerald-500" title={t("formSubmission")}>
-                                    <CircleCheck fill="currentColor" size={14} stroke="white" strokeWidth={1.5} />
-                                  </span>
-                                ) : null}
-                              </div>
+                              <div className="font-semibold text-slate-950">{employee.name}</div>
                             </div>
                           </th>
                           {days.map((day) => {
