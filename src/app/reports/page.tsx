@@ -25,6 +25,7 @@ import type {
   AttendanceStatus,
   Car as CarType,
   Employee,
+  ExpenseType,
   FilteredReport,
   FilteredReportRow,
   Location,
@@ -94,6 +95,23 @@ type AvansGroup = {
   totalOutstanding: number;
 };
 
+const expenseTypeValues: ExpenseType[] = ["FOOD", "TOOL", "FINE", "OTHER"];
+
+const expenseTypeLabelKey: Record<ExpenseType, string> = {
+  FOOD: "expenseFood",
+  TOOL: "expenseTool",
+  FINE: "expenseFine",
+  OTHER: "other",
+};
+
+type ExpenseGroup = {
+  employeeId: number;
+  employeeName: string;
+  sessions: Array<{ id: number; date: string; type: ExpenseType; amount: number }>;
+  totalAmount: number;
+  byType: Record<ExpenseType, number>;
+};
+
 const TIER_KEYS: Array<{ key: keyof Prices; label: string }> = [
   { key: "tier1", label: "1" },
   { key: "tier2", label: "2" },
@@ -124,6 +142,7 @@ export default function ReportsPage() {
   const [expandedCookEmployees, setExpandedCookEmployees] = useState<Set<number>>(new Set());
   const [expandedPaymentEmployees, setExpandedPaymentEmployees] = useState<Set<number>>(new Set());
   const [expandedAvansEmployees, setExpandedAvansEmployees] = useState<Set<number>>(new Set());
+  const [expandedExpenseEmployees, setExpandedExpenseEmployees] = useState<Set<number>>(new Set());
 
   const [empReportOpen, setEmpReportOpen] = useState(false);
   const [empReportEmployeeId, setEmpReportEmployeeId] = useState("");
@@ -148,7 +167,11 @@ export default function ReportsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ cookedPaid: newPaid }),
     });
-    if (!res.ok) updateRecord(recordId, { cookedPaid: currentPaid });
+    if (!res.ok) {
+      updateRecord(recordId, { cookedPaid: currentPaid });
+      const body = await res.json().catch(() => null);
+      setError(body?.error ?? "Could not update.");
+    }
   }
 
   async function updatePaymentPaid(recordId: number, currentPaid: number, nextValue: number) {
@@ -159,7 +182,11 @@ export default function ReportsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ paymentPaid: clamped }),
     });
-    if (!res.ok) updateRecord(recordId, { paymentPaid: currentPaid });
+    if (!res.ok) {
+      updateRecord(recordId, { paymentPaid: currentPaid });
+      const body = await res.json().catch(() => null);
+      setError(body?.error ?? "Could not update.");
+    }
   }
 
   async function updatePrice(key: keyof Prices, value: number) {
@@ -368,6 +395,44 @@ export default function ReportsPage() {
       .sort((a, b) => a.employeeName.localeCompare(b.employeeName));
   }, [avansRecords]);
 
+  // Expense records — company spending routed through an employee (food, tools, fines). Not debt.
+  const expenseRecords = useMemo(
+    () =>
+      rows
+        .filter((r) => r.expenseType != null && r.expenseAmount != null)
+        .map((r) => ({ ...r, type: r.expenseType as ExpenseType, amount: r.expenseAmount as number })),
+    [rows],
+  );
+
+  const totalExpenseAmount = useMemo(
+    () => expenseRecords.reduce((s, r) => s + r.amount, 0),
+    [expenseRecords],
+  );
+
+  const expenseTotalsByType = useMemo(() => {
+    const totals: Record<ExpenseType, number> = { FOOD: 0, TOOL: 0, FINE: 0, OTHER: 0 };
+    for (const r of expenseRecords) totals[r.type] += r.amount;
+    return totals;
+  }, [expenseRecords]);
+
+  const expenseByEmployee = useMemo<ExpenseGroup[]>(() => {
+    const grouped = new Map<number, ExpenseGroup>();
+    for (const r of expenseRecords) {
+      const group = grouped.get(r.employeeId) ?? {
+        employeeId: r.employeeId,
+        employeeName: r.employeeName,
+        sessions: [],
+        totalAmount: 0,
+        byType: { FOOD: 0, TOOL: 0, FINE: 0, OTHER: 0 },
+      };
+      group.sessions.push({ id: r.id, date: r.date, type: r.type, amount: r.amount });
+      group.totalAmount += r.amount;
+      group.byType[r.type] += r.amount;
+      grouped.set(r.employeeId, group);
+    }
+    return Array.from(grouped.values()).sort((a, b) => a.employeeName.localeCompare(b.employeeName));
+  }, [expenseRecords]);
+
   const statusChartData = useMemo(() => {
     if (!report) return [];
     return statusOptions
@@ -472,6 +537,7 @@ export default function ReportsPage() {
       catering: { total: totalCateringCost, paid: paidCateringCost, unpaid: unpaidCateringCost, days: cateringDays.length },
       payments: { total: totalPaymentAmount, paid: totalPaymentPaid, unpaid: totalPaymentUnpaid },
       debt: { given: totalAvansGiven, repaid: totalAvansRepaid, outstanding: totalAvansOutstanding },
+      expense: { total: totalExpenseAmount },
       t,
     });
 
@@ -479,6 +545,7 @@ export default function ReportsPage() {
     buildCateringSheet(workbook, cateringDays, cateringByEmployee);
     buildPaymentsSheet(workbook, paymentByEmployee, t);
     buildDebtSheet(workbook, avansByEmployee);
+    buildExpensesSheet(workbook, expenseByEmployee, t);
     buildByLocationSheet(workbook, byLocation, t);
     buildRecordsSheet(workbook, exportRows(rows, t, formNoteByCell));
 
@@ -1261,6 +1328,108 @@ export default function ReportsPage() {
               </section>
             )}
 
+            {/* Expenses section — company spending routed through an employee, not debt */}
+            {expenseRecords.length > 0 && (
+              <section className="grid gap-4 xl:grid-cols-3">
+                <div className="flex flex-col gap-4 rounded-xl border border-orange-200 bg-orange-50 p-5 shadow-sm">
+                  <div className="flex items-center gap-2 text-orange-700">
+                    <Banknote size={20} />
+                    <h2 className="font-semibold">{t("expenses")}</h2>
+                  </div>
+                  <div>
+                    <div className="text-4xl font-bold text-orange-900">₼{totalExpenseAmount}</div>
+                    <div className="mt-1 text-sm text-orange-600">
+                      {expenseRecords.length} {t("records")}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-orange-200 bg-white/60 p-3">
+                    <div className="space-y-2">
+                      {expenseTypeValues.map((type) => (
+                        <div key={type} className="flex items-center justify-between gap-2">
+                          <span className="text-sm text-orange-800">{t(expenseTypeLabelKey[type])}</span>
+                          <span className="text-sm font-semibold text-orange-900">₼{expenseTotalsByType[type]}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
+                  <h2 className="font-semibold text-slate-950">{t("byEmployee")}</h2>
+                  <div className="overflow-x-auto rounded-lg border border-slate-100">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-slate-50">
+                        <tr>
+                          <th className="px-4 py-2.5 text-left font-medium text-slate-600">{t("employee")}</th>
+                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("records")}</th>
+                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t(expenseTypeLabelKey.FOOD)}</th>
+                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t(expenseTypeLabelKey.TOOL)}</th>
+                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t(expenseTypeLabelKey.FINE)}</th>
+                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t(expenseTypeLabelKey.OTHER)}</th>
+                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("expensesTotal")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {expenseByEmployee.map((group) => {
+                          const isExpanded = expandedExpenseEmployees.has(group.employeeId);
+                          const toggle = () =>
+                            setExpandedExpenseEmployees((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(group.employeeId)) next.delete(group.employeeId);
+                              else next.add(group.employeeId);
+                              return next;
+                            });
+                          return (
+                            <Fragment key={group.employeeId}>
+                              <tr
+                                className="cursor-pointer border-t border-slate-100 hover:bg-slate-50"
+                                key={`group-${group.employeeId}`}
+                                onClick={toggle}
+                              >
+                                <td className="px-4 py-2.5 font-medium text-slate-800">
+                                  <span className="inline-flex items-center gap-1.5">
+                                    {group.sessions.length > 1 ? (
+                                      isExpanded ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />
+                                    ) : (
+                                      <span className="w-[14px]" />
+                                    )}
+                                    {group.employeeName}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2.5 text-right text-slate-700">{group.sessions.length}</td>
+                                <td className="px-4 py-2.5 text-right text-slate-700">{group.byType.FOOD > 0 ? `₼${group.byType.FOOD}` : "–"}</td>
+                                <td className="px-4 py-2.5 text-right text-slate-700">{group.byType.TOOL > 0 ? `₼${group.byType.TOOL}` : "–"}</td>
+                                <td className="px-4 py-2.5 text-right text-slate-700">{group.byType.FINE > 0 ? `₼${group.byType.FINE}` : "–"}</td>
+                                <td className="px-4 py-2.5 text-right text-slate-700">{group.byType.OTHER > 0 ? `₼${group.byType.OTHER}` : "–"}</td>
+                                <td className="px-4 py-2.5 text-right font-semibold text-orange-700">₼{group.totalAmount}</td>
+                              </tr>
+                              {isExpanded && group.sessions.map((s) => (
+                                <tr className="border-t border-slate-50 bg-slate-50/60" key={`session-${s.id}`}>
+                                  <td className="py-2 pl-10 pr-4 text-slate-500" colSpan={2}>{s.date}</td>
+                                  <td className="px-4 py-2 text-right text-slate-500" colSpan={4}>{t(expenseTypeLabelKey[s.type])}</td>
+                                  <td className="px-4 py-2 text-right text-orange-600">₼{s.amount}</td>
+                                </tr>
+                              ))}
+                            </Fragment>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot className="border-t-2 border-slate-200 bg-slate-50">
+                        <tr>
+                          <td className="px-4 py-2.5 font-semibold text-slate-900" colSpan={2}>{t("total")}</td>
+                          <td className="px-4 py-2.5 text-right font-bold text-orange-900">₼{expenseTotalsByType.FOOD}</td>
+                          <td className="px-4 py-2.5 text-right font-bold text-orange-900">₼{expenseTotalsByType.TOOL}</td>
+                          <td className="px-4 py-2.5 text-right font-bold text-orange-900">₼{expenseTotalsByType.FINE}</td>
+                          <td className="px-4 py-2.5 text-right font-bold text-orange-900">₼{expenseTotalsByType.OTHER}</td>
+                          <td className="px-4 py-2.5 text-right font-bold text-orange-900">₼{totalExpenseAmount}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              </section>
+            )}
+
             {/* By Employee & By Location tables */}
             <section className="grid gap-4 xl:grid-cols-2">
               <BreakdownTable
@@ -1290,6 +1459,11 @@ export default function ReportsPage() {
                   t("avansGiven"),
                   t("avansRepaid"),
                   t("avansOutstanding"),
+                  t(expenseTypeLabelKey.FOOD),
+                  t(expenseTypeLabelKey.TOOL),
+                  t(expenseTypeLabelKey.FINE),
+                  t(expenseTypeLabelKey.OTHER),
+                  t("expensesTotal"),
                   t("statusMEZUNIYYET"),
                   t("statusXESTE"),
                 ]}
@@ -1325,6 +1499,11 @@ export default function ReportsPage() {
                     item.avansGivenTotal > 0 ? `₼${item.avansGivenTotal}` : "-",
                     item.avansRepaidTotal > 0 ? `₼${item.avansRepaidTotal}` : "-",
                     item.avansOutstandingTotal > 0 ? `₼${item.avansOutstandingTotal}` : "-",
+                    item.expenseFoodTotal > 0 ? `₼${item.expenseFoodTotal}` : "-",
+                    item.expenseToolTotal > 0 ? `₼${item.expenseToolTotal}` : "-",
+                    item.expenseFineTotal > 0 ? `₼${item.expenseFineTotal}` : "-",
+                    item.expenseOtherTotal > 0 ? `₼${item.expenseOtherTotal}` : "-",
+                    item.expenseTotal > 0 ? `₼${item.expenseTotal}` : "-",
                     vacStr,
                     sickStr,
                   ];
@@ -1651,6 +1830,8 @@ function exportRows(
     Payment: row.paymentType ? t(paymentTypeLabelKey[row.paymentType]) : "",
     "Payment Amount (₼)": row.paymentAmount ?? "",
     "Payment Paid (₼)": row.paymentPaid ?? "",
+    Expense: row.expenseType ? t(expenseTypeLabelKey[row.expenseType]) : "",
+    "Expense Amount (₼)": row.expenseAmount ?? "",
     Weekend: row.isWeekend ? "Yes" : "No",
     Holiday: row.holidayDescription ?? (row.isHoliday ? "Yes" : "No"),
   }));
@@ -1658,13 +1839,14 @@ function exportRows(
 
 // ---- Excel export: styling ----
 
-type SectionAccent = "general" | "catering" | "payments" | "debt";
+type SectionAccent = "general" | "catering" | "payments" | "debt" | "expense";
 
 const ACCENT_FILL: Record<SectionAccent, Fill> = {
   general: { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E293B" } }, // slate-800
   catering: { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F766E" } }, // teal-700
   payments: { type: "pattern", pattern: "solid", fgColor: { argb: "FF6D28D9" } }, // violet-700
   debt: { type: "pattern", pattern: "solid", fgColor: { argb: "FFBE123C" } }, // rose-700
+  expense: { type: "pattern", pattern: "solid", fgColor: { argb: "FFC2410C" } }, // orange-700
 };
 
 const BAND_FILL: Record<SectionAccent, Fill> = {
@@ -1672,6 +1854,7 @@ const BAND_FILL: Record<SectionAccent, Fill> = {
   catering: { type: "pattern", pattern: "solid", fgColor: { argb: "FFCCFBF1" } }, // teal-100
   payments: { type: "pattern", pattern: "solid", fgColor: { argb: "FFEDE9FE" } }, // violet-100
   debt: { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFE4E6" } }, // rose-100
+  expense: { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFEDD5" } }, // orange-100
 };
 
 const ZEBRA_FILL: Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } };
@@ -1815,6 +1998,7 @@ function buildSummarySheet(
     catering: { total: number; paid: number; unpaid: number; days: number };
     payments: { total: number; paid: number; unpaid: number };
     debt: { given: number; repaid: number; outstanding: number };
+    expense: { total: number };
     t: (key: string) => string;
   },
 ) {
@@ -1882,7 +2066,7 @@ function buildSummarySheet(
     row,
   );
 
-  addKeyValueSection(
+  row = addKeyValueSection(
     ws,
     "Employee Debt (Avans)",
     [
@@ -1891,6 +2075,14 @@ function buildSummarySheet(
       ["Outstanding (₼)", args.debt.outstanding],
     ],
     "debt",
+    row,
+  );
+
+  addKeyValueSection(
+    ws,
+    "Expenses (Food / Tool / Fine / Other — company spending)",
+    [["Total (₼)", args.expense.total]],
+    "expense",
     row,
   );
 }
@@ -2033,6 +2225,38 @@ function buildPaymentsSheet(workbook: Workbook, paymentByEmployee: PaymentGroup[
   autoWidth(ws, 7);
 }
 
+function buildExpensesSheet(workbook: Workbook, expenseByEmployee: ExpenseGroup[], t: (key: string) => string) {
+  const ws = workbook.addWorksheet("Expenses", { properties: { tabColor: { argb: "FFC2410C" } } });
+
+  const rows = expenseByEmployee.map((g) => ({
+    employee: g.employeeName,
+    sessions: g.sessions.length,
+    food: g.byType.FOOD,
+    tool: g.byType.TOOL,
+    fine: g.byType.FINE,
+    other: g.byType.OTHER,
+    total: g.totalAmount,
+  }));
+
+  addTable(
+    ws,
+    [
+      { header: "Employee", key: "employee" },
+      { header: "Sessions", key: "sessions" },
+      { header: t(expenseTypeLabelKey.FOOD) + " (₼)", key: "food", type: "money" },
+      { header: t(expenseTypeLabelKey.TOOL) + " (₼)", key: "tool", type: "money" },
+      { header: t(expenseTypeLabelKey.FINE) + " (₼)", key: "fine", type: "money" },
+      { header: t(expenseTypeLabelKey.OTHER) + " (₼)", key: "other", type: "money" },
+      { header: "Total (₼)", key: "total", type: "money" },
+    ],
+    rows,
+    "expense",
+    1,
+  );
+
+  autoWidth(ws, 7);
+}
+
 function buildDebtSheet(workbook: Workbook, avansByEmployee: AvansGroup[]) {
   const ws = workbook.addWorksheet("Employee Debt", { properties: { tabColor: { argb: "FFBE123C" } } });
 
@@ -2118,6 +2342,8 @@ function buildRecordsSheet(workbook: Workbook, rows: ReturnType<typeof exportRow
     { header: "Payment", key: "Payment" },
     { header: "Payment Amount (₼)", key: "Payment Amount (₼)", type: "money" },
     { header: "Payment Paid (₼)", key: "Payment Paid (₼)", type: "money" },
+    { header: "Expense", key: "Expense" },
+    { header: "Expense Amount (₼)", key: "Expense Amount (₼)", type: "money" },
     { header: "Weekend", key: "Weekend" },
     { header: "Holiday", key: "Holiday" },
   ];
@@ -2167,6 +2393,11 @@ function buildEmployeeReport(
   const avansGivenTotal = avansRows.reduce((s, r) => s + r.given, 0);
   const avansRepaidTotal = avansRows.reduce((s, r) => s + r.repaid, 0);
   const avansOutstandingTotal = Math.max(0, avansGivenTotal - avansRepaidTotal);
+
+  const expenseRows = rows
+    .filter((r) => r.expenseType != null && r.expenseAmount != null)
+    .map((r) => ({ ...r, type: r.expenseType as ExpenseType, amount: r.expenseAmount as number }));
+  const expenseTotal = expenseRows.reduce((s, r) => s + r.amount, 0);
 
   // ---- Profile sheet ----
   const profile = workbook.addWorksheet("Profile", { properties: { tabColor: { argb: "FF1E293B" } } });
@@ -2228,7 +2459,7 @@ function buildEmployeeReport(
     row,
   );
 
-  addKeyValueSection(
+  row = addKeyValueSection(
     profile,
     "Employee Debt (Avans)",
     [
@@ -2237,6 +2468,17 @@ function buildEmployeeReport(
       ["Outstanding (₼)", avansOutstandingTotal],
     ],
     "debt",
+    row,
+  );
+
+  addKeyValueSection(
+    profile,
+    "Expenses (Food / Tool / Fine / Other)",
+    [
+      ["Total (₼)", expenseTotal],
+      ["Sessions", expenseRows.length],
+    ],
+    "expense",
     row,
   );
 
@@ -2317,6 +2559,28 @@ function buildEmployeeReport(
     );
     autoWidth(ws, 4);
   }
+
+  // ---- Expenses sheet ----
+  if (expenseRows.length > 0) {
+    const ws = workbook.addWorksheet("Expenses", { properties: { tabColor: { argb: "FFC2410C" } } });
+    const dataRows = expenseRows.map((r) => ({
+      date: r.date,
+      type: t(expenseTypeLabelKey[r.type]),
+      amount: r.amount,
+    }));
+    addTable(
+      ws,
+      [
+        { header: "Date", key: "date", type: "date" },
+        { header: "Type", key: "type" },
+        { header: "Amount (₼)", key: "amount", type: "money" },
+      ],
+      dataRows,
+      "expense",
+      1,
+    );
+    autoWidth(ws, 3);
+  }
 }
 
 function emptyStatusCounts() {
@@ -2349,6 +2613,10 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
       paymentPaidTotal: number;
       avansGivenTotal: number;
       avansRepaidTotal: number;
+      expenseFoodTotal: number;
+      expenseToolTotal: number;
+      expenseFineTotal: number;
+      expenseOtherTotal: number;
     }
   >();
 
@@ -2376,6 +2644,10 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
       paymentPaidTotal: 0,
       avansGivenTotal: 0,
       avansRepaidTotal: 0,
+      expenseFoodTotal: 0,
+      expenseToolTotal: 0,
+      expenseFineTotal: 0,
+      expenseOtherTotal: 0,
     };
 
     item.records += 1;
@@ -2404,6 +2676,12 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
       item.avansGivenTotal += row.paymentAmount;
       item.avansRepaidTotal += row.paymentPaid ?? 0;
     }
+    if (row.expenseType != null && row.expenseAmount != null) {
+      if (row.expenseType === "FOOD") item.expenseFoodTotal += row.expenseAmount;
+      else if (row.expenseType === "TOOL") item.expenseToolTotal += row.expenseAmount;
+      else if (row.expenseType === "FINE") item.expenseFineTotal += row.expenseAmount;
+      else item.expenseOtherTotal += row.expenseAmount;
+    }
     grouped.set(row.employeeId, item);
   }
 
@@ -2417,7 +2695,9 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
       tierCost(5, item.cookedTier5plus);
     const paymentTotal = item.paymentBonusTotal + item.paymentEzamElaveTotal;
     const avansOutstandingTotal = Math.max(0, item.avansGivenTotal - item.avansRepaidTotal);
-    return { ...item, cateringCost: totalCost, paymentTotal, avansOutstandingTotal };
+    const expenseTotal =
+      item.expenseFoodTotal + item.expenseToolTotal + item.expenseFineTotal + item.expenseOtherTotal;
+    return { ...item, cateringCost: totalCost, paymentTotal, avansOutstandingTotal, expenseTotal };
   });
 }
 

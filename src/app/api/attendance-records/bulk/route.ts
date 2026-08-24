@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AttendanceStatus } from "@prisma/client";
 import { parseCalendarDate } from "@/lib/dates";
-import { requireEditor } from "@/lib/permissions";
+import { requireEditor, requireDateEditable } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
@@ -26,6 +26,9 @@ export async function POST(request: NextRequest) {
   }
 
   const parsedDate = parseCalendarDate(date);
+
+  const lockDenied = await requireDateEditable(request, parsedDate);
+  if (lockDenied) return lockDenied;
 
   const employees = await prisma.employee.findMany({ select: { id: true } });
 

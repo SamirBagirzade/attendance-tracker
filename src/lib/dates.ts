@@ -43,6 +43,16 @@ export function bakuDateKey(date: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Baku" }).format(date);
 }
 
+// Attendance records older than this (in Baku calendar days) can only be
+// edited by ADMIN/SUPERVISOR — everyone else is locked out of retroactive edits.
+export const RECORD_EDIT_LOCK_DAYS = 5;
+
+export function isDateEditLocked(date: Date): boolean {
+  const today = parseCalendarDate(bakuDateKey(new Date()));
+  const diffDays = Math.round((today.getTime() - date.getTime()) / 86_400_000);
+  return diffDays > RECORD_EDIT_LOCK_DAYS;
+}
+
 export function toDateKey(date: Date | string) {
   return format(new Date(date), "yyyy-MM-dd");
 }

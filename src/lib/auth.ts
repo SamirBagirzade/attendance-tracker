@@ -1,7 +1,7 @@
 import { jwtVerify, SignJWT } from "jose";
 
 export const authCookieName = "attendance_auth";
-export const userRoles = ["ADMIN", "EDITOR", "VIEWER"] as const;
+export const userRoles = ["ADMIN", "SUPERVISOR", "EDITOR", "VIEWER"] as const;
 
 export type UserRole = (typeof userRoles)[number];
 export type SessionUser = {

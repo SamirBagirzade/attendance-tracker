@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { normalizeAttendanceInput } from "@/lib/attendance";
 import { toApiDateKey } from "@/lib/dates";
 import { logAudit } from "@/lib/audit";
+import { requireDateEditable } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = {
@@ -75,7 +76,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       paymentType: body.paymentType !== undefined ? body.paymentType : existing.paymentType,
       paymentAmount: body.paymentAmount !== undefined ? body.paymentAmount : existing.paymentAmount,
       paymentPaid: body.paymentPaid !== undefined ? body.paymentPaid : existing.paymentPaid,
+      expenseType: body.expenseType !== undefined ? body.expenseType : existing.expenseType,
+      expenseAmount: body.expenseAmount !== undefined ? body.expenseAmount : existing.expenseAmount,
     });
+
+    const denied = await requireDateEditable(request, existing.date);
+    if (denied) return denied;
 
     const record = await prisma.$transaction(async (tx) => {
       const locationIds = [...input.workLocationIds];
@@ -105,6 +111,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           paymentType: input.paymentType,
           paymentAmount: input.paymentAmount,
           paymentPaid: input.paymentPaid,
+          expenseType: input.expenseType,
+          expenseAmount: input.expenseAmount,
         },
       });
 
@@ -179,6 +187,14 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
   if (!Number.isInteger(id) || id <= 0) {
     return NextResponse.json({ error: "id must be a positive integer." }, { status: 400 });
   }
+
+  const existing = await prisma.attendanceRecord.findUnique({ where: { id }, select: { date: true } });
+  if (!existing) {
+    return NextResponse.json({ error: "Attendance record not found." }, { status: 404 });
+  }
+
+  const denied = await requireDateEditable(request, existing.date);
+  if (denied) return denied;
 
   try {
     await prisma.attendanceRecord.delete({

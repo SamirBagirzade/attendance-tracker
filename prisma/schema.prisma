@@ -20,6 +20,7 @@ enum AttendanceStatus {
 
 enum UserRole {
   ADMIN
+  SUPERVISOR
   EDITOR
   VIEWER
 }
@@ -28,6 +29,13 @@ enum PaymentType {
   BONUS
   EZAM_ELAVE
   AVANS
+}
+
+enum ExpenseType {
+  FOOD
+  TOOL
+  FINE
+  OTHER
 }
 
 model AuditLog {
@@ -263,6 +271,8 @@ model AttendanceRecord {
   paymentType     PaymentType?
   paymentAmount   Float?
   paymentPaid     Float?
+  expenseType     ExpenseType?
+  expenseAmount   Float?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
