@@ -95,12 +95,11 @@ type AvansGroup = {
   totalOutstanding: number;
 };
 
-const expenseTypeValues: ExpenseType[] = ["FOOD", "TOOL", "FINE", "OTHER"];
+const expenseTypeValues: ExpenseType[] = ["FOOD", "TOOL", "OTHER"];
 
 const expenseTypeLabelKey: Record<ExpenseType, string> = {
   FOOD: "expenseFood",
   TOOL: "expenseTool",
-  FINE: "expenseFine",
   OTHER: "other",
 };
 
@@ -110,6 +109,13 @@ type ExpenseGroup = {
   sessions: Array<{ id: number; date: string; type: ExpenseType; amount: number }>;
   totalAmount: number;
   byType: Record<ExpenseType, number>;
+};
+
+type FineGroup = {
+  employeeId: number;
+  employeeName: string;
+  sessions: Array<{ id: number; date: string; amount: number }>;
+  totalAmount: number;
 };
 
 const TIER_KEYS: Array<{ key: keyof Prices; label: string }> = [
@@ -143,6 +149,7 @@ export default function ReportsPage() {
   const [expandedPaymentEmployees, setExpandedPaymentEmployees] = useState<Set<number>>(new Set());
   const [expandedAvansEmployees, setExpandedAvansEmployees] = useState<Set<number>>(new Set());
   const [expandedExpenseEmployees, setExpandedExpenseEmployees] = useState<Set<number>>(new Set());
+  const [expandedFineEmployees, setExpandedFineEmployees] = useState<Set<number>>(new Set());
 
   const [empReportOpen, setEmpReportOpen] = useState(false);
   const [empReportEmployeeId, setEmpReportEmployeeId] = useState("");
@@ -410,7 +417,7 @@ export default function ReportsPage() {
   );
 
   const expenseTotalsByType = useMemo(() => {
-    const totals: Record<ExpenseType, number> = { FOOD: 0, TOOL: 0, FINE: 0, OTHER: 0 };
+    const totals: Record<ExpenseType, number> = { FOOD: 0, TOOL: 0, OTHER: 0 };
     for (const r of expenseRecords) totals[r.type] += r.amount;
     return totals;
   }, [expenseRecords]);
@@ -423,7 +430,7 @@ export default function ReportsPage() {
         employeeName: r.employeeName,
         sessions: [],
         totalAmount: 0,
-        byType: { FOOD: 0, TOOL: 0, FINE: 0, OTHER: 0 },
+        byType: { FOOD: 0, TOOL: 0, OTHER: 0 },
       };
       group.sessions.push({ id: r.id, date: r.date, type: r.type, amount: r.amount });
       group.totalAmount += r.amount;
@@ -432,6 +439,33 @@ export default function ReportsPage() {
     }
     return Array.from(grouped.values()).sort((a, b) => a.employeeName.localeCompare(b.employeeName));
   }, [expenseRecords]);
+
+  // Fines — traffic/police fines paid by the company on the employee's behalf, tracked separately from Expenses
+  const fineRecords = useMemo(
+    () => rows.filter((r) => r.fineAmount != null).map((r) => ({ ...r, amount: r.fineAmount as number })),
+    [rows],
+  );
+
+  const totalFineAmount = useMemo(
+    () => fineRecords.reduce((s, r) => s + r.amount, 0),
+    [fineRecords],
+  );
+
+  const fineByEmployee = useMemo<FineGroup[]>(() => {
+    const grouped = new Map<number, FineGroup>();
+    for (const r of fineRecords) {
+      const group = grouped.get(r.employeeId) ?? {
+        employeeId: r.employeeId,
+        employeeName: r.employeeName,
+        sessions: [],
+        totalAmount: 0,
+      };
+      group.sessions.push({ id: r.id, date: r.date, amount: r.amount });
+      group.totalAmount += r.amount;
+      grouped.set(r.employeeId, group);
+    }
+    return Array.from(grouped.values()).sort((a, b) => a.employeeName.localeCompare(b.employeeName));
+  }, [fineRecords]);
 
   const statusChartData = useMemo(() => {
     if (!report) return [];
@@ -538,6 +572,7 @@ export default function ReportsPage() {
       payments: { total: totalPaymentAmount, paid: totalPaymentPaid, unpaid: totalPaymentUnpaid },
       debt: { given: totalAvansGiven, repaid: totalAvansRepaid, outstanding: totalAvansOutstanding },
       expense: { total: totalExpenseAmount },
+      fine: { total: totalFineAmount },
       t,
     });
 
@@ -546,6 +581,7 @@ export default function ReportsPage() {
     buildPaymentsSheet(workbook, paymentByEmployee, t);
     buildDebtSheet(workbook, avansByEmployee);
     buildExpensesSheet(workbook, expenseByEmployee, t);
+    buildFinesSheet(workbook, fineByEmployee);
     buildByLocationSheet(workbook, byLocation, t);
     buildRecordsSheet(workbook, exportRows(rows, t, formNoteByCell));
 
@@ -1364,7 +1400,6 @@ export default function ReportsPage() {
                           <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("records")}</th>
                           <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t(expenseTypeLabelKey.FOOD)}</th>
                           <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t(expenseTypeLabelKey.TOOL)}</th>
-                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t(expenseTypeLabelKey.FINE)}</th>
                           <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t(expenseTypeLabelKey.OTHER)}</th>
                           <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("expensesTotal")}</th>
                         </tr>
@@ -1399,14 +1434,13 @@ export default function ReportsPage() {
                                 <td className="px-4 py-2.5 text-right text-slate-700">{group.sessions.length}</td>
                                 <td className="px-4 py-2.5 text-right text-slate-700">{group.byType.FOOD > 0 ? `₼${group.byType.FOOD}` : "–"}</td>
                                 <td className="px-4 py-2.5 text-right text-slate-700">{group.byType.TOOL > 0 ? `₼${group.byType.TOOL}` : "–"}</td>
-                                <td className="px-4 py-2.5 text-right text-slate-700">{group.byType.FINE > 0 ? `₼${group.byType.FINE}` : "–"}</td>
                                 <td className="px-4 py-2.5 text-right text-slate-700">{group.byType.OTHER > 0 ? `₼${group.byType.OTHER}` : "–"}</td>
                                 <td className="px-4 py-2.5 text-right font-semibold text-orange-700">₼{group.totalAmount}</td>
                               </tr>
                               {isExpanded && group.sessions.map((s) => (
                                 <tr className="border-t border-slate-50 bg-slate-50/60" key={`session-${s.id}`}>
                                   <td className="py-2 pl-10 pr-4 text-slate-500" colSpan={2}>{s.date}</td>
-                                  <td className="px-4 py-2 text-right text-slate-500" colSpan={4}>{t(expenseTypeLabelKey[s.type])}</td>
+                                  <td className="px-4 py-2 text-right text-slate-500" colSpan={3}>{t(expenseTypeLabelKey[s.type])}</td>
                                   <td className="px-4 py-2 text-right text-orange-600">₼{s.amount}</td>
                                 </tr>
                               ))}
@@ -1419,9 +1453,87 @@ export default function ReportsPage() {
                           <td className="px-4 py-2.5 font-semibold text-slate-900" colSpan={2}>{t("total")}</td>
                           <td className="px-4 py-2.5 text-right font-bold text-orange-900">₼{expenseTotalsByType.FOOD}</td>
                           <td className="px-4 py-2.5 text-right font-bold text-orange-900">₼{expenseTotalsByType.TOOL}</td>
-                          <td className="px-4 py-2.5 text-right font-bold text-orange-900">₼{expenseTotalsByType.FINE}</td>
                           <td className="px-4 py-2.5 text-right font-bold text-orange-900">₼{expenseTotalsByType.OTHER}</td>
                           <td className="px-4 py-2.5 text-right font-bold text-orange-900">₼{totalExpenseAmount}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* Fines section — traffic/police fines paid by the company, tracked separately from Expenses */}
+            {fineRecords.length > 0 && (
+              <section className="grid gap-4 xl:grid-cols-3">
+                <div className="flex flex-col gap-4 rounded-xl border border-red-200 bg-red-50 p-5 shadow-sm">
+                  <div className="flex items-center gap-2 text-red-700">
+                    <Banknote size={20} />
+                    <h2 className="font-semibold">{t("fines")}</h2>
+                  </div>
+                  <div>
+                    <div className="text-4xl font-bold text-red-900">₼{totalFineAmount}</div>
+                    <div className="mt-1 text-sm text-red-600">
+                      {fineRecords.length} {t("records")}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
+                  <h2 className="font-semibold text-slate-950">{t("byEmployee")}</h2>
+                  <div className="overflow-x-auto rounded-lg border border-slate-100">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-slate-50">
+                        <tr>
+                          <th className="px-4 py-2.5 text-left font-medium text-slate-600">{t("employee")}</th>
+                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("records")}</th>
+                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("finesTotal")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {fineByEmployee.map((group) => {
+                          const isExpanded = expandedFineEmployees.has(group.employeeId);
+                          const toggle = () =>
+                            setExpandedFineEmployees((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(group.employeeId)) next.delete(group.employeeId);
+                              else next.add(group.employeeId);
+                              return next;
+                            });
+                          return (
+                            <Fragment key={group.employeeId}>
+                              <tr
+                                className="cursor-pointer border-t border-slate-100 hover:bg-slate-50"
+                                key={`group-${group.employeeId}`}
+                                onClick={toggle}
+                              >
+                                <td className="px-4 py-2.5 font-medium text-slate-800">
+                                  <span className="inline-flex items-center gap-1.5">
+                                    {group.sessions.length > 1 ? (
+                                      isExpanded ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />
+                                    ) : (
+                                      <span className="w-[14px]" />
+                                    )}
+                                    {group.employeeName}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2.5 text-right text-slate-700">{group.sessions.length}</td>
+                                <td className="px-4 py-2.5 text-right font-semibold text-red-700">₼{group.totalAmount}</td>
+                              </tr>
+                              {isExpanded && group.sessions.map((s) => (
+                                <tr className="border-t border-slate-50 bg-slate-50/60" key={`session-${s.id}`}>
+                                  <td className="py-2 pl-10 pr-4 text-slate-500" colSpan={2}>{s.date}</td>
+                                  <td className="px-4 py-2 text-right text-red-600">₼{s.amount}</td>
+                                </tr>
+                              ))}
+                            </Fragment>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot className="border-t-2 border-slate-200 bg-slate-50">
+                        <tr>
+                          <td className="px-4 py-2.5 font-semibold text-slate-900" colSpan={2}>{t("total")}</td>
+                          <td className="px-4 py-2.5 text-right font-bold text-red-900">₼{totalFineAmount}</td>
                         </tr>
                       </tfoot>
                     </table>
@@ -1461,9 +1573,9 @@ export default function ReportsPage() {
                   t("avansOutstanding"),
                   t(expenseTypeLabelKey.FOOD),
                   t(expenseTypeLabelKey.TOOL),
-                  t(expenseTypeLabelKey.FINE),
                   t(expenseTypeLabelKey.OTHER),
                   t("expensesTotal"),
+                  t("finesTotal"),
                   t("statusMEZUNIYYET"),
                   t("statusXESTE"),
                 ]}
@@ -1501,9 +1613,9 @@ export default function ReportsPage() {
                     item.avansOutstandingTotal > 0 ? `₼${item.avansOutstandingTotal}` : "-",
                     item.expenseFoodTotal > 0 ? `₼${item.expenseFoodTotal}` : "-",
                     item.expenseToolTotal > 0 ? `₼${item.expenseToolTotal}` : "-",
-                    item.expenseFineTotal > 0 ? `₼${item.expenseFineTotal}` : "-",
                     item.expenseOtherTotal > 0 ? `₼${item.expenseOtherTotal}` : "-",
                     item.expenseTotal > 0 ? `₼${item.expenseTotal}` : "-",
+                    item.fineTotal > 0 ? `₼${item.fineTotal}` : "-",
                     vacStr,
                     sickStr,
                   ];
@@ -1832,6 +1944,7 @@ function exportRows(
     "Payment Paid (₼)": row.paymentPaid ?? "",
     Expense: row.expenseType ? t(expenseTypeLabelKey[row.expenseType]) : "",
     "Expense Amount (₼)": row.expenseAmount ?? "",
+    "Fine (₼)": row.fineAmount ?? "",
     Weekend: row.isWeekend ? "Yes" : "No",
     Holiday: row.holidayDescription ?? (row.isHoliday ? "Yes" : "No"),
   }));
@@ -1999,6 +2112,7 @@ function buildSummarySheet(
     payments: { total: number; paid: number; unpaid: number };
     debt: { given: number; repaid: number; outstanding: number };
     expense: { total: number };
+    fine: { total: number };
     t: (key: string) => string;
   },
 ) {
@@ -2078,10 +2192,18 @@ function buildSummarySheet(
     row,
   );
 
+  row = addKeyValueSection(
+    ws,
+    "Expenses (Food / Tool / Other — company spending)",
+    [["Total (₼)", args.expense.total]],
+    "expense",
+    row,
+  );
+
   addKeyValueSection(
     ws,
-    "Expenses (Food / Tool / Fine / Other — company spending)",
-    [["Total (₼)", args.expense.total]],
+    "Fines (traffic/police — company spending, tracked separately)",
+    [["Total (₼)", args.fine.total]],
     "expense",
     row,
   );
@@ -2233,7 +2355,6 @@ function buildExpensesSheet(workbook: Workbook, expenseByEmployee: ExpenseGroup[
     sessions: g.sessions.length,
     food: g.byType.FOOD,
     tool: g.byType.TOOL,
-    fine: g.byType.FINE,
     other: g.byType.OTHER,
     total: g.totalAmount,
   }));
@@ -2245,7 +2366,6 @@ function buildExpensesSheet(workbook: Workbook, expenseByEmployee: ExpenseGroup[
       { header: "Sessions", key: "sessions" },
       { header: t(expenseTypeLabelKey.FOOD) + " (₼)", key: "food", type: "money" },
       { header: t(expenseTypeLabelKey.TOOL) + " (₼)", key: "tool", type: "money" },
-      { header: t(expenseTypeLabelKey.FINE) + " (₼)", key: "fine", type: "money" },
       { header: t(expenseTypeLabelKey.OTHER) + " (₼)", key: "other", type: "money" },
       { header: "Total (₼)", key: "total", type: "money" },
     ],
@@ -2254,7 +2374,31 @@ function buildExpensesSheet(workbook: Workbook, expenseByEmployee: ExpenseGroup[
     1,
   );
 
-  autoWidth(ws, 7);
+  autoWidth(ws, 6);
+}
+
+function buildFinesSheet(workbook: Workbook, fineByEmployee: FineGroup[]) {
+  const ws = workbook.addWorksheet("Fines", { properties: { tabColor: { argb: "FFB91C1C" } } });
+
+  const rows = fineByEmployee.map((g) => ({
+    employee: g.employeeName,
+    sessions: g.sessions.length,
+    total: g.totalAmount,
+  }));
+
+  addTable(
+    ws,
+    [
+      { header: "Employee", key: "employee" },
+      { header: "Sessions", key: "sessions" },
+      { header: "Total (₼)", key: "total", type: "money" },
+    ],
+    rows,
+    "expense",
+    1,
+  );
+
+  autoWidth(ws, 3);
 }
 
 function buildDebtSheet(workbook: Workbook, avansByEmployee: AvansGroup[]) {
@@ -2344,6 +2488,7 @@ function buildRecordsSheet(workbook: Workbook, rows: ReturnType<typeof exportRow
     { header: "Payment Paid (₼)", key: "Payment Paid (₼)", type: "money" },
     { header: "Expense", key: "Expense" },
     { header: "Expense Amount (₼)", key: "Expense Amount (₼)", type: "money" },
+    { header: "Fine (₼)", key: "Fine (₼)", type: "money" },
     { header: "Weekend", key: "Weekend" },
     { header: "Holiday", key: "Holiday" },
   ];
@@ -2398,6 +2543,11 @@ function buildEmployeeReport(
     .filter((r) => r.expenseType != null && r.expenseAmount != null)
     .map((r) => ({ ...r, type: r.expenseType as ExpenseType, amount: r.expenseAmount as number }));
   const expenseTotal = expenseRows.reduce((s, r) => s + r.amount, 0);
+
+  const fineRows = rows
+    .filter((r) => r.fineAmount != null)
+    .map((r) => ({ ...r, amount: r.fineAmount as number }));
+  const fineTotal = fineRows.reduce((s, r) => s + r.amount, 0);
 
   // ---- Profile sheet ----
   const profile = workbook.addWorksheet("Profile", { properties: { tabColor: { argb: "FF1E293B" } } });
@@ -2471,12 +2621,23 @@ function buildEmployeeReport(
     row,
   );
 
-  addKeyValueSection(
+  row = addKeyValueSection(
     profile,
-    "Expenses (Food / Tool / Fine / Other)",
+    "Expenses (Food / Tool / Other)",
     [
       ["Total (₼)", expenseTotal],
       ["Sessions", expenseRows.length],
+    ],
+    "expense",
+    row,
+  );
+
+  addKeyValueSection(
+    profile,
+    "Fines",
+    [
+      ["Total (₼)", fineTotal],
+      ["Sessions", fineRows.length],
     ],
     "expense",
     row,
@@ -2581,6 +2742,23 @@ function buildEmployeeReport(
     );
     autoWidth(ws, 3);
   }
+
+  // ---- Fines sheet ----
+  if (fineRows.length > 0) {
+    const ws = workbook.addWorksheet("Fines", { properties: { tabColor: { argb: "FFB91C1C" } } });
+    const dataRows = fineRows.map((r) => ({ date: r.date, amount: r.amount }));
+    addTable(
+      ws,
+      [
+        { header: "Date", key: "date", type: "date" },
+        { header: "Amount (₼)", key: "amount", type: "money" },
+      ],
+      dataRows,
+      "expense",
+      1,
+    );
+    autoWidth(ws, 2);
+  }
 }
 
 function emptyStatusCounts() {
@@ -2615,8 +2793,8 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
       avansRepaidTotal: number;
       expenseFoodTotal: number;
       expenseToolTotal: number;
-      expenseFineTotal: number;
       expenseOtherTotal: number;
+      fineTotal: number;
     }
   >();
 
@@ -2646,8 +2824,8 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
       avansRepaidTotal: 0,
       expenseFoodTotal: 0,
       expenseToolTotal: 0,
-      expenseFineTotal: 0,
       expenseOtherTotal: 0,
+      fineTotal: 0,
     };
 
     item.records += 1;
@@ -2679,8 +2857,10 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
     if (row.expenseType != null && row.expenseAmount != null) {
       if (row.expenseType === "FOOD") item.expenseFoodTotal += row.expenseAmount;
       else if (row.expenseType === "TOOL") item.expenseToolTotal += row.expenseAmount;
-      else if (row.expenseType === "FINE") item.expenseFineTotal += row.expenseAmount;
       else item.expenseOtherTotal += row.expenseAmount;
+    }
+    if (row.fineAmount != null) {
+      item.fineTotal += row.fineAmount;
     }
     grouped.set(row.employeeId, item);
   }
@@ -2695,8 +2875,7 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
       tierCost(5, item.cookedTier5plus);
     const paymentTotal = item.paymentBonusTotal + item.paymentEzamElaveTotal;
     const avansOutstandingTotal = Math.max(0, item.avansGivenTotal - item.avansRepaidTotal);
-    const expenseTotal =
-      item.expenseFoodTotal + item.expenseToolTotal + item.expenseFineTotal + item.expenseOtherTotal;
+    const expenseTotal = item.expenseFoodTotal + item.expenseToolTotal + item.expenseOtherTotal;
     return { ...item, cateringCost: totalCost, paymentTotal, avansOutstandingTotal, expenseTotal };
   });
 }
