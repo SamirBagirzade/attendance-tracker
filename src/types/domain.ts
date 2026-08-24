@@ -26,6 +26,8 @@ export type AttendanceStatus =
 
 export type PaymentType = "BONUS" | "EZAM_ELAVE" | "AVANS";
 
+export type ExpenseType = "FOOD" | "TOOL" | "FINE" | "OTHER";
+
 export type Car = {
   id: number;
   makeModel: string;
@@ -63,6 +65,8 @@ export type AttendanceRecord = {
   paymentType: PaymentType | null;
   paymentAmount: number | null;
   paymentPaid: number | null;
+  expenseType: ExpenseType | null;
+  expenseAmount: number | null;
 };
 
 export type Location = {
@@ -143,6 +147,8 @@ export type FilteredReportRow = {
   paymentType: PaymentType | null;
   paymentAmount: number | null;
   paymentPaid: number | null;
+  expenseType: ExpenseType | null;
+  expenseAmount: number | null;
   isWeekend: boolean;
   isHoliday: boolean;
   holidayDescription: string | null;
@@ -192,7 +198,7 @@ export type AuditLog = {
   createdAt: string;
 };
 
-export type AppUserRole = "EDITOR" | "VIEWER";
+export type AppUserRole = "SUPERVISOR" | "EDITOR" | "VIEWER";
 
 export type AppUser = {
   id: number;

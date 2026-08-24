@@ -8,6 +8,7 @@ import {
   format,
   isWeekend,
   startOfMonth,
+  subDays,
 } from "date-fns";
 import type { Locale } from "date-fns";
 import { az, enUS, ru } from "date-fns/locale";
@@ -19,6 +20,7 @@ import type {
   AttendanceStatus,
   Car,
   Employee,
+  ExpenseType,
   Holiday,
   Location,
   PaymentType,
@@ -31,6 +33,15 @@ const paymentTypeLabelKey: Record<PaymentType, string> = {
   BONUS: "paymentBonus",
   EZAM_ELAVE: "paymentEzamElave",
   AVANS: "paymentAvans",
+};
+
+const expenseTypeValues: ExpenseType[] = ["FOOD", "TOOL", "FINE", "OTHER"];
+
+const expenseTypeLabelKey: Record<ExpenseType, string> = {
+  FOOD: "expenseFood",
+  TOOL: "expenseTool",
+  FINE: "expenseFine",
+  OTHER: "other",
 };
 
 // Calculated amounts accumulate across an interval (e.g. 40/day for 5 days),
@@ -116,7 +127,10 @@ export default function TimesheetPage() {
   const [bulkStatus, setBulkStatus] = useState<AttendanceStatus | "">("");
   const [bulkDate, setBulkDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [role, setRole] = useState<string | null>(null);
   const todayDateKey = format(new Date(), "yyyy-MM-dd");
+  const canBypassEditLock = role === "ADMIN" || role === "SUPERVISOR";
+  const editLockCutoffKey = format(subDays(new Date(), 5), "yyyy-MM-dd");
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const todayCellRef = useRef<HTMLTableCellElement>(null);
   const hasScrolledRef = useRef(false);
@@ -236,6 +250,12 @@ export default function TimesheetPage() {
     const timer = setInterval(() => void loadData(), 30_000);
     return () => clearInterval(timer);
   }, [loadData]);
+
+  useEffect(() => {
+    void fetch("/api/auth/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data?.role) setRole(data.role); });
+  }, []);
 
   const departments = useMemo(() => {
     const seen = new Set<string>();
@@ -612,6 +632,11 @@ export default function TimesheetPage() {
                                       {t(paymentTypeLabelKey[record.paymentType])}: ₼{paymentBadgeAmount(record.paymentAmount, record.paymentPaid)} {paymentBadgeIcon(record.paymentAmount, record.paymentPaid)}
                                     </span>
                                   ) : null}
+                                  {record?.expenseType ? (
+                                    <span className="max-w-full truncate text-[10px] font-medium text-orange-700">
+                                      {t(expenseTypeLabelKey[record.expenseType])}: ₼{record.expenseAmount}
+                                    </span>
+                                  ) : null}
                                 </button>
                               </td>
                             );
@@ -658,6 +683,7 @@ export default function TimesheetPage() {
           dateLocale={dateLocale}
           formNote={formNoteByCell.get(`${activeCell.employee.id}:${activeCell.dateKey}`)}
           locations={locations}
+          locked={!canBypassEditLock && activeCell.dateKey < editLockCutoffKey}
           onClose={closeModal}
         />
       ) : null}
@@ -671,6 +697,7 @@ function AttendanceModal({
   dateLocale,
   formNote,
   locations,
+  locked,
   onClose,
 }: {
   activeCell: ActiveCell;
@@ -678,6 +705,7 @@ function AttendanceModal({
   dateLocale: Locale;
   formNote?: string;
   locations: Location[];
+  locked: boolean;
   onClose: (refresh?: boolean) => Promise<void>;
 }) {
   const { t } = useLanguage();
@@ -705,6 +733,12 @@ function AttendanceModal({
   );
   const [paymentPaid, setPaymentPaid] = useState(
     activeCell.record?.paymentPaid?.toString() ?? "0",
+  );
+  const [expenseType, setExpenseType] = useState<ExpenseType | "">(
+    activeCell.record?.expenseType ?? "",
+  );
+  const [expenseAmount, setExpenseAmount] = useState(
+    activeCell.record?.expenseAmount?.toString() ?? "",
   );
   const [error, setError] = useState("");
   const canSelectCar = carAllowedStatuses.has(status);
@@ -735,8 +769,18 @@ function AttendanceModal({
   async function saveAttendance() {
     setError("");
 
+    if (locked) {
+      setError(t("recordLocked"));
+      return;
+    }
+
     if (paymentType && Number(paymentAmount || "0") <= 0 && Number(paymentPaid || "0") <= 0) {
       setError(t("paymentValueRequired"));
+      return;
+    }
+
+    if (expenseType && Number(expenseAmount || "0") <= 0) {
+      setError(t("expenseAmountRequired"));
       return;
     }
 
@@ -754,6 +798,8 @@ function AttendanceModal({
       paymentType: paymentType || null,
       paymentAmount: paymentType ? Number(paymentAmount || "0") : null,
       paymentPaid: paymentType ? Number(paymentPaid || "0") : null,
+      expenseType: expenseType || null,
+      expenseAmount: expenseType ? Number(expenseAmount || "0") : null,
       cookedHeadcount:
         status === "EZAMIYYET" && actedAsCook && cookedHeadcount
           ? Number(cookedHeadcount)
@@ -782,6 +828,11 @@ function AttendanceModal({
       return;
     }
 
+    if (locked) {
+      setError(t("recordLocked"));
+      return;
+    }
+
     const response = await fetch(`/api/attendance-records/${activeCell.record.id}`, {
       method: "DELETE",
     });
@@ -800,7 +851,7 @@ function AttendanceModal({
     function onKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
       const idx = Number(e.key) - 1;
-      if (idx >= 0 && idx < statusValues.length) {
+      if (!locked && idx >= 0 && idx < statusValues.length) {
         setStatus(statusValues[idx]);
       } else if (e.key === "Enter") {
         void saveAttendance();
@@ -811,7 +862,7 @@ function AttendanceModal({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, location, workLocationIds, newWorkLocationNames, actedAsCook, cookedHeadcount, cookedPaid, carDriven, carId, note, workerName, paymentType, paymentAmount, paymentPaid]);
+  }, [status, location, workLocationIds, newWorkLocationNames, actedAsCook, cookedHeadcount, cookedPaid, carDriven, carId, note, workerName, paymentType, paymentAmount, paymentPaid, expenseType, expenseAmount]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 px-4 py-6">
@@ -833,6 +884,12 @@ function AttendanceModal({
           </button>
         </div>
         <div className="grid gap-4 overflow-y-auto px-4 py-4">
+          {locked ? (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              {t("recordLocked")}
+            </div>
+          ) : null}
+          <fieldset className="contents" disabled={locked}>
           <label className="grid gap-1 text-sm font-medium text-slate-700">
             {t("status")}
             <select
@@ -1053,6 +1110,36 @@ function AttendanceModal({
             ) : null}
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
+            <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700">
+              {t("expense")}
+              <select
+                className="h-10 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-slate-500"
+                onChange={(event) => setExpenseType(event.target.value as ExpenseType | "")}
+                value={expenseType}
+              >
+                <option value="">{t("expenseNone")}</option>
+                {expenseTypeValues.map((option) => (
+                  <option key={option} value={option}>
+                    {t(expenseTypeLabelKey[option])}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {expenseType ? (
+              <label className="grid min-w-0 gap-1 text-sm font-medium text-slate-700">
+                {t("expenseAmountLabel")}
+                <input
+                  className="h-10 w-full min-w-0 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
+                  min={0}
+                  onChange={(event) => setExpenseAmount(event.target.value)}
+                  type="number"
+                  value={expenseAmount}
+                />
+              </label>
+            ) : null}
+          </div>
+
           <label className="grid gap-1 text-sm font-medium text-slate-700">
             {t("note")}
             <textarea
@@ -1062,6 +1149,7 @@ function AttendanceModal({
               value={note}
             />
           </label>
+          </fieldset>
 
           {formNote ? (
             <label className="grid gap-1 text-sm font-medium text-slate-700">
@@ -1082,7 +1170,8 @@ function AttendanceModal({
         </div>
         <div className="flex shrink-0 items-center justify-between border-t border-slate-200 px-4 py-3">
           <button
-            className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={locked}
             onClick={deleteAttendance}
             type="button"
           >
@@ -1090,7 +1179,8 @@ function AttendanceModal({
             {t("clear")}
           </button>
           <button
-            className="inline-flex h-10 items-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800"
+            className="inline-flex h-10 items-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={locked}
             onClick={saveAttendance}
             type="button"
           >

@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { normalizeAttendanceInput } from "@/lib/attendance";
 import { dateRangeWhere, toApiDateKey } from "@/lib/dates";
 import { logAudit } from "@/lib/audit";
+import { requireDateEditable } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
@@ -56,6 +57,9 @@ export async function POST(request: NextRequest) {
   try {
     const input = normalizeAttendanceInput(await request.json());
 
+    const denied = await requireDateEditable(request, input.date);
+    if (denied) return denied;
+
     const record = await saveAttendanceRecord(input, false);
 
     void logAudit(request, "CREATE", "AttendanceRecord", record.id, { employeeId: record.employeeId, date: record.date, status: record.status });
@@ -68,6 +72,9 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const input = normalizeAttendanceInput(await request.json());
+
+    const denied = await requireDateEditable(request, input.date);
+    if (denied) return denied;
 
     const record = await saveAttendanceRecord(input, true);
 
@@ -137,6 +144,8 @@ async function saveAttendanceRecord(
       paymentType: input.paymentType,
       paymentAmount: input.paymentAmount,
       paymentPaid: input.paymentPaid,
+      expenseType: input.expenseType,
+      expenseAmount: input.expenseAmount,
     };
 
     const record = upsert
@@ -160,6 +169,8 @@ async function saveAttendanceRecord(
             paymentType: input.paymentType,
             paymentAmount: input.paymentAmount,
             paymentPaid: input.paymentPaid,
+            expenseType: input.expenseType,
+            expenseAmount: input.expenseAmount,
           },
         })
       : await tx.attendanceRecord.create({ data });

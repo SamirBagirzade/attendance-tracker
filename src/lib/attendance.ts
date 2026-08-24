@@ -1,4 +1,4 @@
-import { AttendanceStatus, PaymentType } from "@prisma/client";
+import { AttendanceStatus, ExpenseType, PaymentType } from "@prisma/client";
 import { parseCalendarDate } from "@/lib/dates";
 
 export type AttendanceRecordInput = {
@@ -17,6 +17,8 @@ export type AttendanceRecordInput = {
   paymentType?: unknown;
   paymentAmount?: unknown;
   paymentPaid?: unknown;
+  expenseType?: unknown;
+  expenseAmount?: unknown;
 };
 
 const carAllowedStatuses = new Set<AttendanceStatus>([
@@ -59,6 +61,15 @@ export function normalizeAttendanceInput(input: AttendanceRecordInput) {
       ? input.paymentPaid != null && input.paymentPaid !== ""
         ? Number(input.paymentPaid)
         : 0
+      : null;
+  const expenseType =
+    typeof input.expenseType === "string" &&
+    Object.values(ExpenseType).includes(input.expenseType as ExpenseType)
+      ? (input.expenseType as ExpenseType)
+      : null;
+  const expenseAmount =
+    expenseType != null && input.expenseAmount != null && input.expenseAmount !== ""
+      ? Number(input.expenseAmount)
       : null;
   const newWorkLocationNames =
     Array.isArray(input.newWorkLocationNames) && input.status === "ISDE"
@@ -114,6 +125,10 @@ export function normalizeAttendanceInput(input: AttendanceRecordInput) {
     throw new Error("Enter a calculated amount or a paid amount.");
   }
 
+  if (expenseType != null && (expenseAmount == null || !Number.isFinite(expenseAmount) || expenseAmount <= 0)) {
+    throw new Error("expenseAmount must be a positive number when expenseType is set.");
+  }
+
   return {
     employeeId: input.employeeId,
     date,
@@ -130,5 +145,7 @@ export function normalizeAttendanceInput(input: AttendanceRecordInput) {
     paymentType,
     paymentAmount,
     paymentPaid,
+    expenseType,
+    expenseAmount,
   };
 }

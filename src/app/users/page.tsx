@@ -135,6 +135,7 @@ export default function UsersPage() {
             >
               <option value="VIEWER">Viewer</option>
               <option value="EDITOR">Editor</option>
+              <option value="SUPERVISOR">Supervisor</option>
             </select>
           </label>
           <label className="flex items-end gap-2 pb-3 text-sm font-medium text-slate-700">
@@ -203,6 +204,7 @@ export default function UsersPage() {
                         >
                           <option value="VIEWER">Viewer</option>
                           <option value="EDITOR">Editor</option>
+                          <option value="SUPERVISOR">Supervisor</option>
                         </select>
                       </td>
                       <td className="px-4 py-3">

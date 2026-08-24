@@ -23,8 +23,8 @@ export function normalizePassword(value: unknown) {
 export function normalizeManagedRole(value: unknown) {
   const role = typeof value === "string" ? value : "";
 
-  if (role !== UserRole.EDITOR && role !== UserRole.VIEWER) {
-    throw new Error("Role must be EDITOR or VIEWER.");
+  if (role !== UserRole.EDITOR && role !== UserRole.VIEWER && role !== UserRole.SUPERVISOR) {
+    throw new Error("Role must be SUPERVISOR, EDITOR, or VIEWER.");
   }
 
   return role;
