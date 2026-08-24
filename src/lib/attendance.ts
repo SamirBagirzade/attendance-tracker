@@ -19,6 +19,7 @@ export type AttendanceRecordInput = {
   paymentPaid?: unknown;
   expenseType?: unknown;
   expenseAmount?: unknown;
+  fineAmount?: unknown;
 };
 
 const carAllowedStatuses = new Set<AttendanceStatus>([
@@ -71,6 +72,8 @@ export function normalizeAttendanceInput(input: AttendanceRecordInput) {
     expenseType != null && input.expenseAmount != null && input.expenseAmount !== ""
       ? Number(input.expenseAmount)
       : null;
+  const fineAmount =
+    input.fineAmount != null && input.fineAmount !== "" ? Number(input.fineAmount) : null;
   const newWorkLocationNames =
     Array.isArray(input.newWorkLocationNames) && input.status === "ISDE"
       ? input.newWorkLocationNames
@@ -129,6 +132,10 @@ export function normalizeAttendanceInput(input: AttendanceRecordInput) {
     throw new Error("expenseAmount must be a positive number when expenseType is set.");
   }
 
+  if (fineAmount != null && (!Number.isFinite(fineAmount) || fineAmount <= 0)) {
+    throw new Error("fineAmount must be a positive number.");
+  }
+
   return {
     employeeId: input.employeeId,
     date,
@@ -147,5 +154,6 @@ export function normalizeAttendanceInput(input: AttendanceRecordInput) {
     paymentPaid,
     expenseType,
     expenseAmount,
+    fineAmount,
   };
 }

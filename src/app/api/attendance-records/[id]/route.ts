@@ -78,6 +78,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       paymentPaid: body.paymentPaid !== undefined ? body.paymentPaid : existing.paymentPaid,
       expenseType: body.expenseType !== undefined ? body.expenseType : existing.expenseType,
       expenseAmount: body.expenseAmount !== undefined ? body.expenseAmount : existing.expenseAmount,
+      fineAmount: body.fineAmount !== undefined ? body.fineAmount : existing.fineAmount,
     });
 
     const denied = await requireDateEditable(request, existing.date);
@@ -113,6 +114,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           paymentPaid: input.paymentPaid,
           expenseType: input.expenseType,
           expenseAmount: input.expenseAmount,
+          fineAmount: input.fineAmount,
         },
       });
 

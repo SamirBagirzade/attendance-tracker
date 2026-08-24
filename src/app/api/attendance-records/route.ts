@@ -146,6 +146,7 @@ async function saveAttendanceRecord(
       paymentPaid: input.paymentPaid,
       expenseType: input.expenseType,
       expenseAmount: input.expenseAmount,
+      fineAmount: input.fineAmount,
     };
 
     const record = upsert
@@ -171,6 +172,7 @@ async function saveAttendanceRecord(
             paymentPaid: input.paymentPaid,
             expenseType: input.expenseType,
             expenseAmount: input.expenseAmount,
+            fineAmount: input.fineAmount,
           },
         })
       : await tx.attendanceRecord.create({ data });

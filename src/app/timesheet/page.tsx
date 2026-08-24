@@ -35,12 +35,11 @@ const paymentTypeLabelKey: Record<PaymentType, string> = {
   AVANS: "paymentAvans",
 };
 
-const expenseTypeValues: ExpenseType[] = ["FOOD", "TOOL", "FINE", "OTHER"];
+const expenseTypeValues: ExpenseType[] = ["FOOD", "TOOL", "OTHER"];
 
 const expenseTypeLabelKey: Record<ExpenseType, string> = {
   FOOD: "expenseFood",
   TOOL: "expenseTool",
-  FINE: "expenseFine",
   OTHER: "other",
 };
 
@@ -637,6 +636,11 @@ export default function TimesheetPage() {
                                       {t(expenseTypeLabelKey[record.expenseType])}: ₼{record.expenseAmount}
                                     </span>
                                   ) : null}
+                                  {record?.fineAmount ? (
+                                    <span className="max-w-full truncate text-[10px] font-medium text-red-700">
+                                      {t("fine")}: ₼{record.fineAmount}
+                                    </span>
+                                  ) : null}
                                 </button>
                               </td>
                             );
@@ -740,6 +744,9 @@ function AttendanceModal({
   const [expenseAmount, setExpenseAmount] = useState(
     activeCell.record?.expenseAmount?.toString() ?? "",
   );
+  const [fineAmount, setFineAmount] = useState(
+    activeCell.record?.fineAmount?.toString() ?? "",
+  );
   const [error, setError] = useState("");
   const canSelectCar = carAllowedStatuses.has(status);
 
@@ -784,6 +791,11 @@ function AttendanceModal({
       return;
     }
 
+    if (fineAmount.trim() && Number(fineAmount) <= 0) {
+      setError(t("fineAmountRequired"));
+      return;
+    }
+
     const payload = {
       employeeId: activeCell.employee.id,
       date: activeCell.dateKey,
@@ -800,6 +812,7 @@ function AttendanceModal({
       paymentPaid: paymentType ? Number(paymentPaid || "0") : null,
       expenseType: expenseType || null,
       expenseAmount: expenseType ? Number(expenseAmount || "0") : null,
+      fineAmount: fineAmount.trim() ? Number(fineAmount) : null,
       cookedHeadcount:
         status === "EZAMIYYET" && actedAsCook && cookedHeadcount
           ? Number(cookedHeadcount)
@@ -862,7 +875,7 @@ function AttendanceModal({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, location, workLocationIds, newWorkLocationNames, actedAsCook, cookedHeadcount, cookedPaid, carDriven, carId, note, workerName, paymentType, paymentAmount, paymentPaid, expenseType, expenseAmount]);
+  }, [status, location, workLocationIds, newWorkLocationNames, actedAsCook, cookedHeadcount, cookedPaid, carDriven, carId, note, workerName, paymentType, paymentAmount, paymentPaid, expenseType, expenseAmount, fineAmount]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 px-4 py-6">
@@ -1139,6 +1152,17 @@ function AttendanceModal({
               </label>
             ) : null}
           </div>
+
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
+            {t("fineAmountLabel")}
+            <input
+              className="h-10 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-500"
+              min={0}
+              onChange={(event) => setFineAmount(event.target.value)}
+              type="number"
+              value={fineAmount}
+            />
+          </label>
 
           <label className="grid gap-1 text-sm font-medium text-slate-700">
             {t("note")}
