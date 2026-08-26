@@ -27,12 +27,13 @@ import type {
   StatusColor,
 } from "@/types/domain";
 
-const paymentTypeValues: PaymentType[] = ["BONUS", "EZAM_ELAVE", "AVANS"];
+const paymentTypeValues: PaymentType[] = ["BONUS", "EZAM_ELAVE", "AVANS", "OVERTIME"];
 
 const paymentTypeLabelKey: Record<PaymentType, string> = {
   BONUS: "paymentBonus",
   EZAM_ELAVE: "paymentEzamElave",
   AVANS: "paymentAvans",
+  OVERTIME: "paymentOvertime",
 };
 
 const expenseTypeValues: ExpenseType[] = ["FOOD", "TOOL", "OTHER"];

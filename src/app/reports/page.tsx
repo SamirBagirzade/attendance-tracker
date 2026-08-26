@@ -67,23 +67,24 @@ type CookGroup = {
   unpaidCost: number;
 };
 
-// Bonus/Ezam əlavə are money the company owes the employee (Payments section).
+// Bonus/Ezam əlavə/Overtime are money the company owes the employee (Payments section).
 // Avans is a debt the employee owes the company — tracked separately (Employee Debt section).
-const nonDebtPaymentTypes: Array<"BONUS" | "EZAM_ELAVE"> = ["BONUS", "EZAM_ELAVE"];
+const nonDebtPaymentTypes: Array<"BONUS" | "EZAM_ELAVE" | "OVERTIME"> = ["BONUS", "EZAM_ELAVE", "OVERTIME"];
 
 const paymentTypeLabelKey: Record<PaymentType, string> = {
   BONUS: "paymentBonus",
   EZAM_ELAVE: "paymentEzamElave",
   AVANS: "paymentAvans",
+  OVERTIME: "paymentOvertime",
 };
 
 type PaymentGroup = {
   employeeId: number;
   employeeName: string;
-  sessions: Array<{ id: number; date: string; type: "BONUS" | "EZAM_ELAVE"; amount: number; paid: number }>;
+  sessions: Array<{ id: number; date: string; type: "BONUS" | "EZAM_ELAVE" | "OVERTIME"; amount: number; paid: number }>;
   totalAmount: number;
   totalPaid: number;
-  byType: Record<"BONUS" | "EZAM_ELAVE", number>;
+  byType: Record<"BONUS" | "EZAM_ELAVE" | "OVERTIME", number>;
 };
 
 type AvansGroup = {
@@ -306,14 +307,18 @@ export default function ReportsPage() {
     return Array.from(grouped.values()).sort((a, b) => a.employeeName.localeCompare(b.employeeName));
   }, [cateringRecords]);
 
-  // Individual payment records for the breakdown table (Bonus / Ezam əlavə only — company owes employee)
+  // Individual payment records for the breakdown table (Bonus / Ezam əlavə / Overtime only — company owes employee)
   const paymentRecords = useMemo(
     () =>
       rows
-        .filter((r) => (r.paymentType === "BONUS" || r.paymentType === "EZAM_ELAVE") && r.paymentAmount != null)
+        .filter(
+          (r) =>
+            (r.paymentType === "BONUS" || r.paymentType === "EZAM_ELAVE" || r.paymentType === "OVERTIME") &&
+            r.paymentAmount != null,
+        )
         .map((r) => ({
           ...r,
-          type: r.paymentType as "BONUS" | "EZAM_ELAVE",
+          type: r.paymentType as "BONUS" | "EZAM_ELAVE" | "OVERTIME",
           amount: r.paymentAmount as number,
           paid: r.paymentPaid ?? 0,
         })),
@@ -336,7 +341,7 @@ export default function ReportsPage() {
   );
 
   const paymentTotalsByType = useMemo(() => {
-    const totals: Record<"BONUS" | "EZAM_ELAVE", number> = { BONUS: 0, EZAM_ELAVE: 0 };
+    const totals: Record<"BONUS" | "EZAM_ELAVE" | "OVERTIME", number> = { BONUS: 0, EZAM_ELAVE: 0, OVERTIME: 0 };
     for (const r of paymentRecords) totals[r.type] += r.amount;
     return totals;
   }, [paymentRecords]);
@@ -350,7 +355,7 @@ export default function ReportsPage() {
         sessions: [],
         totalAmount: 0,
         totalPaid: 0,
-        byType: { BONUS: 0, EZAM_ELAVE: 0 },
+        byType: { BONUS: 0, EZAM_ELAVE: 0, OVERTIME: 0 },
       };
       group.sessions.push({ id: r.id, date: r.date, type: r.type, amount: r.amount, paid: r.paid });
       group.totalAmount += r.amount;
@@ -1159,6 +1164,7 @@ export default function ReportsPage() {
                           <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("records")}</th>
                           <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t(paymentTypeLabelKey.BONUS)}</th>
                           <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t(paymentTypeLabelKey.EZAM_ELAVE)}</th>
+                          <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t(paymentTypeLabelKey.OVERTIME)}</th>
                           <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("paymentsTotal")}</th>
                           <th className="px-4 py-2.5 text-right font-medium text-slate-600">{t("paymentsPaidTotal")}</th>
                         </tr>
@@ -1193,13 +1199,14 @@ export default function ReportsPage() {
                                 <td className="px-4 py-2.5 text-right text-slate-700">{group.sessions.length}</td>
                                 <td className="px-4 py-2.5 text-right text-slate-700">{group.byType.BONUS > 0 ? `₼${group.byType.BONUS}` : "–"}</td>
                                 <td className="px-4 py-2.5 text-right text-slate-700">{group.byType.EZAM_ELAVE > 0 ? `₼${group.byType.EZAM_ELAVE}` : "–"}</td>
+                                <td className="px-4 py-2.5 text-right text-slate-700">{group.byType.OVERTIME > 0 ? `₼${group.byType.OVERTIME}` : "–"}</td>
                                 <td className="px-4 py-2.5 text-right font-semibold text-purple-700">₼{group.totalAmount}</td>
                                 <td className="px-4 py-2.5 text-right font-semibold text-emerald-700">₼{group.totalPaid}</td>
                               </tr>
                               {isExpanded && group.sessions.map((s) => (
                                 <tr className="border-t border-slate-50 bg-slate-50/60" key={`session-${s.id}`}>
                                   <td className="py-2 pl-10 pr-4 text-slate-500" colSpan={2}>{s.date}</td>
-                                  <td className="px-4 py-2 text-right text-slate-500" colSpan={2}>{t(paymentTypeLabelKey[s.type])}</td>
+                                  <td className="px-4 py-2 text-right text-slate-500" colSpan={3}>{t(paymentTypeLabelKey[s.type])}</td>
                                   <td className="px-4 py-2 text-right text-purple-600">₼{s.amount}</td>
                                   <td className="px-4 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                                     <div className="flex items-center justify-end gap-1">
@@ -1231,6 +1238,7 @@ export default function ReportsPage() {
                           <td className="px-4 py-2.5 font-semibold text-slate-900" colSpan={2}>{t("total")}</td>
                           <td className="px-4 py-2.5 text-right font-bold text-purple-900">₼{paymentTotalsByType.BONUS}</td>
                           <td className="px-4 py-2.5 text-right font-bold text-purple-900">₼{paymentTotalsByType.EZAM_ELAVE}</td>
+                          <td className="px-4 py-2.5 text-right font-bold text-purple-900">₼{paymentTotalsByType.OVERTIME}</td>
                           <td className="px-4 py-2.5 text-right font-bold text-purple-900">₼{totalPaymentAmount}</td>
                           <td className="px-4 py-2.5 text-right font-bold text-emerald-900">₼{totalPaymentPaid}</td>
                         </tr>
@@ -1566,6 +1574,7 @@ export default function ReportsPage() {
                   t("cateringUnpaid"),
                   t(paymentTypeLabelKey.BONUS),
                   t(paymentTypeLabelKey.EZAM_ELAVE),
+                  t(paymentTypeLabelKey.OVERTIME),
                   t("paymentsTotal"),
                   t("paymentsPaidTotal"),
                   t("avansGiven"),
@@ -1606,6 +1615,7 @@ export default function ReportsPage() {
                     item.cookedUnpaidDays > 0 ? `${item.cookedUnpaidDays} day(s)` : "-",
                     item.paymentBonusTotal > 0 ? `₼${item.paymentBonusTotal}` : "-",
                     item.paymentEzamElaveTotal > 0 ? `₼${item.paymentEzamElaveTotal}` : "-",
+                    item.paymentOvertimeTotal > 0 ? `₼${item.paymentOvertimeTotal}` : "-",
                     item.paymentTotal > 0 ? `₼${item.paymentTotal}` : "-",
                     item.paymentPaidTotal > 0 ? `₼${item.paymentPaidTotal}` : "-",
                     item.avansGivenTotal > 0 ? `₼${item.avansGivenTotal}` : "-",
@@ -2170,7 +2180,7 @@ function buildSummarySheet(
 
   row = addKeyValueSection(
     ws,
-    "Payments (Bonus / Ezam əlavə)",
+    "Payments (Bonus / Ezam əlavə / Overtime)",
     [
       ["Total (₼)", args.payments.total],
       ["Paid (₼)", args.payments.paid],
@@ -2323,6 +2333,7 @@ function buildPaymentsSheet(workbook: Workbook, paymentByEmployee: PaymentGroup[
     sessions: g.sessions.length,
     bonus: g.byType.BONUS,
     ezamElave: g.byType.EZAM_ELAVE,
+    overtime: g.byType.OVERTIME,
     total: g.totalAmount,
     paid: g.totalPaid,
     unpaid: Math.max(0, g.totalAmount - g.totalPaid),
@@ -2335,6 +2346,7 @@ function buildPaymentsSheet(workbook: Workbook, paymentByEmployee: PaymentGroup[
       { header: "Sessions", key: "sessions" },
       { header: t(paymentTypeLabelKey.BONUS) + " (₼)", key: "bonus", type: "money" },
       { header: t(paymentTypeLabelKey.EZAM_ELAVE) + " (₼)", key: "ezamElave", type: "money" },
+      { header: t(paymentTypeLabelKey.OVERTIME) + " (₼)", key: "overtime", type: "money" },
       { header: "Total (₼)", key: "total", type: "money" },
       { header: "Paid (₼)", key: "paid", type: "money" },
       { header: "Unpaid (₼)", key: "unpaid", type: "money" },
@@ -2344,7 +2356,7 @@ function buildPaymentsSheet(workbook: Workbook, paymentByEmployee: PaymentGroup[
     1,
   );
 
-  autoWidth(ws, 7);
+  autoWidth(ws, 8);
 }
 
 function buildExpensesSheet(workbook: Workbook, expenseByEmployee: ExpenseGroup[], t: (key: string) => string) {
@@ -2526,7 +2538,11 @@ function buildEmployeeReport(
   const cateringUnpaid = cateringTotal - cateringPaid;
 
   const paymentRows = rows
-    .filter((r) => (r.paymentType === "BONUS" || r.paymentType === "EZAM_ELAVE") && r.paymentAmount != null)
+    .filter(
+      (r) =>
+        (r.paymentType === "BONUS" || r.paymentType === "EZAM_ELAVE" || r.paymentType === "OVERTIME") &&
+        r.paymentAmount != null,
+    )
     .map((r) => ({ ...r, amount: r.paymentAmount as number, paid: r.paymentPaid ?? 0 }));
   const paymentTotal = paymentRows.reduce((s, r) => s + r.amount, 0);
   const paymentPaidTotal = paymentRows.reduce((s, r) => s + r.paid, 0);
@@ -2599,7 +2615,7 @@ function buildEmployeeReport(
 
   row = addKeyValueSection(
     profile,
-    "Payments (Bonus / Ezam əlavə)",
+    "Payments (Bonus / Ezam əlavə / Overtime)",
     [
       ["Total (₼)", paymentTotal],
       ["Paid (₼)", paymentPaidTotal],
@@ -2677,7 +2693,7 @@ function buildEmployeeReport(
     const ws = workbook.addWorksheet("Payments", { properties: { tabColor: { argb: "FF6D28D9" } } });
     const dataRows = paymentRows.map((r) => ({
       date: r.date,
-      type: t(paymentTypeLabelKey[r.paymentType as "BONUS" | "EZAM_ELAVE"]),
+      type: t(paymentTypeLabelKey[r.paymentType as "BONUS" | "EZAM_ELAVE" | "OVERTIME"]),
       amount: r.amount,
       paid: r.paid,
       unpaid: Math.max(0, r.amount - r.paid),
@@ -2788,6 +2804,7 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
       cookedUnpaidDays: number;
       paymentBonusTotal: number;
       paymentEzamElaveTotal: number;
+      paymentOvertimeTotal: number;
       paymentPaidTotal: number;
       avansGivenTotal: number;
       avansRepaidTotal: number;
@@ -2819,6 +2836,7 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
       cookedUnpaidDays: 0,
       paymentBonusTotal: 0,
       paymentEzamElaveTotal: 0,
+      paymentOvertimeTotal: 0,
       paymentPaidTotal: 0,
       avansGivenTotal: 0,
       avansRepaidTotal: 0,
@@ -2850,6 +2868,9 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
     } else if (row.paymentType === "EZAM_ELAVE" && row.paymentAmount != null) {
       item.paymentEzamElaveTotal += row.paymentAmount;
       item.paymentPaidTotal += row.paymentPaid ?? 0;
+    } else if (row.paymentType === "OVERTIME" && row.paymentAmount != null) {
+      item.paymentOvertimeTotal += row.paymentAmount;
+      item.paymentPaidTotal += row.paymentPaid ?? 0;
     } else if (row.paymentType === "AVANS" && row.paymentAmount != null) {
       item.avansGivenTotal += row.paymentAmount;
       item.avansRepaidTotal += row.paymentPaid ?? 0;
@@ -2873,7 +2894,7 @@ function groupByEmployee(rows: FilteredReportRow[], prices: Prices) {
       tierCost(3, item.cookedTier3) +
       tierCost(4, item.cookedTier4) +
       tierCost(5, item.cookedTier5plus);
-    const paymentTotal = item.paymentBonusTotal + item.paymentEzamElaveTotal;
+    const paymentTotal = item.paymentBonusTotal + item.paymentEzamElaveTotal + item.paymentOvertimeTotal;
     const avansOutstandingTotal = Math.max(0, item.avansGivenTotal - item.avansRepaidTotal);
     const expenseTotal = item.expenseFoodTotal + item.expenseToolTotal + item.expenseOtherTotal;
     return { ...item, cateringCost: totalCost, paymentTotal, avansOutstandingTotal, expenseTotal };

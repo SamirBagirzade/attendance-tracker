@@ -29,6 +29,7 @@ enum PaymentType {
   BONUS
   EZAM_ELAVE
   AVANS
+  OVERTIME
 }
 
 enum ExpenseType {

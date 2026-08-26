@@ -24,7 +24,7 @@ export type AttendanceStatus =
   | "ISDE_DEYIL"
   | "ISDE_XESARET";
 
-export type PaymentType = "BONUS" | "EZAM_ELAVE" | "AVANS";
+export type PaymentType = "BONUS" | "EZAM_ELAVE" | "AVANS" | "OVERTIME";
 
 export type ExpenseType = "FOOD" | "TOOL" | "OTHER";
 
