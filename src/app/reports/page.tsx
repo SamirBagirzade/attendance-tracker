@@ -81,7 +81,7 @@ const paymentTypeLabelKey: Record<PaymentType, string> = {
 type PaymentGroup = {
   employeeId: number;
   employeeName: string;
-  sessions: Array<{ id: number; date: string; type: "BONUS" | "EZAM_ELAVE" | "OVERTIME"; amount: number; paid: number }>;
+  sessions: Array<{ id: number; date: string; workerName: string | null; type: "BONUS" | "EZAM_ELAVE" | "OVERTIME"; amount: number; paid: number }>;
   totalAmount: number;
   totalPaid: number;
   byType: Record<"BONUS" | "EZAM_ELAVE" | "OVERTIME", number>;
@@ -90,7 +90,7 @@ type PaymentGroup = {
 type AvansGroup = {
   employeeId: number;
   employeeName: string;
-  sessions: Array<{ id: number; date: string; given: number; repaid: number; outstanding: number }>;
+  sessions: Array<{ id: number; date: string; workerName: string | null; given: number; repaid: number; outstanding: number }>;
   totalGiven: number;
   totalRepaid: number;
   totalOutstanding: number;
@@ -107,7 +107,7 @@ const expenseTypeLabelKey: Record<ExpenseType, string> = {
 type ExpenseGroup = {
   employeeId: number;
   employeeName: string;
-  sessions: Array<{ id: number; date: string; type: ExpenseType; amount: number }>;
+  sessions: Array<{ id: number; date: string; workerName: string | null; type: ExpenseType; amount: number }>;
   totalAmount: number;
   byType: Record<ExpenseType, number>;
 };
@@ -115,7 +115,7 @@ type ExpenseGroup = {
 type FineGroup = {
   employeeId: number;
   employeeName: string;
-  sessions: Array<{ id: number; date: string; amount: number }>;
+  sessions: Array<{ id: number; date: string; workerName: string | null; amount: number }>;
   totalAmount: number;
 };
 
@@ -357,7 +357,7 @@ export default function ReportsPage() {
         totalPaid: 0,
         byType: { BONUS: 0, EZAM_ELAVE: 0, OVERTIME: 0 },
       };
-      group.sessions.push({ id: r.id, date: r.date, type: r.type, amount: r.amount, paid: r.paid });
+      group.sessions.push({ id: r.id, date: r.date, workerName: r.workerName, type: r.type, amount: r.amount, paid: r.paid });
       group.totalAmount += r.amount;
       group.totalPaid += r.paid;
       group.byType[r.type] += r.amount;
@@ -397,7 +397,7 @@ export default function ReportsPage() {
         totalRepaid: 0,
         totalOutstanding: 0,
       };
-      group.sessions.push({ id: r.id, date: r.date, given: r.given, repaid: r.repaid, outstanding: r.outstanding });
+      group.sessions.push({ id: r.id, date: r.date, workerName: r.workerName, given: r.given, repaid: r.repaid, outstanding: r.outstanding });
       group.totalGiven += r.given;
       group.totalRepaid += r.repaid;
       grouped.set(r.employeeId, group);
@@ -437,7 +437,7 @@ export default function ReportsPage() {
         totalAmount: 0,
         byType: { FOOD: 0, TOOL: 0, OTHER: 0 },
       };
-      group.sessions.push({ id: r.id, date: r.date, type: r.type, amount: r.amount });
+      group.sessions.push({ id: r.id, date: r.date, workerName: r.workerName, type: r.type, amount: r.amount });
       group.totalAmount += r.amount;
       group.byType[r.type] += r.amount;
       grouped.set(r.employeeId, group);
@@ -465,7 +465,7 @@ export default function ReportsPage() {
         sessions: [],
         totalAmount: 0,
       };
-      group.sessions.push({ id: r.id, date: r.date, amount: r.amount });
+      group.sessions.push({ id: r.id, date: r.date, workerName: r.workerName, amount: r.amount });
       group.totalAmount += r.amount;
       grouped.set(r.employeeId, group);
     }
@@ -1193,7 +1193,15 @@ export default function ReportsPage() {
                                     ) : (
                                       <span className="w-[14px]" />
                                     )}
-                                    {group.employeeName}
+                                    <span className="flex flex-col">
+                                      {group.employeeName}
+                                      {(() => {
+                                        const names = Array.from(new Set(group.sessions.map((s) => s.workerName).filter(Boolean)));
+                                        return names.length > 0 ? (
+                                          <span className="text-xs font-normal text-purple-600">{names.join(", ")}</span>
+                                        ) : null;
+                                      })()}
+                                    </span>
                                   </span>
                                 </td>
                                 <td className="px-4 py-2.5 text-right text-slate-700">{group.sessions.length}</td>
@@ -1205,7 +1213,10 @@ export default function ReportsPage() {
                               </tr>
                               {isExpanded && group.sessions.map((s) => (
                                 <tr className="border-t border-slate-50 bg-slate-50/60" key={`session-${s.id}`}>
-                                  <td className="py-2 pl-10 pr-4 text-slate-500" colSpan={2}>{s.date}</td>
+                                  <td className="py-2 pl-10 pr-4 text-slate-500" colSpan={2}>
+                                    {s.date}
+                                    {s.workerName ? <span className="ml-1.5 font-medium text-purple-700">— {s.workerName}</span> : null}
+                                  </td>
                                   <td className="px-4 py-2 text-right text-slate-500" colSpan={3}>{t(paymentTypeLabelKey[s.type])}</td>
                                   <td className="px-4 py-2 text-right text-purple-600">₼{s.amount}</td>
                                   <td className="px-4 py-2 text-right" onClick={(e) => e.stopPropagation()}>
@@ -1314,7 +1325,15 @@ export default function ReportsPage() {
                                     ) : (
                                       <span className="w-[14px]" />
                                     )}
-                                    {group.employeeName}
+                                    <span className="flex flex-col">
+                                      {group.employeeName}
+                                      {(() => {
+                                        const names = Array.from(new Set(group.sessions.map((s) => s.workerName).filter(Boolean)));
+                                        return names.length > 0 ? (
+                                          <span className="text-xs font-normal text-rose-600">{names.join(", ")}</span>
+                                        ) : null;
+                                      })()}
+                                    </span>
                                   </span>
                                 </td>
                                 <td className="px-4 py-2.5 text-right text-slate-700">{group.sessions.length}</td>
@@ -1326,7 +1345,10 @@ export default function ReportsPage() {
                               </tr>
                               {isExpanded && group.sessions.map((s) => (
                                 <tr className="border-t border-slate-50 bg-slate-50/60" key={`session-${s.id}`}>
-                                  <td className="py-2 pl-10 pr-4 text-slate-500" colSpan={2}>{s.date}</td>
+                                  <td className="py-2 pl-10 pr-4 text-slate-500" colSpan={2}>
+                                    {s.date}
+                                    {s.workerName ? <span className="ml-1.5 font-medium text-rose-700">— {s.workerName}</span> : null}
+                                  </td>
                                   <td className="px-4 py-2 text-right text-slate-600">₼{s.given}</td>
                                   <td className="px-4 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                                     <div className="flex items-center justify-end gap-1">
@@ -1436,7 +1458,15 @@ export default function ReportsPage() {
                                     ) : (
                                       <span className="w-[14px]" />
                                     )}
-                                    {group.employeeName}
+                                    <span className="flex flex-col">
+                                      {group.employeeName}
+                                      {(() => {
+                                        const names = Array.from(new Set(group.sessions.map((s) => s.workerName).filter(Boolean)));
+                                        return names.length > 0 ? (
+                                          <span className="text-xs font-normal text-orange-600">{names.join(", ")}</span>
+                                        ) : null;
+                                      })()}
+                                    </span>
                                   </span>
                                 </td>
                                 <td className="px-4 py-2.5 text-right text-slate-700">{group.sessions.length}</td>
@@ -1447,7 +1477,10 @@ export default function ReportsPage() {
                               </tr>
                               {isExpanded && group.sessions.map((s) => (
                                 <tr className="border-t border-slate-50 bg-slate-50/60" key={`session-${s.id}`}>
-                                  <td className="py-2 pl-10 pr-4 text-slate-500" colSpan={2}>{s.date}</td>
+                                  <td className="py-2 pl-10 pr-4 text-slate-500" colSpan={2}>
+                                    {s.date}
+                                    {s.workerName ? <span className="ml-1.5 font-medium text-orange-700">— {s.workerName}</span> : null}
+                                  </td>
                                   <td className="px-4 py-2 text-right text-slate-500" colSpan={3}>{t(expenseTypeLabelKey[s.type])}</td>
                                   <td className="px-4 py-2 text-right text-orange-600">₼{s.amount}</td>
                                 </tr>
@@ -1522,7 +1555,15 @@ export default function ReportsPage() {
                                     ) : (
                                       <span className="w-[14px]" />
                                     )}
-                                    {group.employeeName}
+                                    <span className="flex flex-col">
+                                      {group.employeeName}
+                                      {(() => {
+                                        const names = Array.from(new Set(group.sessions.map((s) => s.workerName).filter(Boolean)));
+                                        return names.length > 0 ? (
+                                          <span className="text-xs font-normal text-red-600">{names.join(", ")}</span>
+                                        ) : null;
+                                      })()}
+                                    </span>
                                   </span>
                                 </td>
                                 <td className="px-4 py-2.5 text-right text-slate-700">{group.sessions.length}</td>
@@ -1530,7 +1571,10 @@ export default function ReportsPage() {
                               </tr>
                               {isExpanded && group.sessions.map((s) => (
                                 <tr className="border-t border-slate-50 bg-slate-50/60" key={`session-${s.id}`}>
-                                  <td className="py-2 pl-10 pr-4 text-slate-500" colSpan={2}>{s.date}</td>
+                                  <td className="py-2 pl-10 pr-4 text-slate-500" colSpan={2}>
+                                    {s.date}
+                                    {s.workerName ? <span className="ml-1.5 font-medium text-red-700">— {s.workerName}</span> : null}
+                                  </td>
                                   <td className="px-4 py-2 text-right text-red-600">₼{s.amount}</td>
                                 </tr>
                               ))}
@@ -2331,6 +2375,7 @@ function buildPaymentsSheet(workbook: Workbook, paymentByEmployee: PaymentGroup[
 
   const rows = paymentByEmployee.map((g) => ({
     employee: g.employeeName,
+    workers: Array.from(new Set(g.sessions.map((s) => s.workerName).filter(Boolean))).join(", "),
     sessions: g.sessions.length,
     bonus: g.byType.BONUS,
     ezamElave: g.byType.EZAM_ELAVE,
@@ -2344,6 +2389,7 @@ function buildPaymentsSheet(workbook: Workbook, paymentByEmployee: PaymentGroup[
     ws,
     [
       { header: "Employee", key: "employee" },
+      { header: "Worker(s)", key: "workers" },
       { header: "Sessions", key: "sessions" },
       { header: t(paymentTypeLabelKey.BONUS) + " (₼)", key: "bonus", type: "money" },
       { header: t(paymentTypeLabelKey.EZAM_ELAVE) + " (₼)", key: "ezamElave", type: "money" },
@@ -2357,7 +2403,7 @@ function buildPaymentsSheet(workbook: Workbook, paymentByEmployee: PaymentGroup[
     1,
   );
 
-  autoWidth(ws, 8);
+  autoWidth(ws, 9);
 }
 
 function buildExpensesSheet(workbook: Workbook, expenseByEmployee: ExpenseGroup[], t: (key: string) => string) {
@@ -2365,6 +2411,7 @@ function buildExpensesSheet(workbook: Workbook, expenseByEmployee: ExpenseGroup[
 
   const rows = expenseByEmployee.map((g) => ({
     employee: g.employeeName,
+    workers: Array.from(new Set(g.sessions.map((s) => s.workerName).filter(Boolean))).join(", "),
     sessions: g.sessions.length,
     food: g.byType.FOOD,
     tool: g.byType.TOOL,
@@ -2376,6 +2423,7 @@ function buildExpensesSheet(workbook: Workbook, expenseByEmployee: ExpenseGroup[
     ws,
     [
       { header: "Employee", key: "employee" },
+      { header: "Worker(s)", key: "workers" },
       { header: "Sessions", key: "sessions" },
       { header: t(expenseTypeLabelKey.FOOD) + " (₼)", key: "food", type: "money" },
       { header: t(expenseTypeLabelKey.TOOL) + " (₼)", key: "tool", type: "money" },
@@ -2387,7 +2435,7 @@ function buildExpensesSheet(workbook: Workbook, expenseByEmployee: ExpenseGroup[
     1,
   );
 
-  autoWidth(ws, 6);
+  autoWidth(ws, 7);
 }
 
 function buildFinesSheet(workbook: Workbook, fineByEmployee: FineGroup[]) {
@@ -2395,6 +2443,7 @@ function buildFinesSheet(workbook: Workbook, fineByEmployee: FineGroup[]) {
 
   const rows = fineByEmployee.map((g) => ({
     employee: g.employeeName,
+    workers: Array.from(new Set(g.sessions.map((s) => s.workerName).filter(Boolean))).join(", "),
     sessions: g.sessions.length,
     total: g.totalAmount,
   }));
@@ -2403,6 +2452,7 @@ function buildFinesSheet(workbook: Workbook, fineByEmployee: FineGroup[]) {
     ws,
     [
       { header: "Employee", key: "employee" },
+      { header: "Worker(s)", key: "workers" },
       { header: "Sessions", key: "sessions" },
       { header: "Total (₼)", key: "total", type: "money" },
     ],
@@ -2411,7 +2461,7 @@ function buildFinesSheet(workbook: Workbook, fineByEmployee: FineGroup[]) {
     1,
   );
 
-  autoWidth(ws, 3);
+  autoWidth(ws, 4);
 }
 
 function buildDebtSheet(workbook: Workbook, avansByEmployee: AvansGroup[]) {
@@ -2419,6 +2469,7 @@ function buildDebtSheet(workbook: Workbook, avansByEmployee: AvansGroup[]) {
 
   const rows = avansByEmployee.map((g) => ({
     employee: g.employeeName,
+    workers: Array.from(new Set(g.sessions.map((s) => s.workerName).filter(Boolean))).join(", "),
     sessions: g.sessions.length,
     given: g.totalGiven,
     repaid: g.totalRepaid,
@@ -2429,6 +2480,7 @@ function buildDebtSheet(workbook: Workbook, avansByEmployee: AvansGroup[]) {
     ws,
     [
       { header: "Employee", key: "employee" },
+      { header: "Worker(s)", key: "workers" },
       { header: "Sessions", key: "sessions" },
       { header: "Given (₼)", key: "given", type: "money" },
       { header: "Repaid (₼)", key: "repaid", type: "money" },
@@ -2439,7 +2491,7 @@ function buildDebtSheet(workbook: Workbook, avansByEmployee: AvansGroup[]) {
     1,
   );
 
-  autoWidth(ws, 5);
+  autoWidth(ws, 6);
 }
 
 function buildByLocationSheet(
@@ -2696,6 +2748,7 @@ function buildEmployeeReport(
     const ws = workbook.addWorksheet("Payments", { properties: { tabColor: { argb: "FF6D28D9" } } });
     const dataRows = paymentRows.map((r) => ({
       date: r.date,
+      worker: r.workerName ?? "",
       type: t(paymentTypeLabelKey[r.paymentType as "BONUS" | "EZAM_ELAVE" | "OVERTIME"]),
       amount: r.amount,
       paid: r.paid,
@@ -2705,6 +2758,7 @@ function buildEmployeeReport(
       ws,
       [
         { header: "Date", key: "date", type: "date" },
+        { header: "Worker", key: "worker" },
         { header: "Type", key: "type" },
         { header: "Amount (₼)", key: "amount", type: "money" },
         { header: "Paid (₼)", key: "paid", type: "money" },
@@ -2714,7 +2768,7 @@ function buildEmployeeReport(
       "payments",
       1,
     );
-    autoWidth(ws, 5);
+    autoWidth(ws, 6);
   }
 
   // ---- Employee Debt sheet (chronological running balance) ----
@@ -2723,12 +2777,13 @@ function buildEmployeeReport(
     let running = 0;
     const dataRows = avansRows.map((r) => {
       running = Math.max(0, running + r.given - r.repaid);
-      return { date: r.date, given: r.given, repaid: r.repaid, outstanding: running };
+      return { date: r.date, worker: r.workerName ?? "", given: r.given, repaid: r.repaid, outstanding: running };
     });
     addTable(
       ws,
       [
         { header: "Date", key: "date", type: "date" },
+        { header: "Worker", key: "worker" },
         { header: "Given (₼)", key: "given", type: "money" },
         { header: "Repaid (₼)", key: "repaid", type: "money" },
         { header: "Running Outstanding (₼)", key: "outstanding", type: "money" },
@@ -2737,7 +2792,7 @@ function buildEmployeeReport(
       "debt",
       1,
     );
-    autoWidth(ws, 4);
+    autoWidth(ws, 5);
   }
 
   // ---- Expenses sheet ----
@@ -2745,6 +2800,7 @@ function buildEmployeeReport(
     const ws = workbook.addWorksheet("Expenses", { properties: { tabColor: { argb: "FFC2410C" } } });
     const dataRows = expenseRows.map((r) => ({
       date: r.date,
+      worker: r.workerName ?? "",
       type: t(expenseTypeLabelKey[r.type]),
       amount: r.amount,
     }));
@@ -2752,6 +2808,7 @@ function buildEmployeeReport(
       ws,
       [
         { header: "Date", key: "date", type: "date" },
+        { header: "Worker", key: "worker" },
         { header: "Type", key: "type" },
         { header: "Amount (₼)", key: "amount", type: "money" },
       ],
@@ -2759,24 +2816,25 @@ function buildEmployeeReport(
       "expense",
       1,
     );
-    autoWidth(ws, 3);
+    autoWidth(ws, 4);
   }
 
   // ---- Fines sheet ----
   if (fineRows.length > 0) {
     const ws = workbook.addWorksheet("Fines", { properties: { tabColor: { argb: "FFB91C1C" } } });
-    const dataRows = fineRows.map((r) => ({ date: r.date, amount: r.amount }));
+    const dataRows = fineRows.map((r) => ({ date: r.date, worker: r.workerName ?? "", amount: r.amount }));
     addTable(
       ws,
       [
         { header: "Date", key: "date", type: "date" },
+        { header: "Worker", key: "worker" },
         { header: "Amount (₼)", key: "amount", type: "money" },
       ],
       dataRows,
       "expense",
       1,
     );
-    autoWidth(ws, 2);
+    autoWidth(ws, 3);
   }
 }
 
