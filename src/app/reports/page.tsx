@@ -1674,7 +1674,7 @@ export default function ReportsPage() {
               ]}
               rows={rows.map((row) => [
                 row.date,
-                row.employeeName,
+                row.workerName ? `${row.employeeName} (${row.workerName})` : row.employeeName,
                 row.department,
                 t(statusKey(row.status)),
                 row.location ?? "-",
@@ -1942,6 +1942,7 @@ function exportRows(
   return rows.map((row) => ({
     Date: row.date,
     Employee: row.employeeName,
+    Worker: row.workerName ?? "",
     Department: row.department,
     Status: t(statusKey(row.status)),
     Location: row.location ?? "",
@@ -2481,13 +2482,14 @@ function buildByLocationSheet(
 
 function buildRecordsSheet(workbook: Workbook, rows: ReturnType<typeof exportRows>) {
   const ws = workbook.addWorksheet("Records", {
-    views: [{ state: "frozen", xSplit: 2, ySplit: 1 }],
+    views: [{ state: "frozen", xSplit: 3, ySplit: 1 }],
     properties: { tabColor: { argb: "FF1E293B" } },
   });
 
   const columns: ColumnDef[] = [
     { header: "Date", key: "Date", type: "date" },
     { header: "Employee", key: "Employee" },
+    { header: "Worker", key: "Worker" },
     { header: "Department", key: "Department" },
     { header: "Status", key: "Status" },
     { header: "Location", key: "Location" },
@@ -2508,6 +2510,7 @@ function buildRecordsSheet(workbook: Workbook, rows: ReturnType<typeof exportRow
   addTable(ws, columns, rows, "general", 1);
   autoWidth(ws, columns.length);
   ws.getColumn(2).width = Math.max(ws.getColumn(2).width ?? 10, 18);
+  ws.getColumn(3).width = Math.max(ws.getColumn(3).width ?? 10, 16);
 }
 
 function sanitizeFilename(name: string) {

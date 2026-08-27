@@ -110,6 +110,7 @@ export async function GET(request: NextRequest) {
           date: dateKey,
           employeeId: record.employeeId,
           employeeName: record.employee.name,
+          workerName: record.workerName,
           department: record.employee.department,
           status: record.status,
           location: record.location,

@@ -136,6 +136,7 @@ export type FilteredReportRow = {
   date: string;
   employeeId: number;
   employeeName: string;
+  workerName: string | null;
   department: string;
   status: AttendanceStatus;
   location: string | null;
