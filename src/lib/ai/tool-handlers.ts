@@ -80,6 +80,7 @@ async function getAttendanceSummary(input: Record<string, unknown>) {
       date: dateKey,
       employeeId: r.employeeId,
       employeeName: r.employee.name,
+      workerName: r.workerName,
       department: r.employee.department,
       status: r.status,
       location: r.location,
