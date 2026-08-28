@@ -67,7 +67,12 @@ export async function syncFuelTransactions(): Promise<SyncResult> {
       if (json.isSuccess === false) continue;
       const data = json.data;
       if (Array.isArray(data)) {
-        rawTransactions.push(...(data as Record<string, unknown>[]).filter((tx) => String(tx.transactionType) === "21"));
+        // 21 = Card Sale (fill-up), 22 = Card Refund (cancels a prior fill-up) — both needed to net totals correctly.
+        rawTransactions.push(
+          ...(data as Record<string, unknown>[]).filter(
+            (tx) => String(tx.transactionType) === "21" || String(tx.transactionType) === "22",
+          ),
+        );
       }
     } catch {
       // Skip failed chunks — don't abort entire sync
@@ -99,6 +104,11 @@ export async function syncFuelTransactions(): Promise<SyncResult> {
       continue;
     }
 
+    // Refunds arrive from the API with a positive amount/quantity — store them negated so
+    // every SUM(amount)/SUM(productQuantity) downstream nets out automatically.
+    const isRefund = String(tx.transactionType) === "22";
+    const sign = isRefund ? -1 : 1;
+
     await prisma.fuelTransaction.upsert({
       where: { id },
       create: {
@@ -107,12 +117,13 @@ export async function syncFuelTransactions(): Promise<SyncResult> {
         cardHolderName: tx.cardHolderName ? String(tx.cardHolderName) : null,
         cardNumber: tx.cardNumber ? String(tx.cardNumber) : null,
         productName: tx.productName ? String(tx.productName) : null,
-        productQuantity: tx.measureAmount != null ? Number(tx.measureAmount) : null,
+        productQuantity: tx.measureAmount != null ? sign * Number(tx.measureAmount) : null,
         productMeasure: tx.productMeasure ? String(tx.productMeasure) : null,
-        amount: Number(tx.amount ?? 0),
+        amount: sign * Number(tx.amount ?? 0),
         stationName: tx.stationName ? String(tx.stationName) : null,
         plate,
         carId,
+        isRefund,
       },
       update: { carId }, // re-match if a new car was added
     });

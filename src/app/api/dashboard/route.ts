@@ -25,7 +25,7 @@ export async function GET() {
   const lastMonthEnd = endOfMonth(subMonths(today, 1));
   const thirtyDaysAgo = subDays(startOfToday, 29);
 
-  const [employees, todayRecords, cars, fuelThis, fuelLast, last30Attendance] = await Promise.all([
+  const [employees, todayRecords, cars, fuelThis, fuelThisCount, fuelLast, fuelLastCount, last30Attendance] = await Promise.all([
     prisma.employee.findMany({ select: { id: true } }),
     prisma.attendanceRecord.findMany({
       where: { date: { gte: startOfToday, lte: endOfToday } },
@@ -46,15 +46,21 @@ export async function GET() {
         inspectionIntervalMonths: true,
       },
     }),
+    // Refund rows are stored with negated amount so the sum nets out automatically;
+    // count them out separately so "fill-ups" doesn't include cancelled ones.
     prisma.fuelTransaction.aggregate({
       where: { transactionTime: { gte: thisMonthStart, lte: thisMonthEnd } },
       _sum: { amount: true },
-      _count: { id: true },
+    }),
+    prisma.fuelTransaction.count({
+      where: { transactionTime: { gte: thisMonthStart, lte: thisMonthEnd }, isRefund: false },
     }),
     prisma.fuelTransaction.aggregate({
       where: { transactionTime: { gte: lastMonthStart, lte: lastMonthEnd } },
       _sum: { amount: true },
-      _count: { id: true },
+    }),
+    prisma.fuelTransaction.count({
+      where: { transactionTime: { gte: lastMonthStart, lte: lastMonthEnd }, isRefund: false },
     }),
     prisma.attendanceRecord.findMany({
       where: { date: { gte: thirtyDaysAgo, lte: endOfToday } },
@@ -115,8 +121,8 @@ export async function GET() {
     employeesWithoutRecord,
     statusCounts,
     maintenanceAlerts,
-    fuelThisMonth: { total: fuelThis._sum.amount ?? 0, count: fuelThis._count.id },
-    fuelLastMonth: { total: fuelLast._sum.amount ?? 0, count: fuelLast._count.id },
+    fuelThisMonth: { total: fuelThis._sum.amount ?? 0, count: fuelThisCount },
+    fuelLastMonth: { total: fuelLast._sum.amount ?? 0, count: fuelLastCount },
     attendanceTrend,
   });
 }

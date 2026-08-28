@@ -513,8 +513,10 @@ async function getFuelTransactions(input: Record<string, unknown>) {
     orderBy: { transactionTime: "desc" },
   });
 
+  // Refund rows are stored with negated amount/quantity, so these sums are already net.
   const totalAmount = transactions.reduce((s, tx) => s + tx.amount, 0);
   const totalQuantity = transactions.reduce((s, tx) => s + (tx.productQuantity ?? 0), 0);
+  const totalFillUps = transactions.filter((tx) => !tx.isRefund).length;
 
   const RECORD_CAP = 100;
   const truncated = transactions.length > RECORD_CAP;
@@ -530,11 +532,13 @@ async function getFuelTransactions(input: Record<string, unknown>) {
     amount: tx.amount,
     station: tx.stationName,
     cardHolder: tx.cardHolderName?.trim() ?? null,
+    isRefund: tx.isRefund,
   }));
 
   return {
     summary: {
       totalTransactions: transactions.length,
+      totalFillUps,
       totalAmount: Math.round(totalAmount * 100) / 100,
       totalQuantity: Math.round(totalQuantity * 100) / 100,
     },

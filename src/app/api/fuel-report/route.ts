@@ -35,9 +35,10 @@ export async function GET(request: NextRequest) {
     if (c.fuelCardNumber) cardNumberToPlate.set(c.fuelCardNumber, c.licensePlate);
   }
 
-  // Summary
+  // Summary — refund rows are stored with negated amount/quantity so sums net out automatically
   const totalAmount = transactions.reduce((s, t) => s + t.amount, 0);
   const totalQuantity = transactions.reduce((s, t) => s + (t.productQuantity ?? 0), 0);
+  const fillUpCount = transactions.filter((t) => !t.isRefund).length;
   const uniquePlates = new Set(transactions.map((t) => t.plate)).size;
   const uniqueStations = new Set(transactions.map((t) => t.stationName).filter(Boolean)).size;
 
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
     const existing = monthMap.get(key) ?? { amount: 0, quantity: 0, fillUps: 0 };
     existing.amount += tx.amount;
     existing.quantity += tx.productQuantity ?? 0;
-    existing.fillUps++;
+    if (!tx.isRefund) existing.fillUps++;
     monthMap.set(key, existing);
   }
   const byMonth = Array.from(monthMap.entries())
@@ -62,7 +63,7 @@ export async function GET(request: NextRequest) {
     const existing = productMap.get(key) ?? { amount: 0, quantity: 0, fillUps: 0 };
     existing.amount += tx.amount;
     existing.quantity += tx.productQuantity ?? 0;
-    existing.fillUps++;
+    if (!tx.isRefund) existing.fillUps++;
     productMap.set(key, existing);
   }
   const byProduct = Array.from(productMap.entries())
@@ -82,7 +83,7 @@ export async function GET(request: NextRequest) {
     };
     existing.amount += tx.amount;
     existing.quantity += tx.productQuantity ?? 0;
-    existing.fillUps++;
+    if (!tx.isRefund) existing.fillUps++;
     plateMap.set(tx.plate, existing);
   }
   const byCar = Array.from(plateMap.values())
@@ -96,7 +97,7 @@ export async function GET(request: NextRequest) {
     const existing = stationMap.get(key) ?? { amount: 0, quantity: 0, fillUps: 0 };
     existing.amount += tx.amount;
     existing.quantity += tx.productQuantity ?? 0;
-    existing.fillUps++;
+    if (!tx.isRefund) existing.fillUps++;
     stationMap.set(key, existing);
   }
   const byStation = Array.from(stationMap.entries())
@@ -110,7 +111,7 @@ export async function GET(request: NextRequest) {
     const existing = cardNumMap.get(key) ?? { amount: 0, quantity: 0, fillUps: 0 };
     existing.amount += tx.amount;
     existing.quantity += tx.productQuantity ?? 0;
-    existing.fillUps++;
+    if (!tx.isRefund) existing.fillUps++;
     cardNumMap.set(key, existing);
   }
   const byCardNumber = Array.from(cardNumMap.entries())
@@ -127,9 +128,9 @@ export async function GET(request: NextRequest) {
     summary: {
       totalAmount: Math.round(totalAmount * 100) / 100,
       totalQuantity: Math.round(totalQuantity * 100) / 100,
-      totalFillUps: transactions.length,
-      avgCostPerFill: transactions.length ? Math.round((totalAmount / transactions.length) * 100) / 100 : 0,
-      avgQtyPerFill: transactions.length ? Math.round((totalQuantity / transactions.length) * 100) / 100 : 0,
+      totalFillUps: fillUpCount,
+      avgCostPerFill: fillUpCount ? Math.round((totalAmount / fillUpCount) * 100) / 100 : 0,
+      avgQtyPerFill: fillUpCount ? Math.round((totalQuantity / fillUpCount) * 100) / 100 : 0,
       uniquePlates,
       uniqueStations,
     },

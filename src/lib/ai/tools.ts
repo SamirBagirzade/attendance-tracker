@@ -117,7 +117,7 @@ export const toolDefinitions: Anthropic.Tool[] = [
   {
     name: "get_fuel_transactions",
     description:
-      "Query cached Azpetrol fuel card transactions (Card Sale type only). Includes ALL fill-ups — both company cars and external/non-company vehicles (cards not tied to a specific car, e.g. plate 'mehdudiyyetsiz'). Returns date, plate, car name if matched, product (fuel type), quantity in litres, cost in AZN, and station. Use for ALL fuel spending questions including total company fuel cost, consumption by car or driver, cost by station, or external vehicle spend.",
+      "Query cached Azpetrol fuel card transactions (Card Sale and Card Refund types). Includes ALL fill-ups — both company cars and external/non-company vehicles (cards not tied to a specific car, e.g. plate 'mehdudiyyetsiz'). A cancelled fill-up appears as a separate row with `isRefund: true` and negative amount/quantity, already netted into `summary.totalAmount`/`totalQuantity` — `summary.totalFillUps` excludes refund rows so it reflects only real fill-ups. Returns date, plate, car name if matched, product (fuel type), quantity in litres, cost in AZN, station, and isRefund. Use for ALL fuel spending questions including total company fuel cost, consumption by car or driver, cost by station, or external vehicle spend.",
     input_schema: {
       type: "object",
       properties: {

@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     plate,
     totalAmount: txs.reduce((s, t) => s + t.amount, 0),
     totalQuantity: txs.reduce((s, t) => s + (t.productQuantity ?? 0), 0),
-    count: txs.length,
+    count: txs.filter((t) => !t.isRefund).length,
     transactions: txs,
   }));
 
