@@ -18,9 +18,10 @@ type FuelTx = {
   stationName: string | null;
   cardNumber: string | null;
   plate: string;
+  isRefund: boolean;
 };
 
-type Totals = { amount: number; quantity: number };
+type Totals = { amount: number; quantity: number; fillUps: number };
 
 export default function ExternalVehicleFuelPage() {
   const { t } = useLanguage();
@@ -30,7 +31,7 @@ export default function ExternalVehicleFuelPage() {
   const [from, setFrom] = useState(format(subMonths(new Date(), 3), "yyyy-MM-dd"));
   const [to, setTo] = useState(format(new Date(), "yyyy-MM-dd"));
   const [transactions, setTransactions] = useState<FuelTx[]>([]);
-  const [totals, setTotals] = useState<Totals>({ amount: 0, quantity: 0 });
+  const [totals, setTotals] = useState<Totals>({ amount: 0, quantity: 0, fillUps: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [cardOwners, setCardOwners] = useState<Record<string, string>>({});
@@ -102,12 +103,12 @@ export default function ExternalVehicleFuelPage() {
           </div>
           <div className="bg-white border border-slate-200 rounded-lg px-4 py-3">
             <p className="text-xs text-slate-500 mb-1">{t("fillUps")}</p>
-            <p className="text-lg font-semibold text-slate-900">{transactions.length}</p>
+            <p className="text-lg font-semibold text-slate-900">{totals.fillUps}</p>
           </div>
           <div className="bg-white border border-slate-200 rounded-lg px-4 py-3">
             <p className="text-xs text-slate-500 mb-1">{t("avgCostPerFill")}</p>
             <p className="text-lg font-semibold text-slate-900">
-              {(totals.amount / transactions.length).toFixed(2)} AZN
+              {totals.fillUps > 0 ? (totals.amount / totals.fillUps).toFixed(2) : "0.00"} AZN
             </p>
           </div>
         </div>
@@ -150,11 +151,18 @@ export default function ExternalVehicleFuelPage() {
                     <td className="px-3 py-2 whitespace-nowrap text-slate-700">
                       {format(new Date(tx.transactionTime), "dd.MM.yyyy HH:mm")}
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap">{tx.productName ?? "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {tx.productName ?? "—"}
+                      {tx.isRefund && (
+                        <span className="ml-1.5 rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-rose-700">
+                          {t("fuelRefund")}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-right whitespace-nowrap">
                       {tx.productQuantity != null ? `${tx.productQuantity} ${tx.productMeasure ?? ""}`.trim() : "—"}
                     </td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap font-medium">{tx.amount.toFixed(2)} AZN</td>
+                    <td className={`px-3 py-2 text-right whitespace-nowrap font-medium ${tx.isRefund ? "text-rose-600" : ""}`}>{tx.amount.toFixed(2)} AZN</td>
                     <td className="px-3 py-2 whitespace-nowrap">{tx.stationName ?? "—"}</td>
                     <td className="px-3 py-2 whitespace-nowrap font-mono text-xs">
                       {tx.cardNumber ? (

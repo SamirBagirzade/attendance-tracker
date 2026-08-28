@@ -203,6 +203,7 @@ model FuelTransaction {
   plate           String
   carId           Int?
   car             Car?     @relation(fields: [carId], references: [id], onDelete: SetNull)
+  isRefund        Boolean  @default(false)
   syncedAt        DateTime @default(now())
 
   @@index([carId])

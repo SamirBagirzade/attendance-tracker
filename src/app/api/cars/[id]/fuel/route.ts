@@ -47,8 +47,9 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     (acc, tx) => ({
       amount: acc.amount + tx.amount,
       quantity: acc.quantity + (tx.productQuantity ?? 0),
+      fillUps: acc.fillUps + (tx.isRefund ? 0 : 1),
     }),
-    { amount: 0, quantity: 0 },
+    { amount: 0, quantity: 0, fillUps: 0 },
   );
 
   return Response.json({ transactions, totals, fuelCardNumber: car?.fuelCardNumber ?? null, cardOwners });
