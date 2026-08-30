@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Check, ChevronDown, ChevronUp, Fuel, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Fuel, Navigation, Plus, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { DocumentsSection } from "@/components/DocumentsSection";
 import { CustomFieldsSection } from "@/components/CustomFieldsSection";
@@ -457,6 +457,13 @@ export default function CarsPage() {
                               >
                                 <Fuel size={15} />
                                 Fuel
+                              </Link>
+                              <Link
+                                href={`/cars/${car.id}/telemetry`}
+                                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-slate-200 px-3 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                              >
+                                <Navigation size={15} />
+                                {t("telemetry")}
                               </Link>
                               <button
                                 className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-red-200 px-3 text-sm font-medium text-red-700 hover:bg-red-50"
