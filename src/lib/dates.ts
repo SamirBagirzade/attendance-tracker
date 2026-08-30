@@ -49,7 +49,12 @@ export const RECORD_EDIT_LOCK_DAYS = 5;
 
 export function isDateEditLocked(date: Date): boolean {
   const today = parseCalendarDate(bakuDateKey(new Date()));
-  const diffDays = Math.round((today.getTime() - date.getTime()) / 86_400_000);
+  // Normalise the incoming date too. A date written through parseCalendarDate is
+  // noon UTC, but the same value read back out of a @db.Date column is midnight
+  // UTC — comparing the two raw gave N + 0.5 days, which Math.round lifted to
+  // N + 1 and locked records a day early on the by-id routes only.
+  const target = parseCalendarDate(date);
+  const diffDays = Math.round((today.getTime() - target.getTime()) / 86_400_000);
   return diffDays > RECORD_EDIT_LOCK_DAYS;
 }
 
