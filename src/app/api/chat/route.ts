@@ -117,7 +117,9 @@ export async function POST(request: NextRequest) {
                 });
               } catch (err) {
                 const errMsg = `Error: ${String(err)}`;
-                emit({ type: "tool_result", tool: block.name, preview: errMsg });
+                console.error("[chat] Tool", block.name, "failed:", err);
+                // Detail goes to the model so it can recover; the client sees a label.
+                emit({ type: "tool_result", tool: block.name, preview: "Failed" });
                 toolResults.push({
                   type: "tool_result",
                   tool_use_id: block.id,
@@ -176,7 +178,9 @@ export async function POST(request: NextRequest) {
                 });
               } catch (err) {
                 const errMsg = `Error: ${String(err)}`;
-                emit({ type: "tool_result", tool: block.name, preview: errMsg });
+                console.error("[chat] Tool", block.name, "failed:", err);
+                // Detail goes to the model so it can recover; the client sees a label.
+                emit({ type: "tool_result", tool: block.name, preview: "Failed" });
                 toolResults.push({
                   type: "tool_result",
                   tool_use_id: block.id,
@@ -192,7 +196,8 @@ export async function POST(request: NextRequest) {
 
         emit({ type: "done" });
       } catch (err) {
-        emit({ type: "error", message: String(err) });
+        console.error("[chat] Stream failed:", err);
+        emit({ type: "error", message: "Something went wrong answering that. Try again." });
       } finally {
         controller.close();
       }

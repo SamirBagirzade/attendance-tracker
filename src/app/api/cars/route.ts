@@ -26,11 +26,14 @@ export async function POST(request: NextRequest) {
     const data = normalizeCarInput(body);
     const car = await prisma.car.create({ data });
 
-    // Re-link any historical fuel transactions for this plate
-    void prisma.fuelTransaction.updateMany({
-      where: { plate: normalizePlate(car.licensePlate), carId: null },
-      data: { carId: car.id },
-    });
+    // Re-link any historical fuel transactions for this plate. Fire-and-forget,
+    // but it must carry its own catch — an unhandled rejection takes the process down.
+    void prisma.fuelTransaction
+      .updateMany({
+        where: { plate: normalizePlate(car.licensePlate), carId: null },
+        data: { carId: car.id },
+      })
+      .catch((error) => console.error("[cars] Fuel re-link failed for car", car.id, error));
 
     void logAudit(request, "CREATE", "Car", car.id, { makeModel: car.makeModel, licensePlate: car.licensePlate });
     return NextResponse.json(

@@ -19,7 +19,14 @@ export async function verifyPassword(password: string, passwordHash: string) {
   }
 
   const storedBuffer = Buffer.from(storedHash, "hex");
-  const derivedKey = (await scryptAsync(password, salt, storedBuffer.length)) as Buffer;
 
-  return storedBuffer.length === derivedKey.length && timingSafeEqual(storedBuffer, derivedKey);
+  // Always derive at the fixed keyLength: deriving at storedBuffer.length let a
+  // truncated or corrupt hash quietly shorten the comparison instead of failing.
+  if (storedBuffer.length !== keyLength) {
+    return false;
+  }
+
+  const derivedKey = (await scryptAsync(password, salt, keyLength)) as Buffer;
+
+  return timingSafeEqual(storedBuffer, derivedKey);
 }

@@ -1,7 +1,7 @@
 import { AttendanceStatus, Prisma } from "@prisma/client";
 import { addMonths, differenceInDays, isWeekend } from "date-fns";
 import { prisma } from "@/lib/prisma";
-import { dateRangeWhere, toApiDateKey } from "@/lib/dates";
+import { bakuDateKey, dateRangeWhere, parseCalendarDate, toApiDateKey } from "@/lib/dates";
 import { cateringCostForHeadcount, DEFAULT_PRICES, type Prices } from "./catering";
 
 type DateSeverity = "ok" | "warning" | "overdue";
@@ -144,15 +144,15 @@ async function getEmployees(input: Record<string, unknown>) {
 }
 
 async function getDashboard() {
-  const today = new Date();
-  const todayStr = today.toISOString().slice(0, 10);
-  const startOfToday = new Date(todayStr + "T00:00:00.000Z");
-  const endOfToday = new Date(todayStr + "T23:59:59.999Z");
+  // "Today" is the Baku calendar day, not the server's UTC day — on a UTC+4 box
+  // the UTC date is still yesterday between midnight and 04:00 local.
+  const todayStr = bakuDateKey(new Date());
+  const today = parseCalendarDate(todayStr);
 
   const [employees, todayRecords, cars] = await Promise.all([
     prisma.employee.findMany({ select: { id: true } }),
     prisma.attendanceRecord.findMany({
-      where: { date: { gte: startOfToday, lte: endOfToday } },
+      where: { date: today },
       select: { status: true },
     }),
     prisma.car.findMany({
@@ -199,18 +199,10 @@ async function getDashboard() {
           severity,
         });
       }
-    } else {
-      const oilStat = dateStatus(car.oilChangeDate, null);
-      if (oilStat && oilStat !== "ok") {
-        maintenanceAlerts.push({
-          id: car.id,
-          makeModel: car.makeModel,
-          licensePlate: car.licensePlate,
-          type: "OIL_CHANGE",
-          severity: oilStat,
-        });
-      }
     }
+    // No date-based fallback: oil changes are tracked by km only, and Car has no
+    // oilChangeIntervalMonths to age oilChangeDate against. A car missing
+    // currentKm, oilChangeKm or oilChangeIntervalKm raises no oil alert at all.
 
     const insStat = dateStatus(car.insuranceDate, car.insuranceIntervalMonths);
     if (insStat && insStat !== "ok") {
@@ -395,13 +387,13 @@ async function getCarStatus() {
   });
 
   const result = cars.map((car) => {
+    // Km-based only — see the note in getDashboard: there is no months interval
+    // for oil, so a car without km data has no computable oil severity.
     let oilSeverity: DateSeverity | null = null;
     if (car.currentKm != null && car.oilChangeKm != null && car.oilChangeIntervalKm != null) {
       const next = car.oilChangeKm + car.oilChangeIntervalKm;
       const diff = next - car.currentKm;
       oilSeverity = diff < 0 ? "overdue" : diff <= 1000 ? "warning" : "ok";
-    } else {
-      oilSeverity = dateStatus(car.oilChangeDate, null);
     }
 
     const nextOilKm =

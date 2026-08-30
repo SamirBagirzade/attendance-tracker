@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AttendanceStatus, UserRole } from "@prisma/client";
-import { requireAdmin, requireEditor } from "@/lib/permissions";
+import { requireAdmin } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
@@ -105,8 +105,10 @@ const sequenceTables = [
   "AttendanceWorkLocation",
 ] as const;
 
+// ADMIN-only: the payload carries every AppUser password hash, so an EDITOR
+// must not be able to pull it.
 export async function GET(request: NextRequest) {
-  const denied = await requireEditor(request);
+  const denied = await requireAdmin(request);
 
   if (denied) {
     return denied;

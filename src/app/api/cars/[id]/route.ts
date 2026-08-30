@@ -33,11 +33,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const data = normalizeCarInput(await request.json());
     const car = await prisma.car.update({ where: { id }, data });
 
-    // Re-link any unlinked fuel transactions for this plate
-    void prisma.fuelTransaction.updateMany({
-      where: { plate: normalizePlate(car.licensePlate), carId: null },
-      data: { carId: car.id },
-    });
+    // Re-link any unlinked fuel transactions for this plate. Fire-and-forget,
+    // but it must carry its own catch — an unhandled rejection takes the process down.
+    void prisma.fuelTransaction
+      .updateMany({
+        where: { plate: normalizePlate(car.licensePlate), carId: null },
+        data: { carId: car.id },
+      })
+      .catch((error) => console.error("[cars] Fuel re-link failed for car", id, error));
 
     void logAudit(request, "UPDATE", "Car", id, { makeModel: car.makeModel, licensePlate: car.licensePlate });
     return NextResponse.json({

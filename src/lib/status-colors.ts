@@ -34,7 +34,9 @@ export function normalizeStatusColorInput(input: {
   const displayText =
     typeof input.displayText === "string" ? input.displayText.trim() : "";
 
-  if (!(status in defaultStatusColors)) {
+  // `in` walks the prototype chain, so "constructor"/"toString"/"valueOf" used to
+  // pass validation and reach Prisma as an invalid enum.
+  if (!Object.hasOwn(defaultStatusColors, status)) {
     throw new Error("status is invalid.");
   }
 
