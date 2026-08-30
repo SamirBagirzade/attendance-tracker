@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest } from "next/server";
 import { getSessionUser } from "@/lib/permissions";
+import { checkMemoryLimit, sweepMemoryLimits } from "@/lib/rate-limit";
 import { toolDefinitions } from "@/lib/ai/tools";
 import { handleToolCall } from "@/lib/ai/tool-handlers";
 import { buildSystemPrompt } from "@/lib/ai/system-prompt";
@@ -34,6 +35,20 @@ export async function POST(request: NextRequest) {
   const user = await getSessionUser(request);
   if (!user) {
     return new Response(JSON.stringify({ error: "Unauthorized." }), { status: 401 });
+  }
+
+  // Process-local: this guards the Anthropic bill, not an account, so losing
+  // the counter on restart is fine and a database write per message is not
+  // worth it. Ten turns of up to 2048 tokens each makes a single request
+  // expensive enough to be worth capping.
+  sweepMemoryLimits(15 * 60 * 1000);
+  const limit = checkMemoryLimit(`chat:${user.username}`, 20, 5 * 60 * 1000);
+
+  if (!limit.allowed) {
+    return new Response(
+      JSON.stringify({ error: "You are sending messages too quickly. Try again shortly." }),
+      { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
+    );
   }
 
   let messages: ChatMessage[];
@@ -75,14 +90,12 @@ export async function POST(request: NextRequest) {
             });
 
             const toolUseBlocks: Anthropic.ToolUseBlock[] = [];
-            let assistantText = "";
 
             for await (const event of response) {
               if (
                 event.type === "content_block_delta" &&
                 event.delta.type === "text_delta"
               ) {
-                assistantText += event.delta.text;
                 emit({ type: "text", delta: event.delta.text });
               }
             }

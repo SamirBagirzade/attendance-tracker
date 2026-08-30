@@ -283,3 +283,16 @@ model AttendanceRecord {
   @@index([date])
   @@index([status])
 }
+
+// Durable rate-limit counters. Login attempts are tracked here rather than in
+// process memory so a limit survives a restart — otherwise an attacker just
+// waits for a deploy to get a fresh quota.
+model RateLimit {
+  key         String   @id
+  count       Int      @default(0)
+  windowStart DateTime
+
+  updatedAt DateTime @updatedAt
+
+  @@index([windowStart])
+}
