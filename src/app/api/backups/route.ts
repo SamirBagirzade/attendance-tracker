@@ -129,11 +129,34 @@ export async function GET(request: NextRequest) {
   });
 }
 
+// DISABLED. restoreBackup() deletes every row in eight tables and puts back only
+// the columns the Backup* types carry, which no longer match the schema. A restore
+// silently drops: Employee.vacationLimit/sickLimit/isTemporary; every Car km, oil,
+// insurance, inspection and fuelCard field; AttendanceRecord.workerName, cookedPaid
+// and all seven payment/expense/fine fields. CarMaintenanceRecord, Document,
+// CustomField, FuelTransaction, FormResponse and AppSetting are not captured at all
+// and are cascade-deleted with their parent Car and Employee rows.
+//
+// The export below is still a useful snapshot; it is restoring it that destroys
+// data. Re-enable only once the payload round-trips every column and table, and
+// once there is a test proving it. Use pg_dump / pg_restore until then.
+const RESTORE_ENABLED = false;
+
 export async function POST(request: NextRequest) {
   const denied = await requireAdmin(request);
 
   if (denied) {
     return denied;
+  }
+
+  if (!RESTORE_ENABLED) {
+    return NextResponse.json(
+      {
+        error:
+          "Restore is disabled: this backup format cannot rebuild the current schema and would discard payment, vehicle and document data. Restore from a pg_dump snapshot instead.",
+      },
+      { status: 501 },
+    );
   }
 
   try {
