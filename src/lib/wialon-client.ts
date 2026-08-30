@@ -36,6 +36,7 @@ export type FuelReportResult = {
   currentPosition: CurrentPosition;
   stats: Array<{ label: string; value: string }>;
   fillings: ReportRow[];
+  leaks: ReportRow[];
   trips: ReportRow[];
 };
 
@@ -131,19 +132,22 @@ export async function getFuelReport(plate: string, fromUnix: number, toUnix: num
     const stats = (reportResult.stats ?? []).map(([label, value]) => ({ label, value }));
 
     const fillingsTable = reportResult.tables.find((t) => t.name === "unit_fillings");
+    const leaksTable = reportResult.tables.find((t) => t.name === "unit_thefts");
     const tripsTable = reportResult.tables.find((t) => t.name === "unit_trips");
 
-    const [fillingsRaw, tripsRaw] = await Promise.all([
+    const [fillingsRaw, leaksRaw, tripsRaw] = await Promise.all([
       fillingsTable ? fetchAllRows(sid, reportResult.tables.indexOf(fillingsTable), fillingsTable.rows) : Promise.resolve([]),
+      leaksTable ? fetchAllRows(sid, reportResult.tables.indexOf(leaksTable), leaksTable.rows) : Promise.resolve([]),
       tripsTable ? fetchAllRows(sid, reportResult.tables.indexOf(tripsTable), tripsTable.rows) : Promise.resolve([]),
     ]);
 
     const fillings = fillingsTable ? fillingsRaw.map((r) => cellToRow(fillingsTable.header_type, r.c)) : [];
+    const leaks = leaksTable ? leaksRaw.map((r) => cellToRow(leaksTable.header_type, r.c)) : [];
     const trips = tripsTable ? tripsRaw.map((r) => cellToRow(tripsTable.header_type, r.c)) : [];
 
     await call("report/cleanup_result", {}, sid);
 
-    return { unitId: unit.id, unitName: unit.nm, currentPosition, stats, fillings, trips };
+    return { unitId: unit.id, unitName: unit.nm, currentPosition, stats, fillings, leaks, trips };
   } finally {
     await call("core/logout", {}, sid).catch(() => {});
   }

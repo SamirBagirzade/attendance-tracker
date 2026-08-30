@@ -18,6 +18,7 @@ type TelemetryReport = {
   currentPosition: CurrentPosition;
   stats: Array<{ label: string; value: string }>;
   fillings: ReportRow[];
+  leaks: ReportRow[];
   trips: ReportRow[];
 };
 
@@ -40,6 +41,15 @@ const FILLING_COLUMNS: Array<{ key: string; label: string }> = [
   { key: "fuel_level_begin", label: "Fuel Before" },
   { key: "fuel_level_filled", label: "Fuel After" },
   { key: "filled", label: "Filled" },
+];
+
+const LEAK_COLUMNS: Array<{ key: string; label: string }> = [
+  { key: "time_begin", label: "Start" },
+  { key: "location_begin", label: "Location" },
+  { key: "time_end", label: "End" },
+  { key: "fuel_level_begin", label: "Fuel Before" },
+  { key: "fuel_level_thefted", label: "Fuel After" },
+  { key: "thefted", label: "Leaked" },
 ];
 
 function mapLink(row: ReportRow, key: string): string | null {
@@ -195,6 +205,15 @@ export default function CarTelemetryPage() {
                 <span className="text-sm font-medium text-slate-700">{t("fillUps")} ({report.fillings.length})</span>
               </div>
               <GenericTable rows={report.fillings} columns={FILLING_COLUMNS} />
+            </div>
+          )}
+
+          {report.leaks.length > 0 && (
+            <div className="bg-white border border-rose-200 rounded-lg overflow-hidden mb-4">
+              <div className="px-4 py-3 border-b border-rose-100 bg-rose-50">
+                <span className="text-sm font-medium text-rose-700">{t("fuelLeaks")} ({report.leaks.length})</span>
+              </div>
+              <GenericTable rows={report.leaks} columns={LEAK_COLUMNS} />
             </div>
           )}
 
