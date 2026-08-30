@@ -10,6 +10,23 @@ npx tsc --noEmit       # typecheck
 npx eslint src/        # lint (13 pre-existing react-hooks problems — not yours)
 ```
 
+## Deploying
+
+The app runs from this directory as a systemd service, served by `next start` against
+the `.next` build in the working tree. **A commit is not a deploy** — until the service
+is restarted it keeps serving the previous build.
+
+```bash
+npm run build
+sudo systemctl restart attendance-tracker
+systemctl is-active attendance-tracker
+sudo journalctl -u attendance-tracker -n 30 --no-pager
+```
+
+Commit each change and redeploy it rather than letting edits pile up undeployed. On
+startup `src/instrumentation.ts` kicks off a fuel sync if the last one is over 12 hours
+old, so expect `[fuel-sync]` lines in the journal right after a restart.
+
 ## Dates — read this before touching anything date-shaped
 
 This is the single largest source of bugs in the codebase.
