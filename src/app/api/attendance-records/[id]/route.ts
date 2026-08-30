@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { normalizeAttendanceInput } from "@/lib/attendance";
 import { toApiDateKey } from "@/lib/dates";
 import { logAudit } from "@/lib/audit";
-import { requireDateEditable } from "@/lib/permissions";
+import { requireDateEditable, requireEditor } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = {
@@ -40,6 +40,9 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 }
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
+  const denied = await requireEditor(request);
+  if (denied) return denied;
+
   const id = Number((await context.params).id);
 
   if (!Number.isInteger(id) || id <= 0) {
@@ -184,6 +187,9 @@ function serializeAttendanceRecord<
 }
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
+  const denied = await requireEditor(request);
+  if (denied) return denied;
+
   const id = Number((await context.params).id);
 
   if (!Number.isInteger(id) || id <= 0) {
@@ -195,8 +201,8 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Attendance record not found." }, { status: 404 });
   }
 
-  const denied = await requireDateEditable(request, existing.date);
-  if (denied) return denied;
+  const lockDenied = await requireDateEditable(request, existing.date);
+  if (lockDenied) return lockDenied;
 
   try {
     await prisma.attendanceRecord.delete({

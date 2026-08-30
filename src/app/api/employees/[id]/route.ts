@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
-import { normalizeEmployeeInput } from "@/lib/employee";
+import { normalizeEmployeePatch } from "@/lib/employee";
 import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+import { requireEditor } from "@/lib/permissions";
 
 type RouteContext = {
   params: Promise<{
@@ -27,6 +28,9 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 }
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
+  const denied = await requireEditor(request);
+  if (denied) return denied;
+
   const id = Number((await context.params).id);
 
   if (!Number.isInteger(id) || id <= 0) {
@@ -36,7 +40,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
     const employee = await prisma.employee.update({
       where: { id },
-      data: normalizeEmployeeInput(await request.json()),
+      data: normalizeEmployeePatch(await request.json()),
     });
 
     void logAudit(request, "UPDATE", "Employee", id, { name: employee.name, department: employee.department });
@@ -47,6 +51,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 }
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
+  const denied = await requireEditor(request);
+  if (denied) return denied;
+
   const id = Number((await context.params).id);
 
   if (!Number.isInteger(id) || id <= 0) {

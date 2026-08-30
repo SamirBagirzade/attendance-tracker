@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import { join, extname } from "path";
 import { randomUUID } from "crypto";
-import { getSessionUser } from "@/lib/permissions";
+import { requireEditor } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -11,8 +11,8 @@ const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
 const UPLOAD_DIR = join(process.cwd(), "uploads", "documents");
 
 export async function POST(request: NextRequest) {
-  const user = await getSessionUser(request);
-  if (!user) return Response.json({ error: "Unauthorized." }, { status: 401 });
+  const denied = await requireEditor(request);
+  if (denied) return denied;
 
   let formData: FormData;
   try {

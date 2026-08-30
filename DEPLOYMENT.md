@@ -146,3 +146,50 @@ ADMIN_USERNAME="admin"
 ADMIN_PASSWORD="strong-admin-password"
 PORT=3000
 ```
+
+## Backup and Restore
+
+Backups are full PostgreSQL dumps. The admin-only **Backup** page streams
+`pg_dump -Fc` straight to your browser as `attendance-tracker-<date>.dump`.
+Store it off this machine — it contains every row in the database, password
+hashes included.
+
+The equivalent from a shell, if you want it scripted or on a schedule:
+
+```bash
+set -a; . /home/dietpi/attendance-tracker/.env; set +a
+# pg_dump rejects Prisma's ?schema= suffix, so strip the query string
+pg_dump "${DATABASE_URL%%\?*}" -Fc --no-owner --no-privileges \
+  -f "attendance-$(date +%Y%m%d-%H%M%S).dump"
+```
+
+### Restoring
+
+Restoring is deliberately not exposed in the web app: it replaces the whole
+database, which cannot be done safely while the app is holding connections to
+it. Do it from a shell, with the service stopped.
+
+```bash
+sudo systemctl stop attendance-tracker
+
+set -a; . /home/dietpi/attendance-tracker/.env; set +a
+pg_restore --clean --if-exists --no-owner --no-privileges \
+  -d "${DATABASE_URL%%\?*}" attendance-YYYYMMDD-HHMMSS.dump
+
+sudo systemctl start attendance-tracker
+```
+
+Then confirm the app came back up and the data looks right:
+
+```bash
+systemctl is-active attendance-tracker
+sudo journalctl -u attendance-tracker -n 30 --no-pager
+```
+
+Verify a dump is readable *before* you need it — `pg_restore -l file.dump`
+lists its contents without writing anything.
+
+Note: earlier versions shipped a JSON backup/restore in the app. That format
+listed columns by hand and silently stopped matching the schema as columns were
+added, so restoring it discarded whatever it had missed. It has been removed;
+old `.json` backups are not restorable and should not be trusted.
