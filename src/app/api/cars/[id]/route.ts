@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
-import { normalizeCarInput, formatCarDate } from "@/lib/cars";
+import { normalizeCarPatch, formatCarDate } from "@/lib/cars";
 import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { handleCarError } from "../route";
@@ -34,7 +34,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 
   try {
-    const data = normalizeCarInput(await request.json());
+    const data = normalizeCarPatch(await request.json());
     const car = await prisma.car.update({ where: { id }, data });
 
     // Re-link any unlinked fuel transactions for this plate. Fire-and-forget,

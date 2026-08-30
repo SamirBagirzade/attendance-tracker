@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
-import { normalizeEmployeeInput } from "@/lib/employee";
+import { normalizeEmployeePatch } from "@/lib/employee";
 import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { requireEditor } from "@/lib/permissions";
@@ -40,7 +40,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
     const employee = await prisma.employee.update({
       where: { id },
-      data: normalizeEmployeeInput(await request.json()),
+      data: normalizeEmployeePatch(await request.json()),
     });
 
     void logAudit(request, "UPDATE", "Employee", id, { name: employee.name, department: employee.department });
