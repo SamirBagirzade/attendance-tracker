@@ -4,6 +4,7 @@ import { normalizeCarInput, formatCarDate } from "@/lib/cars";
 import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { normalizePlate } from "@/lib/azpetrol-sync";
+import { requireEditor } from "@/lib/permissions";
 
 export async function GET() {
   const cars = await prisma.car.findMany({
@@ -21,6 +22,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await requireEditor(request);
+  if (denied) return denied;
+
   try {
     const body = await request.json();
     const data = normalizeCarInput(body);

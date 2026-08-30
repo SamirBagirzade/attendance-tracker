@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { normalizeAttendanceInput } from "@/lib/attendance";
 import { dateRangeWhere, toApiDateKey } from "@/lib/dates";
 import { logAudit } from "@/lib/audit";
-import { requireDateEditable } from "@/lib/permissions";
+import { requireDateEditable, requireEditor } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
@@ -54,6 +54,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await requireEditor(request);
+  if (denied) return denied;
+
   try {
     const input = normalizeAttendanceInput(await request.json());
 
@@ -70,6 +73,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const denied = await requireEditor(request);
+  if (denied) return denied;
+
   try {
     const input = normalizeAttendanceInput(await request.json());
 

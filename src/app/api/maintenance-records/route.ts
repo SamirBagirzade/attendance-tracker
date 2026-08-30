@@ -3,6 +3,7 @@ import { CarMaintenanceType, Prisma } from "@prisma/client";
 import { logAudit } from "@/lib/audit";
 import { parseCalendarDate } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
+import { requireEditor } from "@/lib/permissions";
 
 function isMaintenanceType(value: string): value is CarMaintenanceType {
   return Object.values(CarMaintenanceType).includes(value as CarMaintenanceType);
@@ -55,6 +56,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await requireEditor(request);
+  if (denied) return denied;
+
   const body = await request.json();
 
   const carId = Number(body.carId);

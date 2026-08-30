@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { normalizeLocationInput } from "@/lib/location";
 import { prisma } from "@/lib/prisma";
+import { requireEditor } from "@/lib/permissions";
 
 export async function GET() {
   const locations = await prisma.location.findMany({
@@ -12,6 +13,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await requireEditor(request);
+  if (denied) return denied;
+
   try {
     const location = await prisma.location.create({
       data: normalizeLocationInput(await request.json()),

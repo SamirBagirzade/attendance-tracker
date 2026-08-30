@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { readFile, unlink } from "fs/promises";
 import { join } from "path";
-import { getSessionUser } from "@/lib/permissions";
+import { getSessionUser, requireEditor } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -39,8 +39,8 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 }
 
 export async function DELETE(request: NextRequest, { params }: RouteContext) {
-  const user = await getSessionUser(request);
-  if (!user) return Response.json({ error: "Unauthorized." }, { status: 401 });
+  const denied = await requireEditor(request);
+  if (denied) return denied;
 
   const { id } = await params;
   const docId = Number(id);

@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { normalizeHolidayInput } from "@/lib/holiday";
 import { dateRangeWhere, toApiDateKey } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
+import { requireEditor } from "@/lib/permissions";
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,6 +23,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await requireEditor(request);
+  if (denied) return denied;
+
   try {
     const holiday = await prisma.holiday.create({
       data: normalizeHolidayInput(await request.json()),
