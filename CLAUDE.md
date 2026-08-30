@@ -52,9 +52,11 @@ This is the single largest source of bugs in the codebase.
   `prisma migrate deploy` on a fresh database — it will build a schema the code cannot
   run against. Note that `prisma migrate status` reports "up to date" regardless,
   because it only compares the applied-migrations table.
-- The in-app backup/restore at `/api/backups` round-trips only a subset of columns and
-  cascade-deletes tables it does not carry. **Use `pg_dump` for anything you actually
-  intend to restore from.**
+- `GET /api/backups` streams a real `pg_dump -Fc` of the whole database. There is
+  deliberately no restore endpoint — a restore replaces every table and cannot be done
+  safely while the app holds connections. The runbook is in `DEPLOYMENT.md`.
+- `pg_dump` and `pg_restore` reject Prisma's `?schema=` suffix; strip the query string
+  from `DATABASE_URL` before passing it to either.
 
 ## Integrations
 
