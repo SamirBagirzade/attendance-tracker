@@ -36,6 +36,12 @@ export type SyncResult = {
   fromDate: string;
   toDate: string;
   chunks: number;
+  // A chunk that never succeeded is a hole in the data: the next run derives its
+  // start from MAX(transactionTime), which may already sit past the gap, and the
+  // Azpetrol history window is only ~30 days. Surface it instead of returning a
+  // clean success.
+  partial: boolean;
+  failedChunks: Array<{ start: string; end: string; error: string }>;
   sampleKeys?: string[];   // debug: field names of first skipped tx
   sampleTx?: unknown;      // debug: first raw tx
 };
@@ -50,7 +56,7 @@ export async function syncFuelTransactions(): Promise<SyncResult> {
     : new Date("2026-01-01T00:00:00");
 
   if (fromDate > toDate) {
-    return { fetched: 0, inserted: 0, skipped: 0, relinked: 0, fromDate: format(fromDate, "yyyy-MM-dd"), toDate: format(toDate, "yyyy-MM-dd"), chunks: 0 };
+    return { fetched: 0, inserted: 0, skipped: 0, relinked: 0, fromDate: format(fromDate, "yyyy-MM-dd"), toDate: format(toDate, "yyyy-MM-dd"), chunks: 0, partial: false, failedChunks: [] };
   }
 
   // Build plate → carId map (normalized)
@@ -61,21 +67,42 @@ export async function syncFuelTransactions(): Promise<SyncResult> {
   const chunks = buildChunks(fromDate, toDate);
   const rawTransactions: Record<string, unknown>[] = [];
 
+  const failedChunks: Array<{ start: string; end: string; error: string }> = [];
+
   for (const chunk of chunks) {
-    try {
-      const json = (await findTransactions({ StartDate: `${chunk.start}T00:00:00`, EndDate: `${chunk.end}T23:59:59` })) as Record<string, unknown>;
-      if (json.isSuccess === false) continue;
-      const data = json.data;
-      if (Array.isArray(data)) {
-        // 21 = Card Sale (fill-up), 22 = Card Refund (cancels a prior fill-up) — both needed to net totals correctly.
-        rawTransactions.push(
-          ...(data as Record<string, unknown>[]).filter(
-            (tx) => String(tx.transactionType) === "21" || String(tx.transactionType) === "22",
-          ),
-        );
+    let lastError = "";
+
+    // One retry: most chunk failures are a transient upstream hiccup, and a
+    // silent gap here is unrecoverable once it ages out of the API's window.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const json = (await findTransactions({ StartDate: `${chunk.start}T00:00:00`, EndDate: `${chunk.end}T23:59:59` })) as Record<string, unknown>;
+
+        if (json.isSuccess === false) {
+          lastError = String(json.message ?? "Azpetrol reported isSuccess:false");
+          continue;
+        }
+
+        const data = json.data;
+        if (Array.isArray(data)) {
+          // 21 = Card Sale (fill-up), 22 = Card Refund (cancels a prior fill-up) — both needed to net totals correctly.
+          rawTransactions.push(
+            ...(data as Record<string, unknown>[]).filter(
+              (tx) => String(tx.transactionType) === "21" || String(tx.transactionType) === "22",
+            ),
+          );
+        }
+
+        lastError = "";
+        break;
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : String(err);
       }
-    } catch {
-      // Skip failed chunks — don't abort entire sync
+    }
+
+    if (lastError) {
+      console.error(`[fuel-sync] Chunk ${chunk.start}..${chunk.end} failed:`, lastError);
+      failedChunks.push({ start: chunk.start, end: chunk.end, error: lastError });
     }
   }
 
@@ -152,6 +179,8 @@ export async function syncFuelTransactions(): Promise<SyncResult> {
     fromDate: format(fromDate, "yyyy-MM-dd"),
     toDate: format(toDate, "yyyy-MM-dd"),
     chunks: chunks.length,
+    partial: failedChunks.length > 0,
+    failedChunks,
     ...(firstSkipped ? { sampleKeys: Object.keys(firstSkipped), sampleTx: firstSkipped } : {}),
   };
 }

@@ -39,11 +39,22 @@ export async function verifySessionToken(token: string) {
   return { username, role };
 }
 
+// Never fall back to a default password: an unset ADMIN_PASSWORD used to mean
+// "admin"/"admin" was accepted as a full ADMIN login. Fail loudly instead, the
+// same way getAuthSecret() does for a missing AUTH_SECRET.
 export function getAdminCredentials() {
-  return {
-    username: process.env.ADMIN_USERNAME ?? "admin",
-    password: process.env.ADMIN_PASSWORD ?? "admin",
-  };
+  const username = process.env.ADMIN_USERNAME;
+  const password = process.env.ADMIN_PASSWORD;
+
+  if (!username) {
+    throw new Error("ADMIN_USERNAME must be set.");
+  }
+
+  if (!password || password.length < 8) {
+    throw new Error("ADMIN_PASSWORD must be set and at least 8 characters.");
+  }
+
+  return { username, password };
 }
 
 export function isUserRole(value: string): value is UserRole {

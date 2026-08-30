@@ -31,10 +31,6 @@ export async function proxy(request: NextRequest) {
       return denyRequest(request);
     }
 
-    if (isAdminOnlyMutation(request) && session.role !== "ADMIN") {
-      return denyRequest(request);
-    }
-
     if (isViewerBlockedRequest(request) && session.role === "VIEWER") {
       return denyRequest(request);
     }
@@ -50,16 +46,13 @@ function isAdminOnlyPath(pathname: string) {
     pathname === "/users" ||
     pathname === "/audit" ||
     pathname === "/form-submissions" ||
+    // Both directions of /backup are ADMIN-only: the export carries every
+    // AppUser password hash, and the restore replaces the whole database.
+    pathname === "/backup" ||
+    pathname.startsWith("/api/backups") ||
     pathname.startsWith("/api/users") ||
     pathname.startsWith("/api/audit") ||
     (pathname.startsWith("/api/forms/daily-log/") && pathname !== "/api/forms/daily-log/summary")
-  );
-}
-
-function isAdminOnlyMutation(request: NextRequest) {
-  return (
-    request.nextUrl.pathname.startsWith("/api/backups") &&
-    request.method === "POST"
   );
 }
 

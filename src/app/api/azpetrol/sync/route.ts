@@ -13,9 +13,17 @@ export async function POST(request: NextRequest) {
 
   try {
     const result = await syncFuelTransactions();
+
+    if (result.partial) {
+      console.error("[fuel-sync] PARTIAL — chunks failed, data has gaps:", result.failedChunks);
+    }
+
     return Response.json(result);
   } catch (err) {
-    return Response.json({ error: String(err) }, { status: 500 });
+    // Don't hand the caller the raw error — Prisma and fetch errors carry table
+    // names and upstream URLs.
+    console.error("[fuel-sync] Sync failed:", err);
+    return Response.json({ error: "Fuel sync failed. Check server logs." }, { status: 500 });
   }
 }
 

@@ -1,16 +1,46 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { authCookieName, createSessionToken, getAdminCredentials } from "@/lib/auth";
 import { verifyPassword } from "@/lib/passwords";
 import { prisma } from "@/lib/prisma";
 
+// Compare via fixed-length digests so the check is constant-time regardless of
+// how much of the credential the caller guessed, and works for unequal lengths.
+function secretEquals(a: string, b: string) {
+  const digestA = createHash("sha256").update(a).digest();
+  const digestB = createHash("sha256").update(b).digest();
+
+  return timingSafeEqual(digestA, digestB);
+}
+
 export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const username = typeof body.username === "string" ? body.username : "";
-  const password = typeof body.password === "string" ? body.password : "";
-  const admin = getAdminCredentials();
+  let body: unknown;
+
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  }
+
+  const { username: rawUsername, password: rawPassword } = (body ?? {}) as {
+    username?: unknown;
+    password?: unknown;
+  };
+  const username = typeof rawUsername === "string" ? rawUsername : "";
+  const password = typeof rawPassword === "string" ? rawPassword : "";
+
+  let admin: { username: string; password: string };
+
+  try {
+    admin = getAdminCredentials();
+  } catch (error) {
+    console.error("[login] Admin credentials are not configured:", error);
+    return NextResponse.json({ error: "Server is not configured for login." }, { status: 500 });
+  }
+
   let user = null;
 
-  if (username === admin.username && password === admin.password) {
+  if (secretEquals(username, admin.username) && secretEquals(password, admin.password)) {
     user = { username, role: "ADMIN" as const };
   } else {
     const appUser = await prisma.appUser.findUnique({

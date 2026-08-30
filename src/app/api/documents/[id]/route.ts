@@ -15,7 +15,12 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   if (!user) return Response.json({ error: "Unauthorized." }, { status: 401 });
 
   const { id } = await params;
-  const doc = await prisma.document.findUnique({ where: { id: parseInt(id, 10) } });
+  const docId = Number(id);
+  if (!Number.isInteger(docId) || docId <= 0) {
+    return Response.json({ error: "id must be a positive integer." }, { status: 400 });
+  }
+
+  const doc = await prisma.document.findUnique({ where: { id: docId } });
   if (!doc) return Response.json({ error: "Not found." }, { status: 404 });
 
   try {
@@ -38,7 +43,12 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
   if (!user) return Response.json({ error: "Unauthorized." }, { status: 401 });
 
   const { id } = await params;
-  const doc = await prisma.document.findUnique({ where: { id: parseInt(id, 10) } });
+  const docId = Number(id);
+  if (!Number.isInteger(docId) || docId <= 0) {
+    return Response.json({ error: "id must be a positive integer." }, { status: 400 });
+  }
+
+  const doc = await prisma.document.findUnique({ where: { id: docId } });
   if (!doc) return Response.json({ error: "Not found." }, { status: 404 });
 
   try { await unlink(join(UPLOAD_DIR, doc.storedName)); } catch { /* already gone */ }
