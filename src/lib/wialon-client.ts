@@ -6,6 +6,27 @@ const FUEL_TEMPLATE_ID = Number(process.env.WIALON_FUEL_TEMPLATE_ID);
 // Wialon Local reports a hard "no valid reading" sentinel instead of null/0 —
 // must not be treated as a real fuel/mileage value (would look like -348201L of fuel).
 const NA_VALUE = -348201.3876;
+// The sentinel reaches us either as the raw number in a cell's `v`, or already
+// rendered into the cell's display text (sometimes with a unit suffix), so both
+// forms have to be caught before a row is handed to the UI.
+const NA_TEXT = "-348201";
+
+function isNaReading(value: unknown): boolean {
+  if (typeof value === "number") {
+    return Math.abs(value - NA_VALUE) < 0.01;
+  }
+
+  if (typeof value === "string") {
+    return value.includes(NA_TEXT);
+  }
+
+  if (value && typeof value === "object") {
+    const cell = value as { t?: unknown; v?: unknown };
+    return isNaReading(cell.v) || isNaReading(cell.t);
+  }
+
+  return false;
+}
 
 async function call(svc: string, params: Record<string, unknown>, sid?: string): Promise<Record<string, unknown>> {
   const query = new URLSearchParams({ svc, params: JSON.stringify(params) });
@@ -59,6 +80,12 @@ function cellToRow(headerType: string[], c: unknown[]): ReportRow {
   headerType.forEach((key, idx) => {
     if (!key) return; // row-number column has no header_type
     const cell = c[idx];
+    if (isNaReading(cell)) {
+      // No valid reading for this column — null, so the UI renders its own dash
+      // rather than the raw sentinel.
+      row[key] = null;
+      return;
+    }
     if (cell && typeof cell === "object") {
       const obj = cell as { t?: string; v?: number; y?: number; x?: number };
       row[key] = obj.t ?? null;
@@ -129,7 +156,10 @@ export async function getFuelReport(plate: string, fromUnix: number, toUnix: num
       tables: Array<{ name: string; rows: number; header_type: string[] }>;
     };
 
-    const stats = (reportResult.stats ?? []).map(([label, value]) => ({ label, value }));
+    const stats = (reportResult.stats ?? []).map(([label, value]) => ({
+      label,
+      value: isNaReading(value) ? "—" : value,
+    }));
 
     const fillingsTable = reportResult.tables.find((t) => t.name === "unit_fillings");
     const leaksTable = reportResult.tables.find((t) => t.name === "unit_thefts");

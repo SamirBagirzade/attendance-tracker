@@ -12,7 +12,12 @@ export async function register() {
     if (!lastSync || Date.now() - lastSync.getTime() > staleMs) {
       console.log("[fuel-sync] Auto-syncing on startup (last sync:", lastSync?.toISOString() ?? "never", ")");
       syncFuelTransactions()
-        .then((r) => console.log("[fuel-sync] Done:", r))
+        .then((r) => {
+          if (r.partial) {
+            console.error("[fuel-sync] PARTIAL — chunks failed, data has gaps:", r.failedChunks);
+          }
+          console.log("[fuel-sync] Done:", r);
+        })
         .catch((e) => console.error("[fuel-sync] Error:", e));
     } else {
       console.log("[fuel-sync] Skipping startup sync — last sync was", lastSync.toISOString());

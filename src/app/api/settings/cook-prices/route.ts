@@ -23,15 +23,38 @@ export async function PUT(request: NextRequest) {
   const user = await getSessionUser(request);
   if (!user) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
 
-  const body = await request.json() as Partial<Prices>;
+  let body: Partial<Prices>;
 
-  const prices: Prices = {
-    tier1: Math.max(0, Number(body.tier1 ?? DEFAULT_PRICES.tier1)),
-    tier2: Math.max(0, Number(body.tier2 ?? DEFAULT_PRICES.tier2)),
-    tier3: Math.max(0, Number(body.tier3 ?? DEFAULT_PRICES.tier3)),
-    tier4: Math.max(0, Number(body.tier4 ?? DEFAULT_PRICES.tier4)),
-    tier5plus: Math.max(0, Number(body.tier5plus ?? DEFAULT_PRICES.tier5plus)),
-  };
+  try {
+    body = (await request.json()) as Partial<Prices>;
+  } catch {
+    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  }
+
+  // Math.max(0, NaN) is NaN, and JSON.stringify writes NaN as null — a single
+  // non-numeric tier used to persist as null and turn every catering total into
+  // null downstream. Reject the value instead of storing it.
+  const tierKeys = ["tier1", "tier2", "tier3", "tier4", "tier5plus"] as const;
+  const prices = { ...DEFAULT_PRICES };
+
+  for (const key of tierKeys) {
+    const raw = body[key];
+
+    if (raw == null || raw === ("" as unknown)) {
+      continue;
+    }
+
+    const value = Number(raw);
+
+    if (!Number.isFinite(value) || value < 0) {
+      return NextResponse.json(
+        { error: `${key} must be a number of zero or more.` },
+        { status: 400 },
+      );
+    }
+
+    prices[key] = value;
+  }
 
   await prisma.appSetting.upsert({
     where: { key: SETTING_KEY },
