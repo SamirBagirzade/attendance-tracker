@@ -6,42 +6,72 @@ export type EmployeeInput = {
   isTemporary?: unknown;
 };
 
-export function normalizeEmployeeInput(input: EmployeeInput) {
-  const name = typeof input.name === "string" ? input.name.trim() : "";
-  const department = typeof input.department === "string" ? input.department.trim() : "";
+type EmployeeFields = {
+  name: string;
+  department: string;
+  vacationLimit: number | null;
+  sickLimit: number | null;
+  isTemporary: boolean;
+};
 
-  if (!name) {
-    throw new Error("name is required.");
+function parseRequiredString(value: unknown, field: string): string {
+  const s = typeof value === "string" ? value.trim() : "";
+
+  if (!s) {
+    throw new Error(`${field} is required.`);
   }
 
-  if (!department) {
-    throw new Error("department is required.");
+  return s;
+}
+
+function parseOptionalLimit(value: unknown, field: string): number | null {
+  if (value === null || value === undefined || value === "") return null;
+
+  const n = Number(value);
+
+  if (!Number.isInteger(n) || n < 0) {
+    throw new Error(`${field} must be a non-negative integer.`);
   }
 
-  const vacationLimit =
-    input.vacationLimit != null && input.vacationLimit !== ""
-      ? Number(input.vacationLimit)
-      : null;
-  const sickLimit =
-    input.sickLimit != null && input.sickLimit !== ""
-      ? Number(input.sickLimit)
-      : null;
+  return n;
+}
 
-  if (vacationLimit !== null && (!Number.isInteger(vacationLimit) || vacationLimit < 0)) {
-    throw new Error("vacationLimit must be a non-negative integer.");
+const employeeFieldParsers: {
+  [K in keyof EmployeeFields]: (value: unknown) => EmployeeFields[K];
+} = {
+  name: (v) => parseRequiredString(v, "name"),
+  department: (v) => parseRequiredString(v, "department"),
+  vacationLimit: (v) => parseOptionalLimit(v, "vacationLimit"),
+  sickLimit: (v) => parseOptionalLimit(v, "sickLimit"),
+  isTemporary: (v) => v === true || v === "true",
+};
+
+const employeeFieldNames = Object.keys(employeeFieldParsers) as Array<keyof EmployeeFields>;
+
+export function normalizeEmployeeInput(input: EmployeeInput): EmployeeFields {
+  const result = {} as EmployeeFields;
+
+  for (const name of employeeFieldNames) {
+    Object.assign(result, { [name]: employeeFieldParsers[name](input[name]) });
   }
 
-  if (sickLimit !== null && (!Number.isInteger(sickLimit) || sickLimit < 0)) {
-    throw new Error("sickLimit must be a non-negative integer.");
+  return result;
+}
+
+// Only the keys present in the body are written. Omitting vacationLimit used to
+// null it out, so a partial PATCH silently discarded leave allowances.
+export function normalizeEmployeePatch(input: EmployeeInput): Partial<EmployeeFields> {
+  const result: Partial<EmployeeFields> = {};
+
+  for (const name of employeeFieldNames) {
+    if (Object.hasOwn(input, name)) {
+      Object.assign(result, { [name]: employeeFieldParsers[name](input[name]) });
+    }
   }
 
-  const isTemporary = input.isTemporary === true || input.isTemporary === "true";
+  if (Object.keys(result).length === 0) {
+    throw new Error("No fields to update.");
+  }
 
-  return {
-    name,
-    department,
-    vacationLimit,
-    sickLimit,
-    isTemporary,
-  };
+  return result;
 }

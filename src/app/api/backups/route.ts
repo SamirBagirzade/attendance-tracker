@@ -1,112 +1,67 @@
+import { spawn } from "node:child_process";
 import { NextRequest, NextResponse } from "next/server";
-import { AttendanceStatus, UserRole } from "@prisma/client";
+import { format } from "date-fns";
 import { requireAdmin } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
-import { prisma } from "@/lib/prisma";
 
-const backupVersion = 1;
+export const runtime = "nodejs";
 
-type BackupPayload = {
-  version: typeof backupVersion;
-  app: "attendance-tracker";
-  exportedAt: string;
-  data: BackupData;
-};
+// pg_dump rejects Prisma's ?schema= query parameter, so strip the query string.
+function pgDumpUrl() {
+  const url = process.env.DATABASE_URL;
 
-type BackupData = {
-  appUsers: AppUserBackup[];
-  employees: EmployeeBackup[];
-  holidays: HolidayBackup[];
-  locations: LocationBackup[];
-  cars: CarBackup[];
-  statusColors: StatusColorBackup[];
-  attendanceRecords: AttendanceRecordBackup[];
-  attendanceWorkLocations: AttendanceWorkLocationBackup[];
-};
+  if (!url) {
+    throw new Error("DATABASE_URL is not set.");
+  }
 
-type AppUserBackup = {
-  id: number;
-  username: string;
-  passwordHash: string;
-  role: UserRole;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-};
+  return url.split("?")[0];
+}
 
-type EmployeeBackup = {
-  id: number;
-  name: string;
-  department: string;
-  createdAt: string;
-  updatedAt: string;
-};
+type StartResult =
+  | { ok: true; firstChunk: Buffer }
+  | { ok: false; message: string };
 
-type HolidayBackup = {
-  id: number;
-  date: string;
-  description: string;
-  createdAt: string;
-  updatedAt: string;
-};
+// Wait for either the first byte of output or an early exit, so a pg_dump that
+// fails outright still produces a JSON 500 instead of a 200 with a broken file.
+function waitForFirstChunk(
+  child: ReturnType<typeof spawn>,
+  readStderr: () => string,
+): Promise<StartResult> {
+  return new Promise((resolve) => {
+    let settled = false;
 
-type LocationBackup = {
-  id: number;
-  name: string;
-  createdAt: string;
-  updatedAt: string;
-};
+    const settle = (result: StartResult) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
 
-type CarBackup = {
-  id: number;
-  makeModel: string;
-  licensePlate: string;
-  createdAt: string;
-  updatedAt: string;
-};
+    child.stdout?.once("data", (chunk: Buffer) => {
+      // Stop the flow immediately — the ReadableStream below resumes it once it
+      // has somewhere to put the bytes, so nothing is dropped in between.
+      child.stdout?.pause();
+      settle({ ok: true, firstChunk: chunk });
+    });
 
-type StatusColorBackup = {
-  id: number;
-  status: AttendanceStatus;
-  color: string;
-  displayText: string;
-  createdAt: string;
-  updatedAt: string;
-};
+    child.once("error", (error: Error) => {
+      settle({ ok: false, message: error.message });
+    });
 
-type AttendanceRecordBackup = {
-  id: number;
-  employeeId: number;
-  date: string;
-  status: AttendanceStatus;
-  location: string | null;
-  cookedHeadcount: number | null;
-  carDriven: boolean;
-  carId: number | null;
-  note: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
+    child.once("close", (code) => {
+      settle({
+        ok: false,
+        message: readStderr().trim() || `pg_dump exited with code ${code}`,
+      });
+    });
+  });
+}
 
-type AttendanceWorkLocationBackup = {
-  id: number;
-  attendanceRecordId: number;
-  locationId: number;
-};
-
-const sequenceTables = [
-  "AppUser",
-  "Employee",
-  "Holiday",
-  "Location",
-  "Car",
-  "StatusColor",
-  "AttendanceRecord",
-  "AttendanceWorkLocation",
-] as const;
-
-// ADMIN-only: the payload carries every AppUser password hash, so an EDITOR
-// must not be able to pull it.
+// ADMIN-only: a dump contains every row in the database, password hashes included.
+//
+// This streams a real pg_dump rather than a hand-assembled JSON payload. The old
+// format listed columns by hand, so it silently stopped matching the schema as
+// columns were added — and restoring it discarded everything it had missed.
+// Restoring is now a CLI procedure; see docs/restore.md.
 export async function GET(request: NextRequest) {
   const denied = await requireAdmin(request);
 
@@ -114,510 +69,73 @@ export async function GET(request: NextRequest) {
     return denied;
   }
 
-  const exportedAt = new Date().toISOString();
-  const payload: BackupPayload = {
-    version: backupVersion,
-    app: "attendance-tracker",
-    exportedAt,
-    data: await readBackupData(),
-  };
-
-  return NextResponse.json(payload, {
-    headers: {
-      "Content-Disposition": `attachment; filename="attendance-tracker-backup-${exportedAt.slice(0, 10)}.json"`,
-    },
-  });
-}
-
-// DISABLED. restoreBackup() deletes every row in eight tables and puts back only
-// the columns the Backup* types carry, which no longer match the schema. A restore
-// silently drops: Employee.vacationLimit/sickLimit/isTemporary; every Car km, oil,
-// insurance, inspection and fuelCard field; AttendanceRecord.workerName, cookedPaid
-// and all seven payment/expense/fine fields. CarMaintenanceRecord, Document,
-// CustomField, FuelTransaction, FormResponse and AppSetting are not captured at all
-// and are cascade-deleted with their parent Car and Employee rows.
-//
-// The export below is still a useful snapshot; it is restoring it that destroys
-// data. Re-enable only once the payload round-trips every column and table, and
-// once there is a test proving it. Use pg_dump / pg_restore until then.
-const RESTORE_ENABLED = false;
-
-export async function POST(request: NextRequest) {
-  const denied = await requireAdmin(request);
-
-  if (denied) {
-    return denied;
-  }
-
-  if (!RESTORE_ENABLED) {
-    return NextResponse.json(
-      {
-        error:
-          "Restore is disabled: this backup format cannot rebuild the current schema and would discard payment, vehicle and document data. Restore from a pg_dump snapshot instead.",
-      },
-      { status: 501 },
-    );
-  }
+  let url: string;
 
   try {
-    const body = await request.json();
-
-    if (!isRecord(body) || body.confirmRestore !== "RESTORE") {
-      return NextResponse.json({ error: "Restore confirmation is required." }, { status: 400 });
-    }
-
-    const backup = normalizeBackup(body.backup);
-    await restoreBackup(backup.data);
-
-    void logAudit(request, "RESTORE", "Backup", null, { exportedAt: backup.exportedAt });
-    return NextResponse.json({
-      ok: true,
-      restoredAt: new Date().toISOString(),
-      counts: countBackupRows(backup.data),
-    });
+    url = pgDumpUrl();
   } catch (error) {
-    if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
-
-    return NextResponse.json({ error: "Unexpected restore error." }, { status: 500 });
+    console.error("[backup] Not configured:", error);
+    return NextResponse.json({ error: "Server is not configured for backups." }, { status: 500 });
   }
-}
 
-async function readBackupData(): Promise<BackupData> {
-  const [
-    appUsers,
-    employees,
-    holidays,
-    locations,
-    cars,
-    statusColors,
-    attendanceRecords,
-    attendanceWorkLocations,
-  ] = await Promise.all([
-    prisma.appUser.findMany({ orderBy: { id: "asc" } }),
-    prisma.employee.findMany({ orderBy: { id: "asc" } }),
-    prisma.holiday.findMany({ orderBy: { id: "asc" } }),
-    prisma.location.findMany({ orderBy: { id: "asc" } }),
-    prisma.car.findMany({ orderBy: { id: "asc" } }),
-    prisma.statusColor.findMany({ orderBy: { id: "asc" } }),
-    prisma.attendanceRecord.findMany({ orderBy: { id: "asc" } }),
-    prisma.attendanceWorkLocation.findMany({ orderBy: { id: "asc" } }),
-  ]);
+  const child = spawn("pg_dump", [url, "-Fc", "--no-owner", "--no-privileges"], {
+    stdio: ["ignore", "pipe", "pipe"],
+  });
 
-  return {
-    appUsers: appUsers.map((item) => ({
-      ...item,
-      createdAt: item.createdAt.toISOString(),
-      updatedAt: item.updatedAt.toISOString(),
-    })),
-    employees: employees.map((item) => ({
-      ...item,
-      createdAt: item.createdAt.toISOString(),
-      updatedAt: item.updatedAt.toISOString(),
-    })),
-    holidays: holidays.map((item) => ({
-      ...item,
-      date: toDateOnly(item.date),
-      createdAt: item.createdAt.toISOString(),
-      updatedAt: item.updatedAt.toISOString(),
-    })),
-    locations: locations.map((item) => ({
-      ...item,
-      createdAt: item.createdAt.toISOString(),
-      updatedAt: item.updatedAt.toISOString(),
-    })),
-    cars: cars.map((item) => ({
-      ...item,
-      createdAt: item.createdAt.toISOString(),
-      updatedAt: item.updatedAt.toISOString(),
-    })),
-    statusColors: statusColors.map((item) => ({
-      ...item,
-      createdAt: item.createdAt.toISOString(),
-      updatedAt: item.updatedAt.toISOString(),
-    })),
-    attendanceRecords: attendanceRecords.map((item) => ({
-      ...item,
-      date: toDateOnly(item.date),
-      createdAt: item.createdAt.toISOString(),
-      updatedAt: item.updatedAt.toISOString(),
-    })),
-    attendanceWorkLocations,
-  };
-}
+  let stderr = "";
+  child.stderr?.on("data", (chunk: Buffer) => {
+    stderr += String(chunk);
+  });
 
-async function restoreBackup(data: BackupData) {
-  await prisma.$transaction(
-    async (tx) => {
-      await tx.attendanceWorkLocation.deleteMany();
-      await tx.attendanceRecord.deleteMany();
-      await tx.statusColor.deleteMany();
-      await tx.holiday.deleteMany();
-      await tx.location.deleteMany();
-      await tx.car.deleteMany();
-      await tx.employee.deleteMany();
-      await tx.appUser.deleteMany();
+  // Don't leave a dump running if the admin closes the tab mid-download.
+  const abort = () => child.kill("SIGTERM");
+  request.signal.addEventListener("abort", abort);
 
-      if (data.appUsers.length > 0) {
-        await tx.appUser.createMany({
-          data: data.appUsers.map((item) => ({
-            ...item,
-            createdAt: parseDate(item.createdAt, "appUsers.createdAt"),
-            updatedAt: parseDate(item.updatedAt, "appUsers.updatedAt"),
-          })),
-        });
-      }
+  const started = await waitForFirstChunk(child, () => stderr);
 
-      if (data.employees.length > 0) {
-        await tx.employee.createMany({
-          data: data.employees.map((item) => ({
-            ...item,
-            createdAt: parseDate(item.createdAt, "employees.createdAt"),
-            updatedAt: parseDate(item.updatedAt, "employees.updatedAt"),
-          })),
-        });
-      }
+  if (!started.ok) {
+    request.signal.removeEventListener("abort", abort);
+    console.error("[backup] pg_dump failed:", started.message);
+    return NextResponse.json({ error: "Could not create the backup. Check server logs." }, { status: 500 });
+  }
 
-      if (data.holidays.length > 0) {
-        await tx.holiday.createMany({
-          data: data.holidays.map((item) => ({
-            ...item,
-            date: parseDate(item.date, "holidays.date"),
-            createdAt: parseDate(item.createdAt, "holidays.createdAt"),
-            updatedAt: parseDate(item.updatedAt, "holidays.updatedAt"),
-          })),
-        });
-      }
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new Uint8Array(started.firstChunk));
 
-      if (data.locations.length > 0) {
-        await tx.location.createMany({
-          data: data.locations.map((item) => ({
-            ...item,
-            createdAt: parseDate(item.createdAt, "locations.createdAt"),
-            updatedAt: parseDate(item.updatedAt, "locations.updatedAt"),
-          })),
-        });
-      }
+      child.stdout?.on("data", (chunk: Buffer) => {
+        controller.enqueue(new Uint8Array(chunk));
+      });
 
-      if (data.cars.length > 0) {
-        await tx.car.createMany({
-          data: data.cars.map((item) => ({
-            ...item,
-            createdAt: parseDate(item.createdAt, "cars.createdAt"),
-            updatedAt: parseDate(item.updatedAt, "cars.updatedAt"),
-          })),
-        });
-      }
+      child.once("close", (code) => {
+        request.signal.removeEventListener("abort", abort);
 
-      if (data.statusColors.length > 0) {
-        await tx.statusColor.createMany({
-          data: data.statusColors.map((item) => ({
-            ...item,
-            createdAt: parseDate(item.createdAt, "statusColors.createdAt"),
-            updatedAt: parseDate(item.updatedAt, "statusColors.updatedAt"),
-          })),
-        });
-      }
+        if (code === 0) {
+          controller.close();
+          return;
+        }
 
-      if (data.attendanceRecords.length > 0) {
-        await tx.attendanceRecord.createMany({
-          data: data.attendanceRecords.map((item) => ({
-            ...item,
-            date: parseDate(item.date, "attendanceRecords.date"),
-            createdAt: parseDate(item.createdAt, "attendanceRecords.createdAt"),
-            updatedAt: parseDate(item.updatedAt, "attendanceRecords.updatedAt"),
-          })),
-        });
-      }
+        // Headers are already sent, so the only honest signal left is to break
+        // the transfer. A truncated dump that looks complete is worse.
+        console.error("[backup] pg_dump failed mid-stream:", stderr.trim());
+        controller.error(new Error("pg_dump failed"));
+      });
 
-      if (data.attendanceWorkLocations.length > 0) {
-        await tx.attendanceWorkLocation.createMany({ data: data.attendanceWorkLocations });
-      }
-
-      for (const table of sequenceTables) {
-        await tx.$queryRawUnsafe(
-          `SELECT setval(pg_get_serial_sequence('"${table}"', 'id'), COALESCE((SELECT MAX("id") FROM "${table}"), 1), (SELECT MAX("id") FROM "${table}") IS NOT NULL)`,
-        );
-      }
+      child.stdout?.resume();
     },
-    { timeout: 60_000 },
-  );
-}
-
-function normalizeBackup(value: unknown): BackupPayload {
-  if (!isRecord(value)) {
-    throw new Error("Backup file must contain a JSON object.");
-  }
-
-  if (value.version !== backupVersion || value.app !== "attendance-tracker") {
-    throw new Error("Backup file is not compatible with this app version.");
-  }
-
-  if (typeof value.exportedAt !== "string") {
-    throw new Error("Backup file is missing exportedAt.");
-  }
-
-  const data = value.data;
-
-  if (!isRecord(data)) {
-    throw new Error("Backup file is missing data.");
-  }
-
-  return {
-    version: backupVersion,
-    app: "attendance-tracker",
-    exportedAt: value.exportedAt,
-    data: {
-      appUsers: readArray(data, "appUsers").map(normalizeAppUser),
-      employees: readArray(data, "employees").map(normalizeEmployee),
-      holidays: readArray(data, "holidays").map(normalizeHoliday),
-      locations: readArray(data, "locations").map(normalizeLocation),
-      cars: readArray(data, "cars").map(normalizeCar),
-      statusColors: readArray(data, "statusColors").map(normalizeStatusColor),
-      attendanceRecords: readArray(data, "attendanceRecords").map(normalizeAttendanceRecord),
-      attendanceWorkLocations: readArray(data, "attendanceWorkLocations").map(
-        normalizeAttendanceWorkLocation,
-      ),
+    cancel() {
+      child.kill("SIGTERM");
     },
-  };
-}
+  });
 
-function normalizeAppUser(value: unknown): AppUserBackup {
-  const item = requireRecord(value, "appUsers");
+  const filename = `attendance-tracker-${format(new Date(), "yyyy-MM-dd-HHmm")}.dump`;
+  void logAudit(request, "EXPORT", "Backup", null, { filename });
 
-  return {
-    id: readPositiveInteger(item, "appUsers.id"),
-    username: readString(item, "appUsers.username"),
-    passwordHash: readString(item, "appUsers.passwordHash"),
-    role: readUserRole(item.role),
-    isActive: readBoolean(item, "appUsers.isActive"),
-    createdAt: readDateString(item, "appUsers.createdAt"),
-    updatedAt: readDateString(item, "appUsers.updatedAt"),
-  };
-}
-
-function normalizeEmployee(value: unknown): EmployeeBackup {
-  const item = requireRecord(value, "employees");
-
-  return {
-    id: readPositiveInteger(item, "employees.id"),
-    name: readString(item, "employees.name"),
-    department: readString(item, "employees.department"),
-    createdAt: readDateString(item, "employees.createdAt"),
-    updatedAt: readDateString(item, "employees.updatedAt"),
-  };
-}
-
-function normalizeHoliday(value: unknown): HolidayBackup {
-  const item = requireRecord(value, "holidays");
-
-  return {
-    id: readPositiveInteger(item, "holidays.id"),
-    date: readDateString(item, "holidays.date"),
-    description: readString(item, "holidays.description"),
-    createdAt: readDateString(item, "holidays.createdAt"),
-    updatedAt: readDateString(item, "holidays.updatedAt"),
-  };
-}
-
-function normalizeLocation(value: unknown): LocationBackup {
-  const item = requireRecord(value, "locations");
-
-  return {
-    id: readPositiveInteger(item, "locations.id"),
-    name: readString(item, "locations.name"),
-    createdAt: readDateString(item, "locations.createdAt"),
-    updatedAt: readDateString(item, "locations.updatedAt"),
-  };
-}
-
-function normalizeCar(value: unknown): CarBackup {
-  const item = requireRecord(value, "cars");
-
-  return {
-    id: readPositiveInteger(item, "cars.id"),
-    makeModel: readString(item, "cars.makeModel"),
-    licensePlate: readString(item, "cars.licensePlate"),
-    createdAt: readDateString(item, "cars.createdAt"),
-    updatedAt: readDateString(item, "cars.updatedAt"),
-  };
-}
-
-function normalizeStatusColor(value: unknown): StatusColorBackup {
-  const item = requireRecord(value, "statusColors");
-
-  return {
-    id: readPositiveInteger(item, "statusColors.id"),
-    status: readAttendanceStatus(item.status),
-    color: readString(item, "statusColors.color"),
-    displayText: readString(item, "statusColors.displayText"),
-    createdAt: readDateString(item, "statusColors.createdAt"),
-    updatedAt: readDateString(item, "statusColors.updatedAt"),
-  };
-}
-
-function normalizeAttendanceRecord(value: unknown): AttendanceRecordBackup {
-  const item = requireRecord(value, "attendanceRecords");
-
-  return {
-    id: readPositiveInteger(item, "attendanceRecords.id"),
-    employeeId: readPositiveInteger(item, "attendanceRecords.employeeId"),
-    date: readDateString(item, "attendanceRecords.date"),
-    status: readAttendanceStatus(item.status),
-    location: readNullableString(item, "attendanceRecords.location"),
-    cookedHeadcount: readNullablePositiveInteger(item, "attendanceRecords.cookedHeadcount"),
-    carDriven: readBoolean(item, "attendanceRecords.carDriven"),
-    carId: readNullablePositiveInteger(item, "attendanceRecords.carId"),
-    note: readNullableString(item, "attendanceRecords.note"),
-    createdAt: readDateString(item, "attendanceRecords.createdAt"),
-    updatedAt: readDateString(item, "attendanceRecords.updatedAt"),
-  };
-}
-
-function normalizeAttendanceWorkLocation(value: unknown): AttendanceWorkLocationBackup {
-  const item = requireRecord(value, "attendanceWorkLocations");
-
-  return {
-    id: readPositiveInteger(item, "attendanceWorkLocations.id"),
-    attendanceRecordId: readPositiveInteger(
-      item,
-      "attendanceWorkLocations.attendanceRecordId",
-    ),
-    locationId: readPositiveInteger(item, "attendanceWorkLocations.locationId"),
-  };
-}
-
-function countBackupRows(data: BackupData) {
-  return {
-    appUsers: data.appUsers.length,
-    employees: data.employees.length,
-    holidays: data.holidays.length,
-    locations: data.locations.length,
-    cars: data.cars.length,
-    statusColors: data.statusColors.length,
-    attendanceRecords: data.attendanceRecords.length,
-    attendanceWorkLocations: data.attendanceWorkLocations.length,
-  };
-}
-
-function readArray(record: Record<string, unknown>, key: keyof BackupData) {
-  const value = record[key];
-
-  if (!Array.isArray(value)) {
-    throw new Error(`Backup data.${key} must be an array.`);
-  }
-
-  return value;
-}
-
-function requireRecord(value: unknown, label: string) {
-  if (!isRecord(value)) {
-    throw new Error(`Backup ${label} item must be an object.`);
-  }
-
-  return value;
-}
-
-function readPositiveInteger(record: Record<string, unknown>, label: string) {
-  const key = label.split(".").at(-1) ?? label;
-  const value = record[key];
-
-  if (!Number.isInteger(value) || Number(value) <= 0) {
-    throw new Error(`Backup ${label} must be a positive integer.`);
-  }
-
-  return Number(value);
-}
-
-function readNullablePositiveInteger(record: Record<string, unknown>, label: string) {
-  const key = label.split(".").at(-1) ?? label;
-  const value = record[key];
-
-  if (value == null) {
-    return null;
-  }
-
-  if (!Number.isInteger(value) || Number(value) <= 0) {
-    throw new Error(`Backup ${label} must be a positive integer or null.`);
-  }
-
-  return Number(value);
-}
-
-function readString(record: Record<string, unknown>, label: string) {
-  const key = label.split(".").at(-1) ?? label;
-  const value = record[key];
-
-  if (typeof value !== "string") {
-    throw new Error(`Backup ${label} must be a string.`);
-  }
-
-  return value;
-}
-
-function readNullableString(record: Record<string, unknown>, label: string) {
-  const key = label.split(".").at(-1) ?? label;
-  const value = record[key];
-
-  if (value == null) {
-    return null;
-  }
-
-  if (typeof value !== "string") {
-    throw new Error(`Backup ${label} must be a string or null.`);
-  }
-
-  return value;
-}
-
-function readBoolean(record: Record<string, unknown>, label: string) {
-  const key = label.split(".").at(-1) ?? label;
-  const value = record[key];
-
-  if (typeof value !== "boolean") {
-    throw new Error(`Backup ${label} must be a boolean.`);
-  }
-
-  return value;
-}
-
-function readDateString(record: Record<string, unknown>, label: string) {
-  const value = readString(record, label);
-  parseDate(value, label);
-  return value;
-}
-
-function readAttendanceStatus(value: unknown) {
-  if (typeof value !== "string" || !Object.values(AttendanceStatus).includes(value as AttendanceStatus)) {
-    throw new Error("Backup status is invalid.");
-  }
-
-  return value as AttendanceStatus;
-}
-
-function readUserRole(value: unknown) {
-  if (typeof value !== "string" || !Object.values(UserRole).includes(value as UserRole)) {
-    throw new Error("Backup user role is invalid.");
-  }
-
-  return value as UserRole;
-}
-
-function parseDate(value: string, label: string) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    throw new Error(`Backup ${label} must be a valid date.`);
-  }
-
-  return date;
-}
-
-function toDateOnly(value: Date) {
-  return value.toISOString().slice(0, 10);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "application/octet-stream",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Cache-Control": "no-store",
+    },
+  });
 }

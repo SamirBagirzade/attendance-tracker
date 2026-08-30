@@ -12,11 +12,23 @@ export async function GET(request: NextRequest) {
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
 
+  // "T00:00:00" without a Z parses in server-local time (UTC+4) while
+  // transactionTime is stored UTC, which shifted both edges of the range by four
+  // hours and dropped transactions out of it. Anchor to UTC explicitly.
+  const dayStart = (value: string) => new Date(value + "T00:00:00.000Z");
+  const dayEnd = (value: string) => new Date(value + "T23:59:59.999Z");
+
+  for (const [name, value] of [["from", from], ["to", to]] as const) {
+    if (value && Number.isNaN(dayStart(value).getTime())) {
+      return Response.json({ error: `${name} must be a valid date (YYYY-MM-DD).` }, { status: 400 });
+    }
+  }
+
   const where = {
     ...(from || to ? {
       transactionTime: {
-        ...(from ? { gte: new Date(from + "T00:00:00") } : {}),
-        ...(to ? { lte: new Date(to + "T23:59:59") } : {}),
+        ...(from ? { gte: dayStart(from) } : {}),
+        ...(to ? { lte: dayEnd(to) } : {}),
       },
     } : {}),
   };

@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { normalizeHolidayInput } from "@/lib/holiday";
 import { toApiDateKey } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
+import { requireEditor } from "@/lib/permissions";
 
 type RouteContext = {
   params: Promise<{
@@ -11,6 +12,9 @@ type RouteContext = {
 };
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
+  const denied = await requireEditor(request);
+  if (denied) return denied;
+
   const id = Number((await context.params).id);
 
   if (!Number.isInteger(id) || id <= 0) {
@@ -36,7 +40,10 @@ function serializeHoliday<T extends { date: Date }>(holiday: T) {
   };
 }
 
-export async function DELETE(_request: NextRequest, context: RouteContext) {
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  const denied = await requireEditor(request);
+  if (denied) return denied;
+
   const id = Number((await context.params).id);
 
   if (!Number.isInteger(id) || id <= 0) {

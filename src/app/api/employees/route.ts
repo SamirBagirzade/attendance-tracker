@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { normalizeEmployeeInput } from "@/lib/employee";
 import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+import { requireEditor } from "@/lib/permissions";
 
 export async function GET() {
   const employees = await prisma.employee.findMany({
@@ -12,6 +13,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await requireEditor(request);
+  if (denied) return denied;
+
   try {
     const employee = await prisma.employee.create({
       data: normalizeEmployeeInput(await request.json()),

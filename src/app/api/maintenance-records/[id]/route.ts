@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+import { requireEditor } from "@/lib/permissions";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
+  const denied = await requireEditor(request);
+  if (denied) return denied;
+
   const id = Number((await context.params).id);
 
   if (!Number.isInteger(id) || id <= 0) {

@@ -6,6 +6,7 @@ import {
   normalizeStatusColorInput,
 } from "@/lib/status-colors";
 import { prisma } from "@/lib/prisma";
+import { requireEditor } from "@/lib/permissions";
 
 export async function GET() {
   const settings = await prisma.statusColor.findMany();
@@ -25,6 +26,9 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
+  const denied = await requireEditor(request);
+  if (denied) return denied;
+
   try {
     const input = normalizeStatusColorInput(await request.json());
     const statusColor = await prisma.statusColor.upsert({

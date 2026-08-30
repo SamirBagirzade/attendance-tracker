@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
-import { normalizeCarInput, formatCarDate } from "@/lib/cars";
+import { normalizeCarPatch, formatCarDate } from "@/lib/cars";
 import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { handleCarError } from "../route";
 import { normalizePlate } from "@/lib/azpetrol-sync";
+import { requireEditor } from "@/lib/permissions";
 
 type RouteContext = {
   params: Promise<{
@@ -23,6 +24,9 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 }
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
+  const denied = await requireEditor(request);
+  if (denied) return denied;
+
   const id = Number((await context.params).id);
 
   if (!Number.isInteger(id) || id <= 0) {
@@ -30,7 +34,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 
   try {
-    const data = normalizeCarInput(await request.json());
+    const data = normalizeCarPatch(await request.json());
     const car = await prisma.car.update({ where: { id }, data });
 
     // Re-link any unlinked fuel transactions for this plate. Fire-and-forget,
@@ -55,6 +59,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 }
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
+  const denied = await requireEditor(request);
+  if (denied) return denied;
+
   const id = Number((await context.params).id);
 
   if (!Number.isInteger(id) || id <= 0) {
