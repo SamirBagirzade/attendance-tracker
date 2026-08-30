@@ -18,7 +18,13 @@ export async function register() {
           }
           console.log("[fuel-sync] Done:", r);
         })
-        .catch((e) => console.error("[fuel-sync] Error:", e));
+        .catch((e) => {
+          if (e instanceof Error && e.name === "SyncBusyError") {
+            console.log("[fuel-sync] Another sync is already running; skipping startup sync.");
+            return;
+          }
+          console.error("[fuel-sync] Error:", e);
+        });
     } else {
       console.log("[fuel-sync] Skipping startup sync — last sync was", lastSync.toISOString());
     }

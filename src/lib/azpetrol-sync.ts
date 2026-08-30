@@ -46,14 +46,99 @@ export type SyncResult = {
   sampleTx?: unknown;      // debug: first raw tx
 };
 
+// Sync lock. The startup sync, the cron POST and an admin clicking sync could
+// all run at once, racing the relink pass and each other's counters.
+//
+// This is a row rather than a Postgres advisory lock on purpose: advisory locks
+// are session-scoped, and Prisma pools connections, so the unlock could land on
+// a different session than the one holding the lock and leave it stuck forever.
+// The INSERT ... ON CONFLICT below is atomic — exactly one caller can take it —
+// and a lock left behind by a crashed process ages out.
+const LOCK_KEY = "fuel_sync_lock";
+const LOCK_STALE_MS = 30 * 60 * 1000;
+
+async function acquireLock(): Promise<boolean> {
+  const now = new Date();
+  const staleBefore = new Date(now.getTime() - LOCK_STALE_MS).toISOString();
+
+  const rows = await prisma.$queryRaw<Array<{ key: string }>>`
+    INSERT INTO "AppSetting" ("key", "value", "updatedAt")
+    VALUES (${LOCK_KEY}, ${now.toISOString()}, now())
+    ON CONFLICT ("key") DO UPDATE
+      SET "value" = ${now.toISOString()}, "updatedAt" = now()
+      WHERE "AppSetting"."value" < ${staleBefore}
+    RETURNING "key"
+  `;
+
+  return rows.length > 0;
+}
+
+async function releaseLock(): Promise<void> {
+  await prisma.appSetting.deleteMany({ where: { key: LOCK_KEY } });
+}
+
+// Earliest date still needing a re-fetch after a partial run. Without this the
+// next run derives its start from MAX(transactionTime), which may already sit
+// past a gap — and the Azpetrol history window is only ~30 days, so a gap that
+// ages out cannot be backfilled at all.
+const WATERMARK_KEY = "fuel_sync_refetch_from";
+
+export class SyncBusyError extends Error {
+  constructor() {
+    super("A fuel sync is already running.");
+    this.name = "SyncBusyError";
+  }
+}
+
+async function readWatermark(): Promise<Date | null> {
+  const row = await prisma.appSetting.findUnique({ where: { key: WATERMARK_KEY } });
+
+  if (!row) return null;
+
+  const parsed = new Date(row.value);
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+async function writeWatermark(value: Date | null): Promise<void> {
+  if (value === null) {
+    await prisma.appSetting.deleteMany({ where: { key: WATERMARK_KEY } });
+    return;
+  }
+
+  const iso = value.toISOString();
+  await prisma.appSetting.upsert({
+    where: { key: WATERMARK_KEY },
+    create: { key: WATERMARK_KEY, value: iso },
+    update: { value: iso },
+  });
+}
+
 export async function syncFuelTransactions(): Promise<SyncResult> {
+  if (!(await acquireLock())) {
+    throw new SyncBusyError();
+  }
+
+  try {
+    return await runSync();
+  } finally {
+    await releaseLock();
+  }
+}
+
+async function runSync(): Promise<SyncResult> {
   const toDate = new Date();
 
   // Find latest transaction already in DB — go back 1 day to catch stragglers
   const agg = await prisma.fuelTransaction.aggregate({ _max: { transactionTime: true } });
-  const fromDate = agg._max.transactionTime
+  const latestSynced = agg._max.transactionTime
     ? subDays(agg._max.transactionTime, 1)
     : new Date("2026-01-01T00:00:00");
+
+  // A pending re-fetch always wins: it points at a known gap that the latest
+  // transaction time would otherwise skip straight over.
+  const watermark = await readWatermark();
+  const fromDate = watermark && watermark < latestSynced ? watermark : latestSynced;
 
   if (fromDate > toDate) {
     return { fetched: 0, inserted: 0, skipped: 0, relinked: 0, fromDate: format(fromDate, "yyyy-MM-dd"), toDate: format(toDate, "yyyy-MM-dd"), chunks: 0, partial: false, failedChunks: [] };
@@ -169,6 +254,18 @@ export async function syncFuelTransactions(): Promise<SyncResult> {
       await prisma.fuelTransaction.update({ where: { id: tx.id }, data: { carId } });
       relinked++;
     }
+  }
+
+  // Advance or hold the re-fetch point. If any chunk failed, the next run must
+  // start at the earliest failure rather than wherever MAX(transactionTime)
+  // happens to land, or that gap is never revisited.
+  if (failedChunks.length > 0) {
+    const earliest = failedChunks
+      .map((chunk) => new Date(`${chunk.start}T00:00:00.000Z`))
+      .reduce((a, b) => (a < b ? a : b));
+    await writeWatermark(earliest);
+  } else if (watermark) {
+    await writeWatermark(null);
   }
 
   return {
