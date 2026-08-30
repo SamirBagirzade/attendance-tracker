@@ -23,8 +23,18 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   const car = await prisma.car.findUnique({ where: { id: carId }, select: { licensePlate: true } });
   if (!car) return Response.json({ error: "Car not found." }, { status: 404 });
 
-  const fromUnix = Math.floor(new Date(from + "T00:00:00Z").getTime() / 1000);
-  const toUnix = Math.floor(new Date(to + "T23:59:59Z").getTime() / 1000);
+  // Wialon reports its interval in the account's own timezone, so a UTC-anchored
+  // window put every day boundary four hours out and pushed trips near midnight
+  // into the neighbouring day. Azerbaijan is a fixed UTC+4 with no DST.
+  const fromDate = new Date(from + "T00:00:00+04:00");
+  const toDate = new Date(to + "T23:59:59+04:00");
+
+  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+    return Response.json({ error: "from and to must be valid dates (YYYY-MM-DD)." }, { status: 400 });
+  }
+
+  const fromUnix = Math.floor(fromDate.getTime() / 1000);
+  const toUnix = Math.floor(toDate.getTime() / 1000);
 
   try {
     const report = await getFuelReport(car.licensePlate, fromUnix, toUnix);

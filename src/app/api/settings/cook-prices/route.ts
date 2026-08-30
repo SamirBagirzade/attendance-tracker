@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSessionUser } from "@/lib/permissions";
+import { getSessionUser, requireAdmin } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_PRICES, type Prices } from "@/lib/ai/catering";
 
@@ -19,9 +19,11 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// ADMIN-only: these tiers drive the catering totals in every report, so changing
+// them silently restates historical money figures.
 export async function PUT(request: NextRequest) {
-  const user = await getSessionUser(request);
-  if (!user) return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  const denied = await requireAdmin(request);
+  if (denied) return denied;
 
   let body: Partial<Prices>;
 

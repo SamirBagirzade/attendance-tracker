@@ -466,7 +466,9 @@ async function getEmployeeDetails(input: Record<string, unknown>) {
 async function getCarDetails(input: Record<string, unknown>) {
   const carId = Number(input.carId);
   const [car, customFields, documents] = await Promise.all([
-    prisma.car.findUnique({ where: { id: carId } }),
+    // fuelCardNumber omitted deliberately: no other read path hands the card
+    // number out, and chat is reachable by every non-VIEWER.
+    prisma.car.findUnique({ where: { id: carId }, omit: { fuelCardNumber: true } }),
     prisma.customField.findMany({ where: { carId }, orderBy: { createdAt: "asc" } }),
     prisma.document.findMany({
       where: { carId },
@@ -489,11 +491,17 @@ async function getFuelTransactions(input: Record<string, unknown>) {
   const carId = input.carId ? Number(input.carId) : undefined;
   const stationName = input.stationName ? String(input.stationName) : undefined;
 
+  // Anchored to UTC: transactionTime is stored UTC, and an unqualified
+  // "T00:00:00" would be read as server-local (UTC+4) and shift both edges.
+  const rangeStart = new Date(from + "T00:00:00.000Z");
+  const rangeEnd = new Date(to + "T23:59:59.999Z");
+
+  if (Number.isNaN(rangeStart.getTime()) || Number.isNaN(rangeEnd.getTime())) {
+    throw new Error("from and to must be valid dates (YYYY-MM-DD).");
+  }
+
   const where: Prisma.FuelTransactionWhereInput = {
-    transactionTime: {
-      gte: new Date(from + "T00:00:00"),
-      lte: new Date(to + "T23:59:59"),
-    },
+    transactionTime: { gte: rangeStart, lte: rangeEnd },
   };
   if (plate) where.plate = { contains: plate, mode: "insensitive" };
   if (carId) where.carId = carId;

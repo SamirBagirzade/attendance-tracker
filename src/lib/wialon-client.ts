@@ -1,7 +1,25 @@
-const API_URL = process.env.WIALON_API_URL!;
-const TOKEN = process.env.WIALON_TOKEN!;
-const RESOURCE_ID = Number(process.env.WIALON_RESOURCE_ID);
-const FUEL_TEMPLATE_ID = Number(process.env.WIALON_FUEL_TEMPLATE_ID);
+// Read lazily and check: non-null assertions at module load meant a missing var
+// produced fetch("undefined?...") and NaN resource ids, failing in a way that
+// pointed nowhere near the actual problem.
+function requireEnv(name: string): string {
+  const value = process.env[name];
+
+  if (!value) {
+    throw new Error(`${name} is not set — Wialon telemetry is not configured.`);
+  }
+
+  return value;
+}
+
+function requireEnvNumber(name: string): number {
+  const value = Number(requireEnv(name));
+
+  if (!Number.isFinite(value)) {
+    throw new Error(`${name} must be a number.`);
+  }
+
+  return value;
+}
 
 // Wialon Local reports a hard "no valid reading" sentinel instead of null/0 —
 // must not be treated as a real fuel/mileage value (would look like -348201L of fuel).
@@ -31,7 +49,7 @@ function isNaReading(value: unknown): boolean {
 async function call(svc: string, params: Record<string, unknown>, sid?: string): Promise<Record<string, unknown>> {
   const query = new URLSearchParams({ svc, params: JSON.stringify(params) });
   if (sid) query.set("sid", sid);
-  const res = await fetch(`${API_URL}?${query.toString()}`);
+  const res = await fetch(`${requireEnv("WIALON_API_URL")}?${query.toString()}`);
   if (!res.ok) throw new Error(`Wialon ${svc} HTTP ${res.status}`);
   const json = (await res.json()) as Record<string, unknown>;
   if (typeof json.error === "number" && json.error !== 0) {
@@ -115,7 +133,7 @@ async function fetchAllRows(sid: string, tableIndex: number, rowCount: number): 
 }
 
 export async function getFuelReport(plate: string, fromUnix: number, toUnix: number): Promise<FuelReportResult> {
-  const login = await call("token/login", { token: TOKEN, fl: 1 });
+  const login = await call("token/login", { token: requireEnv("WIALON_TOKEN"), fl: 1 });
   const sid = login.eid as string;
 
   try {
@@ -141,8 +159,8 @@ export async function getFuelReport(plate: string, fromUnix: number, toUnix: num
     const exec = await call(
       "report/exec_report",
       {
-        reportResourceId: RESOURCE_ID,
-        reportTemplateId: FUEL_TEMPLATE_ID,
+        reportResourceId: requireEnvNumber("WIALON_RESOURCE_ID"),
+        reportTemplateId: requireEnvNumber("WIALON_FUEL_TEMPLATE_ID"),
         reportObjectId: unit.id,
         reportObjectSecId: 0,
         interval: { from: fromUnix, to: toUnix, flags: 0 },
