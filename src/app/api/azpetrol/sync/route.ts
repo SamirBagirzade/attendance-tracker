@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/permissions";
-import { syncFuelTransactions, SyncBusyError } from "@/lib/azpetrol-sync";
+import { syncFuelTransactions } from "@/lib/azpetrol-sync";
+import { SyncBusyError } from "@/lib/sync-lock";
 
 export const runtime = "nodejs";
 

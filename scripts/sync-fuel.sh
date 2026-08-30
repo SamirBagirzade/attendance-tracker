@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
-# Hourly fuel sync — call from crontab:
+# Hourly background sync — fuel transactions (Azpetrol) and vehicle odometers
+# (Wialon telemetry). Call from crontab:
 # 0 * * * * /home/dietpi/attendance-tracker/scripts/sync-fuel.sh >> /home/dietpi/fuel-sync.log 2>&1
+#
+# The two endpoints are called separately and hold separate locks, so a failure
+# or a slow run in one cannot hold up or fail the other.
 
 set -euo pipefail
 
@@ -17,10 +21,17 @@ if [[ -z "$CRON_SECRET" ]]; then
   fi
 fi
 
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting fuel sync..."
+stamp() { date '+%Y-%m-%d %H:%M:%S'; }
 
-RESPONSE=$(curl -s -X POST "http://localhost:${PORT}/api/azpetrol/sync" \
-  -H "Content-Type: application/json" \
-  -H "x-cron-secret: ${CRON_SECRET}")
+post() {
+  # Never let one endpoint's failure abort the script; report and carry on.
+  curl -s --max-time 300 -X POST "http://localhost:${PORT}$1" \
+    -H "Content-Type: application/json" \
+    -H "x-cron-secret: ${CRON_SECRET}" || echo '{"error":"request failed"}'
+}
 
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] $RESPONSE"
+echo "[$(stamp)] Starting fuel sync..."
+echo "[$(stamp)] $(post /api/azpetrol/sync)"
+
+echo "[$(stamp)] Starting odometer sync..."
+echo "[$(stamp)] $(post /api/telemetry/odometer-sync)"

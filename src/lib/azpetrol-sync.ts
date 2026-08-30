@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { findTransactions } from "@/lib/azpetrol-client";
+import { withSyncLock } from "@/lib/sync-lock";
 import { format, addMonths, startOfMonth, endOfMonth, subDays } from "date-fns";
 
 export function normalizePlate(plate: string): string {
@@ -46,49 +47,11 @@ export type SyncResult = {
   sampleTx?: unknown;      // debug: first raw tx
 };
 
-// Sync lock. The startup sync, the cron POST and an admin clicking sync could
-// all run at once, racing the relink pass and each other's counters.
-//
-// This is a row rather than a Postgres advisory lock on purpose: advisory locks
-// are session-scoped, and Prisma pools connections, so the unlock could land on
-// a different session than the one holding the lock and leave it stuck forever.
-// The INSERT ... ON CONFLICT below is atomic — exactly one caller can take it —
-// and a lock left behind by a crashed process ages out.
-const LOCK_KEY = "fuel_sync_lock";
-const LOCK_STALE_MS = 30 * 60 * 1000;
-
-async function acquireLock(): Promise<boolean> {
-  const now = new Date();
-  const staleBefore = new Date(now.getTime() - LOCK_STALE_MS).toISOString();
-
-  const rows = await prisma.$queryRaw<Array<{ key: string }>>`
-    INSERT INTO "AppSetting" ("key", "value", "updatedAt")
-    VALUES (${LOCK_KEY}, ${now.toISOString()}, now())
-    ON CONFLICT ("key") DO UPDATE
-      SET "value" = ${now.toISOString()}, "updatedAt" = now()
-      WHERE "AppSetting"."value" < ${staleBefore}
-    RETURNING "key"
-  `;
-
-  return rows.length > 0;
-}
-
-async function releaseLock(): Promise<void> {
-  await prisma.appSetting.deleteMany({ where: { key: LOCK_KEY } });
-}
-
 // Earliest date still needing a re-fetch after a partial run. Without this the
 // next run derives its start from MAX(transactionTime), which may already sit
 // past a gap — and the Azpetrol history window is only ~30 days, so a gap that
 // ages out cannot be backfilled at all.
 const WATERMARK_KEY = "fuel_sync_refetch_from";
-
-export class SyncBusyError extends Error {
-  constructor() {
-    super("A fuel sync is already running.");
-    this.name = "SyncBusyError";
-  }
-}
 
 async function readWatermark(): Promise<Date | null> {
   const row = await prisma.appSetting.findUnique({ where: { key: WATERMARK_KEY } });
@@ -115,15 +78,7 @@ async function writeWatermark(value: Date | null): Promise<void> {
 }
 
 export async function syncFuelTransactions(): Promise<SyncResult> {
-  if (!(await acquireLock())) {
-    throw new SyncBusyError();
-  }
-
-  try {
-    return await runSync();
-  } finally {
-    await releaseLock();
-  }
+  return withSyncLock("fuel_sync_lock", "fuel sync", runSync);
 }
 
 async function runSync(): Promise<SyncResult> {

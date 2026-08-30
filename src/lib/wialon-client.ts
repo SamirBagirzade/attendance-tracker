@@ -201,4 +201,108 @@ export async function getFuelReport(plate: string, fromUnix: number, toUnix: num
   }
 }
 
+export type UnitOdometer = {
+  unitId: number;
+  unitName: string;
+  /** First whitespace-delimited token of the unit name — the plate, by convention here. */
+  plateToken: string;
+  km: number;
+};
+
+export type OdometerSkip = {
+  unitName: string;
+  reason: "no mileage sensor" | "no valid reading" | "sensor is not a distance";
+};
+
+// A sensor typed "mileage" is not enough on its own: one unit in this account
+// has a sensor of that type wired to io_66, the supply voltage, which would
+// otherwise be written in as ~12,836 km. Require the declared measurement unit
+// to be a kilometre unit too — the Wialon UI is localised, so accept both the
+// Latin and Cyrillic spellings.
+const KM_UNITS = new Set(["km", "км", "kм"]);
+
+function isKilometreSensor(sensor: { t?: unknown; m?: unknown }): boolean {
+  if (sensor.t !== "mileage") return false;
+
+  const unit = typeof sensor.m === "string" ? sensor.m.trim().toLowerCase() : "";
+
+  return KM_UNITS.has(unit);
+}
+
+/**
+ * Latest odometer reading per unit, for units that report one.
+ *
+ * Values come from unit/calc_last_message rather than the raw params on lmsg:
+ * a message only carries the parameters that changed, so the odometer is absent
+ * from most of them. Wialon resolves a sensor against the last *known* value,
+ * which is what its own UI shows, and doing the same here avoids reimplementing
+ * its formula evaluation.
+ */
+export async function getUnitOdometers(): Promise<{ readings: UnitOdometer[]; skipped: OdometerSkip[] }> {
+  const sid = ((await call("token/login", { token: requireEnv("WIALON_TOKEN"), fl: 1 })).eid) as string;
+
+  try {
+    const search = await call(
+      "core/search_items",
+      {
+        spec: { itemsType: "avl_unit", propName: "sys_name", propValueMask: "*", sortType: "sys_name", propType: "property", or_logic: 0 },
+        force: 1,
+        flags: 5121, // base info (0x1) + last position/message (0x400) + sensors (0x1000)
+        from: 0,
+        to: 0,
+      },
+      sid,
+    );
+
+    const units = (search.items ?? []) as Array<WialonUnit & { sens?: Record<string, { id?: number; n?: string; t?: string; m?: string }> }>;
+    const readings: UnitOdometer[] = [];
+    const skipped: OdometerSkip[] = [];
+
+    for (const unit of units) {
+      const sensors = Object.values(unit.sens ?? {});
+      const mileage = sensors.filter(isKilometreSensor);
+
+      if (mileage.length === 0) {
+        const mistyped = sensors.some((s) => s.t === "mileage");
+        skipped.push({
+          unitName: unit.nm,
+          reason: mistyped ? "sensor is not a distance" : "no mileage sensor",
+        });
+        continue;
+      }
+
+      const calculated = (await call("unit/calc_last_message", { unitId: unit.id, flags: 1 }, sid)) as Record<string, unknown>;
+
+      // Highest plausible reading wins if a unit somehow defines more than one.
+      let best: number | null = null;
+
+      for (const sensor of mileage) {
+        const value = calculated?.[String(sensor.id)];
+
+        if (typeof value !== "number" || isNaReading(value) || !Number.isFinite(value) || value <= 0) {
+          continue;
+        }
+
+        best = best === null ? value : Math.max(best, value);
+      }
+
+      if (best === null) {
+        skipped.push({ unitName: unit.nm, reason: "no valid reading" });
+        continue;
+      }
+
+      readings.push({
+        unitId: unit.id,
+        unitName: unit.nm,
+        plateToken: unit.nm.split(/\s+/)[0] ?? "",
+        km: Math.round(best),
+      });
+    }
+
+    return { readings, skipped };
+  } finally {
+    await call("core/logout", {}, sid).catch(() => {});
+  }
+}
+
 export { NA_VALUE };

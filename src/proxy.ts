@@ -1,7 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authCookieName, verifySessionToken } from "@/lib/auth";
 
-const publicPaths = ["/login", "/api/auth/login", "/api/azpetrol/sync", "/api/forms/daily-log"];
+// Listed here only because each of these authenticates itself: the two sync
+// endpoints accept a cron secret or fall back to requireAdmin, and the daily-log
+// webhook checks FORMS_WEBHOOK_SECRET. Without this the proxy answers 401 before
+// the handler's own check ever runs.
+const publicPaths = [
+  "/login",
+  "/api/auth/login",
+  "/api/azpetrol/sync",
+  "/api/telemetry/odometer-sync",
+  "/api/forms/daily-log",
+];
 
 function isPublicPath(pathname: string) {
   return (
