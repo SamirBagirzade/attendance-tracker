@@ -17,3 +17,20 @@ body {
   body { background: white; }
   .shadow-sm, .shadow-lg, .shadow-xl { box-shadow: none !important; }
 }
+
+/* Timesheet horizontal scrolling.
+   The scrollbar is presented above the table instead of below it, so it is
+   reachable without scrolling past a full month of rows first. The strip is the
+   visible control; the table's own scrollbar is hidden to avoid showing two for
+   the same axis. Both remain scrollable by wheel, trackpad and touch. */
+.timesheet-top-scroll {
+  scrollbar-width: thin;
+}
+
+.timesheet-table-scroll {
+  scrollbar-width: none; /* Firefox */
+}
+
+.timesheet-table-scroll::-webkit-scrollbar {
+  display: none; /* WebKit */
+}
