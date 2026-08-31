@@ -472,20 +472,20 @@ export default function TimesheetPage() {
           </div>
         ) : null}
 
-        <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
           {/* Horizontal scrollbar above the table: the native one sits at the
               bottom of a full month's rows, so reaching it meant scrolling to
               the end of the page first. */}
           <div
             aria-hidden="true"
-            className="timesheet-top-scroll overflow-x-auto overflow-y-hidden border-b border-slate-200 print:hidden"
+            className="timesheet-top-scroll sticky top-0 z-30 overflow-x-auto overflow-y-hidden rounded-t-lg border-b border-slate-200 bg-white print:hidden"
             onScroll={() => syncScroll("top")}
             ref={topScrollRef}
           >
             <div style={{ width: scrollWidth, height: 1 }} />
           </div>
           <div
-            className="timesheet-table-scroll overflow-x-auto"
+            className="timesheet-table-scroll overflow-x-auto rounded-b-lg"
             onScroll={() => syncScroll("table")}
             ref={scrollContainerRef}
           >
