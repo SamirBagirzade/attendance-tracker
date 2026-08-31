@@ -132,10 +132,10 @@ export default function TimesheetPage() {
   const canBypassEditLock = role === "ADMIN" || role === "SUPERVISOR";
   const editLockCutoffKey = format(subDays(new Date(), 5), "yyyy-MM-dd");
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const topScrollRef = useRef<HTMLDivElement>(null);
+  const stripScrollRef = useRef<HTMLDivElement>(null);
   const todayCellRef = useRef<HTMLTableCellElement>(null);
   const hasScrolledRef = useRef(false);
-  // Width of the table, so the strip above it scrolls through the same range.
+  // Width of the table, so the strip below it scrolls through the same range.
   const [scrollWidth, setScrollWidth] = useState(0);
   // Guards the two-way scroll sync against bouncing between the two elements.
   const syncingRef = useRef(false);
@@ -156,16 +156,16 @@ export default function TimesheetPage() {
     return () => observer.disconnect();
   }, [loading, month]);
 
-  function syncScroll(from: "top" | "table") {
+  function syncScroll(from: "strip" | "table") {
     if (syncingRef.current) return;
 
     const container = scrollContainerRef.current;
-    const strip = topScrollRef.current;
+    const strip = stripScrollRef.current;
     if (!container || !strip) return;
 
     syncingRef.current = true;
 
-    if (from === "top") {
+    if (from === "strip") {
       container.scrollLeft = strip.scrollLeft;
     } else {
       strip.scrollLeft = container.scrollLeft;
@@ -187,7 +187,7 @@ export default function TimesheetPage() {
       const cellRect = cell.getBoundingClientRect();
       const stickyWidth = 224; // min-w-56 sticky employee column
       container.scrollLeft += cellRect.left - containerRect.left - stickyWidth;
-      if (topScrollRef.current) topScrollRef.current.scrollLeft = container.scrollLeft;
+      if (stripScrollRef.current) stripScrollRef.current.scrollLeft = container.scrollLeft;
     }
   }, [loading]);
 
@@ -473,19 +473,8 @@ export default function TimesheetPage() {
         ) : null}
 
         <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
-          {/* Horizontal scrollbar above the table: the native one sits at the
-              bottom of a full month's rows, so reaching it meant scrolling to
-              the end of the page first. */}
           <div
-            aria-hidden="true"
-            className="timesheet-top-scroll sticky top-0 z-30 overflow-x-auto overflow-y-hidden rounded-t-lg border-b border-slate-200 bg-white print:hidden"
-            onScroll={() => syncScroll("top")}
-            ref={topScrollRef}
-          >
-            <div style={{ width: scrollWidth, height: 1 }} />
-          </div>
-          <div
-            className="timesheet-table-scroll overflow-x-auto rounded-b-lg"
+            className="timesheet-table-scroll overflow-x-auto rounded-t-lg"
             onScroll={() => syncScroll("table")}
             ref={scrollContainerRef}
           >
@@ -712,6 +701,17 @@ export default function TimesheetPage() {
                 )}
               </tbody>
             </table>
+          </div>
+          {/* Horizontal scrollbar pinned to the bottom of the viewport: the
+              native one sits below a full month's rows, so reaching it meant
+              scrolling to the end of the page first. */}
+          <div
+            aria-hidden="true"
+            className="timesheet-bottom-scroll sticky bottom-0 z-30 overflow-x-auto overflow-y-hidden rounded-b-lg border-t border-slate-200 bg-white print:hidden"
+            onScroll={() => syncScroll("strip")}
+            ref={stripScrollRef}
+          >
+            <div style={{ width: scrollWidth, height: 1 }} />
           </div>
         </section>
       </div>
